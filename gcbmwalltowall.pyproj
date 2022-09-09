@@ -27,7 +27,19 @@
     <Folder Include="gcbmwalltowall\component\" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="gcbmwalltowall\component\boundingbox.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="gcbmwalltowall\component\classifier.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="gcbmwalltowall\component\inputdatabase.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="gcbmwalltowall\component\layer.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="gcbmwalltowall\component\tileable.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="gcbmwalltowall\component\__init__.py">
