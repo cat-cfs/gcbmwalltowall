@@ -4,8 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>2e9a1c0f-62af-48f5-95a6-2f3381cb4621</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>
-    </StartupFile>
+    <StartupFile>gcbmwalltowall\application\walltowall.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -24,9 +23,28 @@
   <ItemGroup>
     <Folder Include="files\" />
     <Folder Include="gcbmwalltowall\" />
+    <Folder Include="gcbmwalltowall\application\" />
+    <Folder Include="gcbmwalltowall\builder\" />
     <Folder Include="gcbmwalltowall\component\" />
+    <Folder Include="gcbmwalltowall\configuration\" />
+    <Folder Include="gcbmwalltowall\validation\" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="gcbmwalltowall\application\walltowall.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="gcbmwalltowall\application\__init__.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="gcbmwalltowall\builder\casfriprojectbuilder.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="gcbmwalltowall\builder\projectbuilder.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="gcbmwalltowall\builder\__init__.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="gcbmwalltowall\component\boundingbox.py">
       <SubType>Code</SubType>
     </Compile>
@@ -39,18 +57,40 @@
     <Compile Include="gcbmwalltowall\component\layer.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="gcbmwalltowall\component\rollback.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="gcbmwalltowall\component\tileable.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="gcbmwalltowall\component\__init__.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="gcbmwalltowall\project.py">
+    <Compile Include="gcbmwalltowall\component\project.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="gcbmwalltowall\configuration\configuration.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="gcbmwalltowall\configuration\__init__.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="gcbmwalltowall\validation\generic.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="gcbmwalltowall\validation\string.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="gcbmwalltowall\validation\__init__.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="gcbmwalltowall\__init__.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="setup.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="build_wheel.bat" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

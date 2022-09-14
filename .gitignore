@@ -128,3 +128,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 /.vs/gcbmwalltowall/v16/*.suo
+/docs/~$bmwalltowall_manual.docx
+/docs/~$config_parsing_and_defaults.xlsx
