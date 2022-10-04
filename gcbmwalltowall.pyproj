@@ -11,6 +11,9 @@
     <OutputPath>.</OutputPath>
     <Name>gcbmwalltowall</Name>
     <RootNamespace>gcbmwalltowall</RootNamespace>
+    <LaunchProvider>Standard Python launcher</LaunchProvider>
+    <CommandLineArguments>prepare C:\Projects\walltowall_Standalone_Template\walltowall_config.json</CommandLineArguments>
+    <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -51,12 +54,16 @@
     <Compile Include="gcbmwalltowall\component\classifier.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="gcbmwalltowall\component\disturbance.py" />
     <Compile Include="gcbmwalltowall\component\inputdatabase.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="gcbmwalltowall\component\layer.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="gcbmwalltowall\component\attributetable.py" />
+    <Compile Include="gcbmwalltowall\component\vectorattributetable.py" />
+    <Compile Include="gcbmwalltowall\component\rasterattributetable.py" />
     <Compile Include="gcbmwalltowall\component\rollback.py">
       <SubType>Code</SubType>
     </Compile>

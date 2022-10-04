@@ -4,8 +4,16 @@ from argparse import ArgumentParser
 from gcbmwalltowall.configuration.configuration import Configuration
 from gcbmwalltowall.component.project import Project
 
-if __name__ == "__main__":
-    cli()
+def build(args):
+    print(args)
+
+def prepare(args):
+    config = Configuration.load(args.config_path)
+    project = Project.from_configuration(config)
+    project.tile()
+
+def run(args):
+    print(args)
 
 def cli():
     logging.basicConfig(stream=sys.stdout, level=logging.INFO, format="%(message)s")
@@ -46,13 +54,5 @@ def cli():
     args = parser.parse_args()
     args.func(args)
 
-def build(args):
-    print(args)
-
-def prepare(args):
-    config = Configuration.load(args.config_path)
-    project = Project.from_configuration(config)
-    project.tile()
-
-def run(args):
-    print(args)
+if __name__ == "__main__":
+    cli()

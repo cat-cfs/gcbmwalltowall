@@ -1,12 +1,13 @@
+from mojadata.cleanup import cleanup
+from mojadata.gdaltiler2d import GdalTiler2D
+from mojadata.layer.gcbm.transitionrulemanager import SharedTransitionRuleManager
 import shutil
 import os
 from pathlib import Path
 from itertools import chain
-from mojadata.cleanup import cleanup
-from mojadata.gdaltiler2d import GdalTiler2D
-from mojadata.layer.gcbm.transitionrulemanager import SharedTransitionRuleManager
 from gcbmwalltowall.component.boundingbox import BoundingBox
 from gcbmwalltowall.component.classifier import Classifier
+from gcbmwalltowall.component.disturbance import Disturbance
 from gcbmwalltowall.component.inputdatabase import InputDatabase
 from gcbmwalltowall.component.rollback import Rollback
 from gcbmwalltowall.component.layer import Layer
@@ -15,13 +16,15 @@ from gcbmwalltowall.validation.generic import require_instance_of
 
 class Project:
 
-    def __init__(self, name, bounding_box, classifiers, layers, input_db, output_path, rollback=None):
+    def __init__(self, name, bounding_box, classifiers, layers, input_db, output_path,
+                 disturbances=None, rollback=None):
         self.name = require_not_null(name)
         self.bounding_box = require_instance_of(bounding_box, BoundingBox)
         self.classifiers = require_instance_of(classifiers, list)
         self.layers = require_instance_of(layers, list)
         self.input_db = require_instance_of(input_db, InputDatabase)
         self.output_path = Path(require_not_null(output_path)).resolve()
+        self.disturbances = disturbances
         self.rollback = rollback
 
     def tile(self):
@@ -33,11 +36,19 @@ class Project:
         mgr.start()
         rule_manager = mgr.TransitionRuleManager()
         with cleanup():
-            tiler_bbox = self.bounding_box.to_tiler_layer(mgr)
+            tiler_bbox = self.bounding_box.to_tiler_layer(rule_manager)
             tiler_layers = [
-                project_layer.to_tiler_layer(mgr)
+                project_layer.to_tiler_layer(rule_manager)
                 for project_layer in chain(self.layers, self.classifiers)
             ]
+
+            if self.disturbances:
+                for disturbance in self.disturbances:
+                    disturbance_layer = disturbance.to_tiler_layer(rule_manager)
+                    if isinstance(disturbance_layer, list):
+                        tiler_layers.extend(disturbance_layer)
+                    else:
+                        tiler_layers.append(disturbance_layer)
 
             tiler = GdalTiler2D(tiler_bbox, use_bounding_box_resolution=True)
             tiler.tile(tiler_layers, str(tiler_output_path))
@@ -106,5 +117,13 @@ class Project:
                     layer_details.get("attribute"),
                     config.resolve(layer_lookup_table) if layer_lookup_table else None))
 
+        disturbances = [
+            Disturbance(
+                config.resolve(pattern), input_db, dist_config.get("year"),
+                dist_config.get("disturbance_type"), dist_config.get("age_after"),
+                dist_config.get("regen_delay"))
+            for pattern, dist_config in config.get("disturbances", {}).items()
+        ]
+
         return Project(project_name, bounding_box, classifiers, layers, input_db,
-                       str(config.working_path.resolve()))
+                       str(config.working_path.resolve()), disturbances)
