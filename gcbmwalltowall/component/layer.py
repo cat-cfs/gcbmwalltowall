@@ -21,7 +21,11 @@ class Layer(Tileable):
 
     @property
     def attribute_table(self):
-        return self._load_lookup_table().get_unique_values()
+        attribute_table = self._load_lookup_table()
+        if attribute_table is None:
+            return {}
+        
+        return attribute_table.get_unique_values()
 
     @property
     def is_vector(self):
@@ -32,21 +36,29 @@ class Layer(Tileable):
         return self.path.suffix in Layer.raster_formats
 
     def to_tiler_layer(self, rule_manager, **kwargs):
+        lookup_table = self._load_lookup_table()
         if self.is_raster:
-            lookup_table = self._load_lookup_table()
             return RasterLayer(
                 str(self.path.resolve()),
                 name=self.name,
                 **lookup_table.to_tiler_args(self.attributes) if lookup_table else {},
                 **kwargs)
         
-        attributes = self.attributes or [self.name]
-        lookup_table = self._load_lookup_table()
+        attributes = self.attributes or [
+            self.name if self.name in lookup_table.attributes
+            else lookup_table.attributes[0]
+        ]
+
+        # If it's the only selected attribute in a vector layer, and all the unique
+        # values are numeric, then use raw mode (no attribute table in tiled output)
+        # unless explicitly configured otherwise.
+        if len(attributes) == 1 and lookup_table.is_numeric(next(iter(attributes))):
+            kwargs["raw"] = kwargs.get("raw", True)
 
         return VectorLayer(
             self.name,
             str(self.path.resolve()),
-            **lookup_table.to_tiler_args(self.attributes),
+            **lookup_table.to_tiler_args(attributes),
             **kwargs)
 
     def _find_lookup_table(self):

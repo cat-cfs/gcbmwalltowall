@@ -20,7 +20,7 @@ class Disturbance(Tileable):
     def to_tiler_layer(self, rule_manager, **kwargs):
         disturbance_layers = []
         for layer_path in self.pattern.resolve().parent.glob(self.pattern.name):
-            layer = Layer(layer_path.name, layer_path)
+            layer = Layer(layer_path.stem, layer_path)
             attribute_table = layer.attribute_table
 
             transition_rule = None
@@ -32,9 +32,28 @@ class Disturbance(Tileable):
                     Attribute(regen_delay) if regen_delay in attribute_table else regen_delay)
 
             disturbance_type = self._get_disturbance_type_or_attribute(layer_path, attribute_table)
-
             year = self._get_disturbance_year_or_attribute(layer_path, attribute_table)
-            if layer.is_vector and year in attribute_table:
+
+            if layer.is_raster:
+                disturbance_layers.append(DisturbanceLayer(
+                    rule_manager,
+                    layer.to_tiler_layer(rule_manager),
+                    Attribute(year) if year in attribute_table else year,
+                    Attribute(disturbance_type) if disturbance_type in attribute_table else disturbance_type,
+                    transition_rule))
+            elif year not in attribute_table:
+                attributes = [
+                    attr for attr in (disturbance_type, age_after, regen_delay)
+                    if attr in attribute_table
+                ]
+
+                disturbance_layers.append(DisturbanceLayer(
+                    rule_manager,
+                    Layer(layer_path.stem, layer_path, attributes).to_tiler_layer(rule_manager, raw=False),
+                    year,
+                    Attribute(disturbance_type) if disturbance_type in attributes else disturbance_type,
+                    transition_rule))
+            else:
                 # Vector disturbance layers must be split on at least year and
                 # possibly disturbance type to avoid overlaps in rasterization.
                 for disturbance_year in attribute_table[year]:
@@ -47,8 +66,8 @@ class Disturbance(Tileable):
                     year_layer = Layer(f"{layer_path.stem}_{disturbance_year}", str(layer_path), attributes)
                     disturbance_layers.append(DisturbanceLayer(
                         rule_manager,
-                        year_layer.to_tiler_layer(rule_manager),
-                        Attribute(year) if year in attribute_table else year,
+                        year_layer.to_tiler_layer(rule_manager, raw=False),
+                        Attribute(year),
                         Attribute(disturbance_type) if disturbance_type in attribute_table else disturbance_type,
                         transition_rule))
 
