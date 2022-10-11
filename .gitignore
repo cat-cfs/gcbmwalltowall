@@ -130,3 +130,5 @@ dmypy.json
 /.vs/gcbmwalltowall/v16/*.suo
 /docs/~$bmwalltowall_manual.docx
 /docs/~$config_parsing_and_defaults.xlsx
+/.vs/gcbmwalltowall/v17/*.suo
+/.vs/gcbmwalltowall/project-colors.json

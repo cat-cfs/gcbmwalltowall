@@ -1,10 +1,10 @@
+import shutil
+from pathlib import Path
+from itertools import chain
+from mojadata.util import gdal
 from mojadata.cleanup import cleanup
 from mojadata.gdaltiler2d import GdalTiler2D
 from mojadata.layer.gcbm.transitionrulemanager import SharedTransitionRuleManager
-import shutil
-import os
-from pathlib import Path
-from itertools import chain
 from gcbmwalltowall.component.boundingbox import BoundingBox
 from gcbmwalltowall.component.classifier import Classifier
 from gcbmwalltowall.component.disturbance import Disturbance
@@ -38,17 +38,22 @@ class Project:
         with cleanup():
             tiler_bbox = self.bounding_box.to_tiler_layer(rule_manager)
             tiler_layers = [
-                project_layer.to_tiler_layer(rule_manager)
-                for project_layer in chain(self.layers, self.classifiers)
+                layer.to_tiler_layer(
+                    rule_manager,
+                    # For spatial rollback compatibility:
+                    data_type=gdal.GDT_Int16
+                        if getattr(layer, "name", "") == "initial_age"
+                        else None)
+                for layer in chain(self.layers, self.classifiers)
             ]
 
             if self.disturbances:
                 for disturbance in self.disturbances:
-                    disturbance_layer = disturbance.to_tiler_layer(rule_manager)
-                    if isinstance(disturbance_layer, list):
-                        tiler_layers.extend(disturbance_layer)
+                    layer = disturbance.to_tiler_layer(rule_manager)
+                    if isinstance(layer, list):
+                        tiler_layers.extend(layer)
                     else:
-                        tiler_layers.append(disturbance_layer)
+                        tiler_layers.append(layer)
 
             tiler = GdalTiler2D(tiler_bbox, use_bounding_box_resolution=True)
             tiler.tile(tiler_layers, str(tiler_output_path))
