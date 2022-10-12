@@ -59,8 +59,10 @@ class Project:
             tiler.tile(tiler_layers, str(tiler_output_path))
             rule_manager.write_rules(str(tiler_output_path.joinpath("transition_rules.csv")))
 
-    def create_input_database(self):
-        raise NotImplementedError()
+    def create_input_database(self, recliner2gcbm_exe):
+        output_path = self.output_path.joinpath("input_database")
+        output_path.mkdir(parents=True, exist_ok=True)
+        self.input_db.create(recliner2gcbm_exe, self.classifiers, output_path)
 
     @classmethod
     def from_configuration(cls, config):
@@ -106,7 +108,7 @@ class Project:
             
             classifiers.append(Classifier(
                 layer,
-                classifier_details.get("values_path"),
+                config.resolve(classifier_details.get("values_path", config["yield_table"])),
                 classifier_details.get("values_col"),
                 classifier_details.get("yield_col")))
 
@@ -130,5 +132,5 @@ class Project:
             for pattern, dist_config in config.get("disturbances", {}).items()
         ]
 
-        return Project(project_name, bounding_box, classifiers, layers, input_db,
-                       str(config.working_path.resolve()), disturbances)
+        return cls(project_name, bounding_box, classifiers, layers, input_db,
+                   str(config.working_path.resolve()), disturbances)

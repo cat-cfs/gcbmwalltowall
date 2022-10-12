@@ -15,7 +15,9 @@ setup(
     ],
     extras_require={},
     package_data={},
-    data_files=[],
+    data_files=[
+        ("Tools/gcbmwalltowall", ["files/settings.json"]),
+    ],
     entry_points={
         "console_scripts": [
             "walltowall = gcbmwalltowall.application.walltowall:cli",

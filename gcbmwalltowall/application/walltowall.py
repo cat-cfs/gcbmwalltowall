@@ -11,6 +11,7 @@ def prepare(args):
     config = Configuration.load(args.config_path)
     project = Project.from_configuration(config)
     project.tile()
+    project.create_input_database(config.recliner2gcbm_exe)
 
 def run(args):
     print(args)
