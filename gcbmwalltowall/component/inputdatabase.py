@@ -97,7 +97,9 @@ class InputDatabase:
             return dist_types
 
     def _find_increment_cols(self):
-        # Look for a run of at least 5 columns where the values are all numeric.
+        # Look for a run of at least 5 columns where the values are all numeric,
+        # the first column's values are all zero, and the values in the final
+        # column decline by no more than 50%.
         yield_table = pd.read_csv(self.yield_path)
         yield_columns = yield_table.columns
         numeric_col_run = 0
@@ -107,10 +109,18 @@ class InputDatabase:
             is_numeric = self._only_numeric(yield_table[col].unique())
             if is_numeric:
                 if numeric_col_run == 0:
-                    increment_start_col = yield_columns.get_loc(col)
+                    if yield_table[col].sum() == 0:
+                        increment_start_col = yield_columns.get_loc(col)
+                        numeric_col_run += 1
+                else:
+                    if numeric_col_run >= 5:
+                        last_total_increment = yield_table.iloc[:, increment_end_col].sum()
+                        this_total_increment = yield_table[col].sum()
+                        if this_total_increment < last_total_increment * 0.5:
+                            break
 
-                numeric_col_run += 1
-                increment_end_col = yield_columns.get_loc(col)
+                    increment_end_col = yield_columns.get_loc(col)
+                    numeric_col_run += 1
             else:
                 if numeric_col_run >= 5:
                     return (increment_start_col, increment_end_col)
