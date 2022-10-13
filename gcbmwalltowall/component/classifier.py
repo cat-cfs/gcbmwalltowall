@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 from collections import OrderedDict
 from numbers import Number
@@ -21,7 +22,7 @@ class Classifier(Tileable):
         values_col_idx = self._find_values_col_index()
         unique_values = set(
             pd.read_csv(self.values_path)
-              .iloc[values_col_idx]
+              .iloc[:, values_col_idx]
               .unique())
         
         return unique_values
@@ -31,7 +32,7 @@ class Classifier(Tileable):
 
     def to_recliner(self, output_path=None):
         values_path = (
-            self.values_path.relative_to(output_path)
+            os.path.relpath(str(self.values_path), str(output_path))
             if output_path else self.values_path)
 
         return {
@@ -53,6 +54,9 @@ class Classifier(Tileable):
         if len(classifier_data.columns) == 1:
             return 0
 
+        if self.name in classifier_data:
+            return classifier_data.columns.get_loc(self.name)
+
         # No configured column or easy defaults - try to detect based on values.
         spatial_data = self.layer.attribute_table
         spatial_attribute = (
@@ -60,6 +64,9 @@ class Classifier(Tileable):
             else self.layer.attributes[0] if self.layer.attributes
             else self.name if self.name in spatial_data
             else next(iter(spatial_data.keys())))
+
+        if spatial_attribute in classifier_data:
+            return classifier_data.columns.get_loc(spatial_attribute)
 
         spatial_classifier_values = {str(v) for v in spatial_data[spatial_attribute]}
         for col in classifier_data.columns:

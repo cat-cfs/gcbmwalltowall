@@ -12,7 +12,7 @@
     <Name>gcbmwalltowall</Name>
     <RootNamespace>gcbmwalltowall</RootNamespace>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>prepare C:\Projects\walltowall_Standalone_Template\walltowall_config.json</CommandLineArguments>
+    <CommandLineArguments>prepare C:\Projects\39_wall_to_wall\05_working\01_casfri_yt\walltowall_config.json</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -98,6 +98,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="build_wheel.bat" />
+    <Content Include="files\settings.json" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

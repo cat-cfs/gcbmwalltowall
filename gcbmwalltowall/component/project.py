@@ -115,7 +115,7 @@ class Project:
         layers = []
         for layer_name, layer_details in config.get("layers", {}).items():
             if isinstance(layer_details, str):
-                layers.append(Layer(layer_name, layer_details))
+                layers.append(Layer(layer_name, config.resolve(layer_details)))
             else:
                 layer_lookup_table = layer_details.get("lookup_table")
                 layers.append(Layer(

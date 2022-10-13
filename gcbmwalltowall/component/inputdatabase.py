@@ -1,4 +1,5 @@
 import json
+import os
 import pandas as pd
 from urllib.parse import quote_plus
 from contextlib import contextmanager
@@ -38,12 +39,12 @@ class InputDatabase:
                     "path": "gcbm_input.db"
                 }
             },
-            "AIDBPath": str(self.aidb_path.relative_to(output_path)),
+            "AIDBPath": os.path.relpath(str(self.aidb_path), str(output_path)),
             "ClassifierSet": [
                 classifier.to_recliner(output_path) for classifier in classifiers
             ],
             "GrowthCurves": {
-                "Path": str(self.yield_path.relative_to(output_path)),
+                "Path": os.path.relpath(str(self.yield_path), str(output_path)),
                 "Page": 0,
                 "Header": True,
                 "SpeciesCol": self._find_species_col(),
