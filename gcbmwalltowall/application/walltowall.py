@@ -9,7 +9,7 @@ def build(args):
     ProjectBuilder.build_from_file(args.config_path, args.output_path)
 
 def prepare(args):
-    config = Configuration.load(args.config_path)
+    config = Configuration.load(args.config_path, args.output_path)
     project = Project.from_configuration(config)
     project.tile()
     project.create_input_database(config.recliner2gcbm_exe)
@@ -34,8 +34,8 @@ def cli():
         "config_path",
         help="path to config file containing shortcut 'builder' section")
     build_parser.add_argument(
-        "--output_path",
-        help="path to output config file to generate, otherwise overwrite existing")
+        "output_path", nargs="?",
+        help="destination directory for build output")
 
     prepare_parser = subparsers.add_parser(
         "prepare",
@@ -46,6 +46,9 @@ def cli():
     prepare_parser.add_argument(
         "config_path",
         help="path to config file containing fully-specified project configuration")
+    prepare_parser.add_argument(
+        "output_path", nargs="?",
+        help="destination directory for project files")
 
     run_parser = subparsers.add_parser(
         "run", help="Run the specified project either locally or on the cluster.")

@@ -39,8 +39,8 @@ class Configuration(dict):
         # then check if there's one in the config file dir, and finally check
         # if there's a lookup table with the original layer.
         for lookup_table in (
-            self.working_path.absolute().joinpath(layer_path.with_suffix(".csv").name),
-            self.config_path.absolute().parent.joinpath(layer_path.with_suffix(".csv").name),
+            self.working_path.joinpath(layer_path.with_suffix(".csv").name),
+            self.config_path.joinpath(layer_path.with_suffix(".csv").name),
             layer_path.with_suffix(".csv")
         ):
             if lookup_table.exists():

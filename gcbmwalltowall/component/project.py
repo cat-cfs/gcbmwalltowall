@@ -142,9 +142,9 @@ class Project:
             Disturbance(
                 config.resolve(pattern), input_db, dist_config.get("year"),
                 dist_config.get("disturbance_type"), dist_config.get("age_after"),
-                dist_config.get("regen_delay"), config.working_path.absolute())
+                dist_config.get("regen_delay"), config.config_path)
             for pattern, dist_config in config.get("disturbances", {}).items()
         ]
 
         return cls(project_name, bounding_box, classifiers, layers, input_db,
-                   str(config.working_path.absolute()), disturbances)
+                   str(config.working_path), disturbances)
