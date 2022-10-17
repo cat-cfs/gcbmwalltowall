@@ -6,7 +6,7 @@ class RasterAttributeTable(AttributeTable):
 
     def __init__(self, path):
         self._cached_data = None
-        self.path = Path(path).resolve()
+        self.path = Path(path).absolute()
         if not self.path.exists():
             raise ValueError(f"{path} not found")
 

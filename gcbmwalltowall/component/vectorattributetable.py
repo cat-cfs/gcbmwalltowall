@@ -12,8 +12,8 @@ class VectorAttributeTable(AttributeTable):
 
     def __init__(self, layer_path, lookup_path=None):
         self._cached_data = None
-        self.layer_path = Path(layer_path).resolve()
-        self.lookup_path = Path(lookup_path).resolve() if lookup_path else None
+        self.layer_path = Path(layer_path).absolute()
+        self.lookup_path = Path(lookup_path).absolute() if lookup_path else None
         if not self.layer_path.exists():
             raise ValueError(f"{layer_path} not found")
 

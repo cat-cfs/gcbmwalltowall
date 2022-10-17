@@ -9,18 +9,20 @@ from gcbmwalltowall.component.tileable import Tileable
 
 class Disturbance(Tileable):
 
-    def __init__(self, pattern, input_db, year=None, disturbance_type=None, age_after=None, regen_delay=None):
+    def __init__(self, pattern, input_db, year=None, disturbance_type=None,
+                 age_after=None, regen_delay=None, lookup_table_dir=None):
         self.pattern = Path(pattern)
         self.input_db = input_db
         self.year = year
         self.disturbance_type = disturbance_type
         self.age_after = age_after
         self.regen_delay = regen_delay
+        self.lookup_table_dir = Path(lookup_table_dir) if lookup_table_dir else None
 
     def to_tiler_layer(self, rule_manager, **kwargs):
         disturbance_layers = []
-        for layer_path in self.pattern.resolve().parent.glob(self.pattern.name):
-            layer = Layer(layer_path.stem, layer_path)
+        for layer_path in self.pattern.absolute().parent.glob(self.pattern.name):
+            layer = Layer(layer_path.stem, layer_path, lookup_table=self.lookup_table_dir)
             attribute_table = layer.attribute_table
 
             transition_rule = None
@@ -49,7 +51,10 @@ class Disturbance(Tileable):
 
                 disturbance_layers.append(DisturbanceLayer(
                     rule_manager,
-                    Layer(layer_path.stem, layer_path, attributes).to_tiler_layer(rule_manager, raw=False),
+                    Layer(
+                        layer_path.stem, layer_path, attributes,
+                        lookup_table=self.lookup_table_dir
+                    ).to_tiler_layer(rule_manager, raw=False),
                     year,
                     Attribute(disturbance_type) if disturbance_type in attributes else disturbance_type,
                     transition_rule))
@@ -63,7 +68,10 @@ class Disturbance(Tileable):
                     }
 
                     attributes[year] = disturbance_year
-                    year_layer = Layer(f"{layer_path.stem}_{disturbance_year}", str(layer_path), attributes)
+                    year_layer = Layer(
+                        f"{layer_path.stem}_{disturbance_year}",
+                        str(layer_path), attributes, self.lookup_table_dir)
+
                     disturbance_layers.append(DisturbanceLayer(
                         rule_manager,
                         year_layer.to_tiler_layer(rule_manager, raw=False),

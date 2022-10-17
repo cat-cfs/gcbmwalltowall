@@ -23,7 +23,7 @@ class Project:
         self.classifiers = require_instance_of(classifiers, list)
         self.layers = require_instance_of(layers, list)
         self.input_db = require_instance_of(input_db, InputDatabase)
-        self.output_path = Path(require_not_null(output_path)).resolve()
+        self.output_path = Path(require_not_null(output_path)).absolute()
         self.disturbances = disturbances
         self.rollback = rollback
 
@@ -79,13 +79,18 @@ class Project:
             or next(iter(config.get("layers", {}).values())))
 
         if isinstance(bounding_box_config, str):
-            bounding_box_layer = Layer("bounding_box", config.resolve(bounding_box_config))
-        else:
-            bounding_box_lookup_table = bounding_box_config.get("lookup_table")
+            bbox_path = config.resolve(bounding_box_config)
             bounding_box_layer = Layer(
-                "bounding_box",
-                config.resolve(require_not_null(bounding_box_config.get("layer"))),
-                bounding_box_config.get("attribute"),
+                "bounding_box", bbox_path,
+                lookup_table=config.find_lookup_table(bbox_path))
+        else:
+            bbox_path = config.resolve(require_not_null(bounding_box_config.get("layer")))
+            bounding_box_lookup_table = (
+                bounding_box_config.get("lookup_table")
+                or config.find_lookup_table(bbox_path))
+
+            bounding_box_layer = Layer(
+                "bounding_box", bbox_path, bounding_box_config.get("attribute"),
                 config.resolve(bounding_box_lookup_table) if bounding_box_lookup_table else None)
 
         resolution = config.get("resolution")
@@ -99,11 +104,13 @@ class Project:
         classifiers = []
         classifier_config = require_instance_of(config.get("classifiers"), dict)
         for classifier_name, classifier_details in classifier_config.items():
-            layer_lookup_table = classifier_details.get("lookup_table")
+            layer_path = config.resolve(require_not_null(classifier_details.get("layer")))
+            layer_lookup_table = (
+                classifier_details.get("lookup_table")
+                or config.find_lookup_table(layer_path))
+
             layer = Layer(
-                classifier_name,
-                config.resolve(require_not_null(classifier_details.get("layer"))),
-                classifier_details.get("attribute"),
+                classifier_name, layer_path, classifier_details.get("attribute"),
                 config.resolve(layer_lookup_table) if layer_lookup_table else None)
             
             classifiers.append(Classifier(
@@ -115,12 +122,19 @@ class Project:
         layers = []
         for layer_name, layer_details in config.get("layers", {}).items():
             if isinstance(layer_details, str):
-                layers.append(Layer(layer_name, config.resolve(layer_details)))
+                layer_path = config.resolve(layer_details)
+                layers.append(Layer(
+                    layer_name, layer_path,
+                    lookup_table=config.find_lookup_table(layer_path)))
             else:
-                layer_lookup_table = layer_details.get("lookup_table")
+                layer_path = config.resolve(require_not_null(layer_details.get("layer")))
+                layer_lookup_table = (
+                    layer_details.get("lookup_table")
+                    or config.find_lookup_table(layer_path))
+
                 layers.append(Layer(
                     layer_name,
-                    config.resolve(require_not_null(layer_details.get("layer"))),
+                    layer_path,
                     layer_details.get("attribute"),
                     config.resolve(layer_lookup_table) if layer_lookup_table else None))
 
@@ -128,9 +142,9 @@ class Project:
             Disturbance(
                 config.resolve(pattern), input_db, dist_config.get("year"),
                 dist_config.get("disturbance_type"), dist_config.get("age_after"),
-                dist_config.get("regen_delay"))
+                dist_config.get("regen_delay"), config.working_path.absolute())
             for pattern, dist_config in config.get("disturbances", {}).items()
         ]
 
         return cls(project_name, bounding_box, classifiers, layers, input_db,
-                   str(config.working_path.resolve()), disturbances)
+                   str(config.working_path.absolute()), disturbances)

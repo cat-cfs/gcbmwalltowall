@@ -1,12 +1,11 @@
 import json
-import os
 import pandas as pd
+from os.path import relpath
 from urllib.parse import quote_plus
 from contextlib import contextmanager
 from numbers import Number
 from subprocess import run
 from sqlalchemy import create_engine
-from sqlalchemy import select
 from sqlalchemy import table
 from sqlalchemy import column
 from pathlib import Path
@@ -14,16 +13,17 @@ from pathlib import Path
 class InputDatabase:
 
     def __init__(self, aidb_path, yield_path, yield_interval):
-        self.aidb_path = Path(aidb_path).resolve()
-        self.yield_path = Path(yield_path).resolve()
+        self.aidb_path = Path(aidb_path).absolute()
+        self.yield_path = Path(yield_path).absolute()
         self.yield_interval = yield_interval
 
     def create(self, recliner2gcbm_exe, classifiers, output_path):
-        output_path = Path(output_path).resolve()
+        output_path = Path(output_path).absolute()
 
+        default_transition_rules_path = "../layers/tiled/transition_rules.csv"
         transition_rules_path = (
-            "../layers/tiled/transition_rules.csv"
-            if output_path.joinpath("../layers/tiled/transition_rules.csv").exists()
+            default_transition_rules_path
+            if output_path.joinpath(default_transition_rules_path).exists()
             else "")
 
         increment_start_col, increment_end_col = self._find_increment_cols()
@@ -39,12 +39,12 @@ class InputDatabase:
                     "path": "gcbm_input.db"
                 }
             },
-            "AIDBPath": os.path.relpath(str(self.aidb_path), str(output_path)),
+            "AIDBPath": relpath(str(self.aidb_path), str(output_path)),
             "ClassifierSet": [
                 classifier.to_recliner(output_path) for classifier in classifiers
             ],
             "GrowthCurves": {
-                "Path": os.path.relpath(str(self.yield_path), str(output_path)),
+                "Path": relpath(str(self.yield_path), str(output_path)),
                 "Page": 0,
                 "Header": True,
                 "SpeciesCol": self._find_species_col(),
@@ -76,12 +76,14 @@ class InputDatabase:
             }
         }
 
+        recliner2gcbm_config_path = output_path.joinpath("recliner2gcbm_config.json")
+
         json.dump(
             recliner_config,
-            open(output_path.joinpath("recliner2gcbm_config.json"), "w", newline="", encoding="utf-8"),
+            open(recliner2gcbm_config_path, "w", newline="", encoding="utf-8"),
             ensure_ascii=False, indent=4)
 
-        run([str(recliner2gcbm_exe), "-c", r"input_database\recliner2gcbm_config.json"])
+        run([str(recliner2gcbm_exe), "-c", str(recliner2gcbm_config_path)])
 
     def get_disturbance_types(self):
         with self._connect() as conn:

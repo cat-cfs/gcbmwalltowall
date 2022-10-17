@@ -1,11 +1,12 @@
 import logging
 import sys
 from argparse import ArgumentParser
+from gcbmwalltowall.builder.projectbuilder import ProjectBuilder
 from gcbmwalltowall.configuration.configuration import Configuration
 from gcbmwalltowall.component.project import Project
 
 def build(args):
-    print(args)
+    ProjectBuilder.build_from_file(args.config_path, args.output_path)
 
 def prepare(args):
     config = Configuration.load(args.config_path)

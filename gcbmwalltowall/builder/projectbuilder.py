@@ -14,14 +14,14 @@ class ProjectBuilder:
 
     @staticmethod
     def build_from_file(config_path, output_path=None):
-        project_working_path = Path(output_path or config_path).parent()
+        project_working_path = Path(output_path or config_path).absolute().parent
         project_working_path.mkdir(parents=True, exist_ok=True)
 
         config = Configuration.load(config_path, project_working_path)
-        builder_name = config["helper"].get("type") if "builder" in config else None
+        builder_name = config.get("builder", {}).get("type")
         builder = ProjectBuilder.get_builders().get(builder_name)
         if builder:
-            config = builder.build(config, project_working_path)
+            config = builder.build(config)
         elif builder_name:
             raise RuntimeError(
                 f"Configuration file at {config_path} specified unknown builder "
@@ -33,7 +33,7 @@ class ProjectBuilder:
         return config
 
     @staticmethod
-    def build(config, working_path):
+    def build(config):
         return config
 
     @staticmethod

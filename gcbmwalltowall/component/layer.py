@@ -12,7 +12,7 @@ class Layer(Tileable):
 
     def __init__(self, name, path, attributes=None, lookup_table=None):
         self.name = name
-        self.path = Path(path)
+        self.path = Path(path).absolute()
         self.attributes = [attributes] if isinstance(attributes, str) else attributes
         self.lookup_table = Path(lookup_table) if lookup_table else None
 
@@ -36,7 +36,7 @@ class Layer(Tileable):
         lookup_table = self._load_lookup_table()
         if self.is_raster:
             return RasterLayer(
-                str(self.path.resolve()),
+                str(self.path.absolute()),
                 name=self.name,
                 **lookup_table.to_tiler_args(self.attributes) if lookup_table else {},
                 **kwargs)
@@ -54,16 +54,28 @@ class Layer(Tileable):
 
         return VectorLayer(
             self.name,
-            str(self.path.resolve()),
+            str(self.path.absolute()),
             **lookup_table.to_tiler_args(attributes),
             **kwargs)
 
     def _find_lookup_table(self):
-        lookup_table = Path(self.path.with_suffix(".csv"))
+        if not self.lookup_table:
+            return None
+
+        if self.lookup_table and self.lookup_table.is_file():
+            return self.lookup_table
+
+        # First check if the lookup table is specified as a directory, then see
+        # if there's a lookup table for this layer inside.
+        lookup_table = self.lookup_table.joinpath(self.path.with_suffix(".csv").name)
+        if not lookup_table.exists():
+            # Then check if there's a lookup table with the original layer.
+            lookup_table = Path(self.path.with_suffix(".csv"))
+
         return lookup_table if lookup_table.exists() else None
 
     def _load_lookup_table(self):
-        lookup_table = self.lookup_table or self._find_lookup_table()
+        lookup_table = self._find_lookup_table()
         if self.path.suffix in Layer.raster_formats:
             return RasterAttributeTable(lookup_table) if lookup_table else None
 

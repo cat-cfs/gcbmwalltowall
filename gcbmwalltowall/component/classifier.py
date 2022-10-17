@@ -1,7 +1,6 @@
-import os
 import pandas as pd
-from collections import OrderedDict
 from numbers import Number
+from os.path import relpath
 from pathlib import Path
 from gcbmwalltowall.component.tileable import Tileable
 
@@ -32,7 +31,7 @@ class Classifier(Tileable):
 
     def to_recliner(self, output_path=None):
         values_path = (
-            os.path.relpath(str(self.values_path), str(output_path))
+            relpath(str(self.values_path), str(output_path))
             if output_path else self.values_path)
 
         return {
