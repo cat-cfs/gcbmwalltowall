@@ -1,3 +1,4 @@
+import csv
 import json
 import site
 import sys
@@ -25,6 +26,33 @@ class Configuration(dict):
         raise RuntimeError(
             "Recliner2GCBM.exe not found - please check configuration in either "
             f"{global_settings} or {user_settings}")
+
+    @property
+    def gcbm_disturbance_order(self):
+        disturbance_order_file = (
+            self.get("disturbance_order")
+            or next(self.config_path.glob("disturbance_order.*"), None))
+
+        disturbance_order = [
+            line[0] for line in csv.reader(open(self.resolve(disturbance_order_file)))
+        ] if disturbance_order_file else None
+
+        return disturbance_order
+
+    @property
+    def gcbm_template_path(self):
+        template_path = self.get("gcbm_config_templates")
+        if not template_path or not Path(template_path).exists():
+            template_path = next((path for path in (
+                self.resolve("templates"),
+                Path(site.USER_BASE, "Tools", "gcbmwalltowall", "templates", "default"),
+                Path(sys.prefix, "Tools", "gcbmwalltowall", "templates", "default")
+            ) if path.exists()), None)
+
+        if not template_path:
+            raise RuntimeError("GCBM config file templates not found")
+
+        return Path(template_path).absolute()
 
     def resolve(self, path=None):
         return self.config_path.joinpath(path)

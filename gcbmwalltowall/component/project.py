@@ -1,4 +1,6 @@
+import csv
 import shutil
+from datetime import date
 from pathlib import Path
 from itertools import chain
 from mojadata.util import gdal
@@ -11,6 +13,7 @@ from gcbmwalltowall.component.disturbance import Disturbance
 from gcbmwalltowall.component.inputdatabase import InputDatabase
 from gcbmwalltowall.component.rollback import Rollback
 from gcbmwalltowall.component.layer import Layer
+from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.validation.string import require_not_null
 from gcbmwalltowall.validation.generic import require_instance_of
 
@@ -27,10 +30,21 @@ class Project:
         self.disturbances = disturbances
         self.rollback = rollback
 
+    @property
+    def tiler_output_path(self):
+        return self.output_path.joinpath("layers", "tiled")
+
+    @property
+    def rollback_output_path(self):
+        return self.output_path.joinpath("layers", "rollback")
+
+    @property
+    def input_db_path(self):
+        return self.output_path.joinpath("input_database", "gcbm_input.db")
+
     def tile(self):
-        tiler_output_path = self.output_path.joinpath("layers", "tiled")
-        shutil.rmtree(str(tiler_output_path), ignore_errors=True)
-        tiler_output_path.mkdir(parents=True, exist_ok=True)
+        shutil.rmtree(str(self.tiler_output_path), ignore_errors=True)
+        self.tiler_output_path.mkdir(parents=True, exist_ok=True)
 
         mgr = SharedTransitionRuleManager()
         mgr.start()
@@ -56,13 +70,31 @@ class Project:
                         tiler_layers.append(layer)
 
             tiler = GdalTiler2D(tiler_bbox, use_bounding_box_resolution=True)
-            tiler.tile(tiler_layers, str(tiler_output_path))
-            rule_manager.write_rules(str(tiler_output_path.joinpath("transition_rules.csv")))
+            tiler.tile(tiler_layers, str(self.tiler_output_path))
+            rule_manager.write_rules(str(self.tiler_output_path.joinpath("transition_rules.csv")))
 
     def create_input_database(self, recliner2gcbm_exe):
-        output_path = self.output_path.joinpath("input_database")
+        output_path = self.input_db_path.parent
         output_path.mkdir(parents=True, exist_ok=True)
         self.input_db.create(recliner2gcbm_exe, self.classifiers, output_path)
+
+    def configure_gcbm(self, template_path, disturbance_order=None,
+                       start_year=1990, end_year=date.today().year):
+        exclusions_file = next(self.rollback_output_path.glob("exclusions.txt"), None)
+        excluded_layers = (
+            [line[0] for line in csv.reader(open(exclusions_file))]
+            if exclusions_file else None)
+
+        layer_paths = [str(self.tiler_output_path)]
+        if exclusions_file:
+            layer_paths.append(str(self.rollback_output_path))
+
+        configurer = GCBMConfigurer(
+            layer_paths, template_path, self.input_db_path,
+            self.output_path.joinpath("gcbm_project"), start_year, end_year,
+            disturbance_order, excluded_layers)
+    
+        configurer.configure()
 
     @classmethod
     def from_configuration(cls, config):

@@ -16,7 +16,8 @@ setup(
     extras_require={},
     package_data={},
     data_files=[
-        ("Tools/gcbmwalltowall", ["files/settings.json"]),
+        ("Tools/gcbmwalltowall",                   ["files/settings.json"]),
+        ("Tools/gcbmwalltowall/templates/default", glob("files/templates/default/*"))
     ],
     entry_points={
         "console_scripts": [

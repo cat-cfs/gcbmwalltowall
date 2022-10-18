@@ -7,13 +7,14 @@
     <StartupFile>gcbmwalltowall\application\walltowall.py</StartupFile>
     <SearchPath>
     </SearchPath>
-    <WorkingDirectory>.</WorkingDirectory>
+    <WorkingDirectory>C:\Projects\tmp</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <Name>gcbmwalltowall</Name>
     <RootNamespace>gcbmwalltowall</RootNamespace>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>prepare C:\Projects\39_wall_to_wall\05_working\01_casfri_yt\walltowall_config.json</CommandLineArguments>
+    <CommandLineArguments>prepare casfri_yt\casfri_yt.json</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
+    <IsWindowsApplication>False</IsWindowsApplication>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -79,6 +80,7 @@
     <Compile Include="gcbmwalltowall\configuration\configuration.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="gcbmwalltowall\configuration\gcbmconfigurer.py" />
     <Compile Include="gcbmwalltowall\configuration\__init__.py">
       <SubType>Code</SubType>
     </Compile>

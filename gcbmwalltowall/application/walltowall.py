@@ -13,6 +13,7 @@ def prepare(args):
     project = Project.from_configuration(config)
     project.tile()
     project.create_input_database(config.recliner2gcbm_exe)
+    project.configure_gcbm(config.gcbm_template_path, config.gcbm_disturbance_order)
 
 def run(args):
     print(args)
