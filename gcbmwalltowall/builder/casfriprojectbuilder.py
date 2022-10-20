@@ -58,6 +58,16 @@ class CasfriProjectBuilder(ProjectBuilder):
                 relpath(disturbance_dir.joinpath("disturbances_*.tiff"), config.working_path): {}
             }
 
+        age_distribution = config.resolve("age_distribution.json")
+        if age_distribution.exists():
+            mean_origin_layer = next(casfri_data.rglob("mean_origin.tiff"))
+            config["rollback"] = {
+                "age_distribution": relpath(age_distribution, config.working_path),
+                "inventory_year": relpath(mean_origin_layer, config.working_path),
+                "prioritize_disturbances": True,
+                "single_draw": True
+            }
+
         # Users can override or explicitly configure top-level items, or provide
         # extra values for items that are collections (i.e. layers, disturbances).
         casfri_builder_keys = {"type", "casfri_data", "other_data", "dm_xls"}

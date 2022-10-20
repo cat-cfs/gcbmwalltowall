@@ -17,14 +17,22 @@ class InputDatabase:
         self.yield_path = Path(yield_path).absolute()
         self.yield_interval = yield_interval
 
-    def create(self, recliner2gcbm_exe, classifiers, output_path):
-        output_path = Path(output_path).absolute()
+    def create(self, recliner2gcbm_exe, classifiers, output_path, transition_rules_path=None):
+        output_dir = Path(output_path).absolute().parent
 
-        default_transition_rules_path = "../layers/tiled/transition_rules.csv"
-        transition_rules_path = (
-            default_transition_rules_path
-            if output_path.joinpath(default_transition_rules_path).exists()
-            else "")
+        # Add any missing classifier columns to the transition rules.
+        if transition_rules_path and Path(transition_rules_path).exists():
+            transitions = pd.read_csv(transition_rules_path)
+            changed = False
+            for classifier in classifiers:
+                if classifier.name not in transitions:
+                    transitions[classifier.name] = "?"
+                    changed = True
+
+            if changed:
+                transitions.to_csv(transition_rules_path, index=False)
+        else:
+            transition_rules_path = None
 
         increment_start_col, increment_end_col = self._find_increment_cols()
 
@@ -36,15 +44,15 @@ class InputDatabase:
             "OutputConfiguration": {
                 "Name": "SQLite",
                 "Parameters": {
-                    "path": "gcbm_input.db"
+                    "path": output_path.name
                 }
             },
-            "AIDBPath": relpath(str(self.aidb_path), str(output_path)),
+            "AIDBPath": relpath(self.aidb_path, output_dir),
             "ClassifierSet": [
-                classifier.to_recliner(output_path) for classifier in classifiers
+                classifier.to_recliner(output_dir) for classifier in classifiers
             ],
             "GrowthCurves": {
-                "Path": relpath(str(self.yield_path), str(output_path)),
+                "Path": relpath(self.yield_path, output_dir),
                 "Page": 0,
                 "Header": True,
                 "SpeciesCol": self._find_species_col(),
@@ -57,7 +65,7 @@ class InputDatabase:
                 } for classifier in classifiers]
             },
             "TransitionRules": {
-                "Path": transition_rules_path,
+                "Path": relpath(transition_rules_path, output_dir) if transition_rules_path else "",
                 "Page": 0,
                 "Header": True,
                 "NameCol": 0,
@@ -76,7 +84,7 @@ class InputDatabase:
             }
         }
 
-        recliner2gcbm_config_path = output_path.joinpath("recliner2gcbm_config.json")
+        recliner2gcbm_config_path = output_path.with_suffix(".json")
 
         json.dump(
             recliner_config,

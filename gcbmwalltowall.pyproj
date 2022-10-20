@@ -26,6 +26,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Folder Include="files\" />
+    <Folder Include="files\templates\" />
+    <Folder Include="files\templates\default\" />
     <Folder Include="gcbmwalltowall\" />
     <Folder Include="gcbmwalltowall\application\" />
     <Folder Include="gcbmwalltowall\builder\" />
@@ -101,6 +103,14 @@
   <ItemGroup>
     <Content Include="build_wheel.bat" />
     <Content Include="files\settings.json" />
+    <Content Include="files\templates\default\internal_variables.json" />
+    <Content Include="files\templates\default\localdomain.json" />
+    <Content Include="files\templates\default\modules_cbm.json" />
+    <Content Include="files\templates\default\modules_output.json" />
+    <Content Include="files\templates\default\pools_cbm.json" />
+    <Content Include="files\templates\default\provider_config.json" />
+    <Content Include="files\templates\default\spinup.json" />
+    <Content Include="files\templates\default\variables.json" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

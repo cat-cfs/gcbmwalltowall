@@ -27,7 +27,10 @@ class Classifier(Tileable):
         return unique_values
 
     def to_tiler_layer(self, rule_manager, **kwargs):
-        return self.layer.to_tiler_layer(rule_manager, tags=["classifier"])
+        if self.layer.is_vector:
+            kwargs["raw"] = False
+
+        return self.layer.to_tiler_layer(rule_manager, tags=["classifier"], **kwargs)
 
     def to_recliner(self, output_path=None):
         values_path = (

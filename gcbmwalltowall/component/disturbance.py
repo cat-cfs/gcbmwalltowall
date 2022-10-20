@@ -26,12 +26,15 @@ class Disturbance(Tileable):
             attribute_table = layer.attribute_table
 
             transition_rule = None
-            age_after = self.get_configured_or_default(attribute_table, "age_after", self.age_after)
+            age_after = self.get_configured_or_default(attribute_table, "reset_age", self.age_after)
             regen_delay = self.get_configured_or_default(attribute_table, "regen_delay", self.regen_delay)
             if age_after is not None:
+                if regen_delay is None:
+                    regen_delay = 0
+
                 transition_rule = TransitionRule(
-                    Attribute(age_after) if age_after in attribute_table else age_after,
-                    Attribute(regen_delay) if regen_delay in attribute_table else regen_delay)
+                    Attribute(regen_delay) if regen_delay in attribute_table else regen_delay,
+                    Attribute(age_after) if age_after in attribute_table else age_after)
 
             disturbance_type = self._get_disturbance_type_or_attribute(layer_path, attribute_table)
             year = self._get_disturbance_year_or_attribute(layer_path, attribute_table)
@@ -39,7 +42,7 @@ class Disturbance(Tileable):
             if layer.is_raster:
                 disturbance_layers.append(DisturbanceLayer(
                     rule_manager,
-                    layer.to_tiler_layer(rule_manager),
+                    layer.to_tiler_layer(rule_manager, **kwargs),
                     Attribute(year) if year in attribute_table else year,
                     Attribute(disturbance_type) if disturbance_type in attribute_table else disturbance_type,
                     transition_rule))
@@ -54,7 +57,7 @@ class Disturbance(Tileable):
                     Layer(
                         layer_path.stem, layer_path, attributes,
                         lookup_table=self.lookup_table_dir
-                    ).to_tiler_layer(rule_manager, raw=False),
+                    ).to_tiler_layer(rule_manager, **kwargs),
                     year,
                     Attribute(disturbance_type) if disturbance_type in attributes else disturbance_type,
                     transition_rule))
@@ -74,7 +77,7 @@ class Disturbance(Tileable):
 
                     disturbance_layers.append(DisturbanceLayer(
                         rule_manager,
-                        year_layer.to_tiler_layer(rule_manager, raw=False),
+                        year_layer.to_tiler_layer(rule_manager, **kwargs),
                         Attribute(year),
                         Attribute(disturbance_type) if disturbance_type in attribute_table else disturbance_type,
                         transition_rule))

@@ -13,7 +13,16 @@ def prepare(args):
     project = Project.from_configuration(config)
     project.tile()
     project.create_input_database(config.recliner2gcbm_exe)
-    project.configure_gcbm(config.gcbm_template_path, config.gcbm_disturbance_order)
+    project.run_rollback(config.recliner2gcbm_exe)
+
+    extra_args = {
+        param: config.get(param) for param in ("start_year", "end_year")
+        if config.get(param)
+    }
+
+    project.configure_gcbm(config.gcbm_template_path,
+                           config.gcbm_disturbance_order,
+                           **extra_args)
 
 def run(args):
     print(args)

@@ -42,6 +42,10 @@ class Project:
     def input_db_path(self):
         return self.output_path.joinpath("input_database", "gcbm_input.db")
 
+    @property
+    def rollback_input_db_path(self):
+        return self.output_path.joinpath("input_database", "rollback_gcbm_input.db")
+
     def tile(self):
         shutil.rmtree(str(self.tiler_output_path), ignore_errors=True)
         self.tiler_output_path.mkdir(parents=True, exist_ok=True)
@@ -76,7 +80,16 @@ class Project:
     def create_input_database(self, recliner2gcbm_exe):
         output_path = self.input_db_path.parent
         output_path.mkdir(parents=True, exist_ok=True)
-        self.input_db.create(recliner2gcbm_exe, self.classifiers, output_path)
+        self.input_db.create(
+            recliner2gcbm_exe, self.classifiers, self.input_db_path,
+            self.tiler_output_path.joinpath("transition_rules.csv").absolute())
+
+    def run_rollback(self, recliner2gcbm_exe):
+        if self.rollback:
+            self.rollback.run(self.tiler_output_path, self.input_db_path)
+            self.input_db.create(
+                recliner2gcbm_exe, self.classifiers, self.rollback_input_db_path,
+                self.rollback_output_path.joinpath("transition_rules.csv").absolute())
 
     def configure_gcbm(self, template_path, disturbance_order=None,
                        start_year=1990, end_year=date.today().year):
@@ -85,12 +98,14 @@ class Project:
             [line[0] for line in csv.reader(open(exclusions_file))]
             if exclusions_file else None)
 
+        input_db_path = self.rollback_input_db_path if exclusions_file else self.input_db_path
+
         layer_paths = [str(self.tiler_output_path)]
         if exclusions_file:
             layer_paths.append(str(self.rollback_output_path))
 
         configurer = GCBMConfigurer(
-            layer_paths, template_path, self.input_db_path,
+            layer_paths, template_path, input_db_path,
             self.output_path.joinpath("gcbm_project"), start_year, end_year,
             disturbance_order, excluded_layers)
     
@@ -178,5 +193,39 @@ class Project:
             for pattern, dist_config in config.get("disturbances", {}).items()
         ]
 
+        rollback = None
+        rollback_config = config.get("rollback")
+        if rollback_config:
+            age_distribution = config.resolve(require_not_null(rollback_config.get("age_distribution")))
+            rollback_year = rollback_config.get("rollback_year", 1990)
+
+            inventory_year = rollback_config.get("inventory_year")
+            inventory_year_layer = None
+            if isinstance(inventory_year, str):
+                layer_path = config.resolve(inventory_year)
+                inventory_year_layer = Layer(
+                    "inventory_year", layer_path,
+                    lookup_table=config.find_lookup_table(layer_path))
+            elif isinstance(inventory_year, dict):
+                layer_path = config.resolve(require_not_null(inventory_year.get("layer")))
+                layer_lookup_table = (
+                    inventory_year.get("lookup_table")
+                    or config.find_lookup_table(layer_path))
+
+                inventory_year_layer = Layer(
+                    "inventory_year",
+                    layer_path,
+                    inventory_year.get("attribute"),
+                    config.resolve(layer_lookup_table) if layer_lookup_table else None)
+
+            if inventory_year_layer:
+                layers.append(inventory_year_layer)
+
+            rollback = Rollback(
+                age_distribution,
+                inventory_year_layer.name if inventory_year_layer else inventory_year,
+                rollback_year, rollback_config.get("prioritize_disturbances", False),
+                rollback_config.get("single_draw", False))
+
         return cls(project_name, bounding_box, classifiers, layers, input_db,
-                   str(config.working_path), disturbances)
+                   str(config.working_path), disturbances, rollback)
