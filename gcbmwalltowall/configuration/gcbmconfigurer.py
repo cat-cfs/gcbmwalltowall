@@ -1,10 +1,8 @@
 import io
 import os
 import simplejson as json
-import argparse
 import logging
 import shutil
-import sys
 import sqlite3
 import csv
 from itertools import chain
