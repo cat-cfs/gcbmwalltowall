@@ -60,17 +60,16 @@ class CasfriProjectBuilder(ProjectBuilder):
 
         age_distribution = config.resolve("age_distribution.json")
         if age_distribution.exists():
-            mean_origin_layer = next(casfri_data.rglob("mean_origin.tiff"))
             config["rollback"] = {
                 "age_distribution": relpath(age_distribution, config.working_path),
-                "inventory_year": relpath(mean_origin_layer, config.working_path),
+                "inventory_year": builder_config.get("inventory_year", 2022),
                 "prioritize_disturbances": True,
                 "single_draw": True
             }
 
         # Users can override or explicitly configure top-level items, or provide
         # extra values for items that are collections (i.e. layers, disturbances).
-        casfri_builder_keys = {"type", "casfri_data", "other_data", "dm_xls"}
+        casfri_builder_keys = {"type", "casfri_data", "other_data", "dm_xls", "inventory_year"}
         for k, v in builder_config.items():
             if k in casfri_builder_keys:
                 continue

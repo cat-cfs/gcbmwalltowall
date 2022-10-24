@@ -103,6 +103,7 @@
   <ItemGroup>
     <Content Include="build_wheel.bat" />
     <Content Include="files\settings.json" />
+    <Content Include="files\templates\default\gcbm_config.cfg" />
     <Content Include="files\templates\default\internal_variables.json" />
     <Content Include="files\templates\default\localdomain.json" />
     <Content Include="files\templates\default\modules_cbm.json" />
