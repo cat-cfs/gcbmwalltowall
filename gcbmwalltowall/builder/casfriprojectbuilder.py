@@ -10,6 +10,11 @@ from gcbmwalltowall.builder.projectbuilder import ProjectBuilder
 
 class CasfriProjectBuilder(ProjectBuilder):
 
+    casfri_builder_keys = {
+        "type", "casfri_data", "other_data", "dm_xls", "inventory_year",
+        "age_distribution"
+    }
+
     @staticmethod
     def build(config):
         builder_config = config["builder"]
@@ -58,7 +63,7 @@ class CasfriProjectBuilder(ProjectBuilder):
                 relpath(disturbance_dir.joinpath("disturbances_*.tiff"), config.working_path): {}
             }
 
-        age_distribution = config.resolve("age_distribution.json")
+        age_distribution = config.resolve(builder_config.get("age_distribution", "age_distribution.json"))
         if age_distribution.exists():
             config["rollback"] = {
                 "age_distribution": relpath(age_distribution, config.working_path),
@@ -69,9 +74,8 @@ class CasfriProjectBuilder(ProjectBuilder):
 
         # Users can override or explicitly configure top-level items, or provide
         # extra values for items that are collections (i.e. layers, disturbances).
-        casfri_builder_keys = {"type", "casfri_data", "other_data", "dm_xls", "inventory_year"}
         for k, v in builder_config.items():
-            if k in casfri_builder_keys:
+            if k in CasfriProjectBuilder.casfri_builder_keys:
                 continue
 
             if isinstance(v, dict):

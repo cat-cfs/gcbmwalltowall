@@ -86,7 +86,7 @@ class Project:
 
     def run_rollback(self, recliner2gcbm_exe):
         if self.rollback:
-            self.rollback.run(self.tiler_output_path, self.input_db_path)
+            self.rollback.run(self.classifiers, self.tiler_output_path, self.input_db_path)
             self.input_db.create(
                 recliner2gcbm_exe, self.classifiers, self.rollback_input_db_path,
                 self.rollback_output_path.joinpath("transition_rules.csv").absolute())
