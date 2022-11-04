@@ -10,7 +10,7 @@ class AttributeTable:
         raise NotImplementedError()
 
     @property
-    def to_tiler_args(self, attributes=None):
+    def to_tiler_args(self, attributes=None, filters=None):
         raise NotImplementedError()
 
     def get_unique_values(self, attributes=None):

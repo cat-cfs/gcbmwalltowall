@@ -22,15 +22,19 @@ class RasterAttributeTable(AttributeTable):
             for attribute in selected_attributes
         }
 
-    def to_tiler_args(self, attributes=None):
+    def to_tiler_args(self, attributes=None, filters=None):
         selected_attributes = self._get_selected_attributes(attributes)
+        tiler_attributes = (
+            selected_attributes if isinstance(attributes, dict)
+            else dict(zip(selected_attributes, selected_attributes))
+        )
 
         return {
-            "attributes": selected_attributes,
+            "attributes": list(tiler_attributes.values()),
             "attribute_table": {
                 row[0]: row[1:] for row in zip(
                     self._data.iloc[:, 0],
-                    *[self._data[attribute] for attribute in selected_attributes]
+                    *[self._data[attribute] for attribute in tiler_attributes]
                 )
             }
         }

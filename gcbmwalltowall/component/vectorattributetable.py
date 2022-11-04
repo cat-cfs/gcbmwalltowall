@@ -29,20 +29,22 @@ class VectorAttributeTable(AttributeTable):
             for attribute in selected_attributes
         }
 
-    def to_tiler_args(self, attributes=None):
+    def to_tiler_args(self, attributes=None, filters=None):
         selected_attributes = self._get_selected_attributes(attributes)
+        tiler_attributes = (
+            selected_attributes if isinstance(selected_attributes, dict)
+            else dict(zip(selected_attributes, selected_attributes))
+        )
 
-        filters = {
-            attr: value for attr, value in selected_attributes.items()
-            if value is not None
-        } if isinstance(selected_attributes, dict) else {}
+        filters = {k: v for k, v in filters.items() if v is not None} if filters else {}
 
         return {
             "attributes": [
                 Attribute(
-                    attribute, substitutions=self._data.get(attribute),
-                    filter=ValueFilter(filters[attribute]) if attribute in filters else None)
-                for attribute in selected_attributes
+                    layer_attribute, tiler_attribute,
+                    ValueFilter(filters[layer_attribute]) if layer_attribute in filters else None,
+                    self._data.get(layer_attribute))
+                for layer_attribute, tiler_attribute in tiler_attributes.items()
             ]
         }
 

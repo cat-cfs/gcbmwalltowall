@@ -9,14 +9,17 @@ from gcbmwalltowall.component.tileable import Tileable
 
 class Disturbance(Tileable):
 
-    def __init__(self, pattern, input_db, year=None, disturbance_type=None,
-                 age_after=None, regen_delay=None, lookup_table_dir=None):
+    def __init__(
+        self, pattern, input_db, year=None, disturbance_type=None, age_after=None,
+        regen_delay=None, transition=None, lookup_table_dir=None
+    ):
         self.pattern = Path(pattern)
         self.input_db = input_db
         self.year = year
         self.disturbance_type = disturbance_type
         self.age_after = age_after
         self.regen_delay = regen_delay
+        self.transition = transition
         self.lookup_table_dir = Path(lookup_table_dir) if lookup_table_dir else None
 
     def to_tiler_layer(self, rule_manager, **kwargs):
@@ -32,25 +35,48 @@ class Disturbance(Tileable):
                 if regen_delay is None:
                     regen_delay = 0
 
+                spatial_classifier_transition = None
+                if self.transition:
+                    if all((v in attribute_table for v in self.transition.values())):
+                        spatial_classifier_transition = list(self.transition.keys())
+
                 transition_rule = TransitionRule(
                     Attribute(regen_delay) if regen_delay in attribute_table else regen_delay,
-                    Attribute(age_after) if age_after in attribute_table else age_after)
+                    Attribute(age_after) if age_after in attribute_table else age_after,
+                    spatial_classifier_transition or self.transition)
 
             disturbance_type = self._get_disturbance_type_or_attribute(layer_path, attribute_table)
             year = self._get_disturbance_year_or_attribute(layer_path, attribute_table)
 
             if layer.is_raster:
+                disturbance_layer = layer
+                if spatial_classifier_transition:
+                    # Transition is configured as classifier to layer attribute;
+                    # use the inverse to rename those attributes to match the
+                    # classifiers when tiling.
+                    attributes = {
+                        attr: attr for attr in (year, disturbance_type, age_after, regen_delay)
+                        if attr in attribute_table
+                    }
+                    
+                    attributes.update({v: k for k, v in self.transition.items()})
+                    disturbance_layer = Layer(
+                        layer_path.stem, layer_path, attributes, self.lookup_table_dir)
+
                 disturbance_layers.append(DisturbanceLayer(
                     rule_manager,
-                    layer.to_tiler_layer(rule_manager, **kwargs),
+                    disturbance_layer.to_tiler_layer(rule_manager, **kwargs),
                     Attribute(year) if year in attribute_table else year,
                     Attribute(disturbance_type) if disturbance_type in attribute_table else disturbance_type,
                     transition_rule))
             elif year not in attribute_table:
-                attributes = [
-                    attr for attr in (disturbance_type, age_after, regen_delay)
+                attributes = {
+                    attr: attr for attr in (disturbance_type, age_after, regen_delay)
                     if attr in attribute_table
-                ]
+                }
+
+                if spatial_classifier_transition:
+                    attributes.update({v: k for k, v in self.transition.items()})
 
                 disturbance_layers.append(DisturbanceLayer(
                     rule_manager,
@@ -66,14 +92,18 @@ class Disturbance(Tileable):
                 # possibly disturbance type to avoid overlaps in rasterization.
                 for disturbance_year in attribute_table[year]:
                     attributes = {
-                        attr: None for attr in (disturbance_type, age_after, regen_delay)
+                        attr: attr for attr in (year, disturbance_type, age_after, regen_delay)
                         if attr in attribute_table
                     }
 
-                    attributes[year] = disturbance_year
+                    if spatial_classifier_transition:
+                        attributes.update({v: k for k, v in self.transition.items()})
+
+                    filter = {attributes[year]: disturbance_year}
+
                     year_layer = Layer(
                         f"{layer_path.stem}_{disturbance_year}",
-                        str(layer_path), attributes, self.lookup_table_dir)
+                        str(layer_path), attributes, self.lookup_table_dir, filter)
 
                     disturbance_layers.append(DisturbanceLayer(
                         rule_manager,

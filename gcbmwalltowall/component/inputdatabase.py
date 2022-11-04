@@ -75,8 +75,8 @@ class InputDatabase:
                 "RuleDisturbanceTypeCol": None,
                 "Classifiers": [{
                     "Name": classifier.name,
-                    "Column": i + 3
-                } for i, classifier in enumerate(classifiers)],
+                    "Column": self._find_transition_col(transition_rules_path, classifier)
+                } for classifier in classifiers],
                 "RuleClassifiers": [{
                     "Name": classifier.name,
                     "Column": None
@@ -195,6 +195,16 @@ class InputDatabase:
         raise RuntimeError(
             f"Unable to find matching column for classifier '{classifier.name}' "
             "in {self.yield_path}")
+
+    def _find_transition_col(self, transition_rules_path, classifier):
+        if not transition_rules_path:
+            return -1
+
+        transition_rules = pd.read_csv(transition_rules_path)
+        if classifier.name not in transition_rules:
+            return -1
+
+        return transition_rules.columns.get_loc(classifier.name)
 
     def _only_numeric(self, values):
         return all((isinstance(v, Number) for v in values))

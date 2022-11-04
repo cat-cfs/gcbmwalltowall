@@ -10,10 +10,11 @@ class Layer(Tileable):
     raster_formats = [".tif", ".tiff"]
     vector_formats = [".shp", ".gdb"]
 
-    def __init__(self, name, path, attributes=None, lookup_table=None):
+    def __init__(self, name, path, attributes=None, lookup_table=None, filters=None):
         self.name = name
         self.path = Path(path).absolute()
         self.attributes = [attributes] if isinstance(attributes, str) else attributes
+        self.filters = filters or {}
         self.lookup_table = Path(lookup_table) if lookup_table else None
 
     @property
@@ -55,7 +56,7 @@ class Layer(Tileable):
         return VectorLayer(
             self.name,
             str(self.path.absolute()),
-            **lookup_table.to_tiler_args(attributes),
+            **lookup_table.to_tiler_args(attributes, self.filters),
             **kwargs)
 
     def _find_lookup_table(self):

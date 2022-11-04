@@ -136,9 +136,12 @@ class Project:
                 bounding_box_config.get("lookup_table")
                 or config.find_lookup_table(bbox_path))
 
+            attribute, attribute_filter = Project._extract_attribute(bounding_box_config)
+
             bounding_box_layer = Layer(
-                "bounding_box", bbox_path, bounding_box_config.get("attribute"),
-                config.resolve(bounding_box_lookup_table) if bounding_box_lookup_table else None)
+                "bounding_box", bbox_path, attribute,
+                config.resolve(bounding_box_lookup_table) if bounding_box_lookup_table else None,
+                attribute_filter)
 
         resolution = config.get("resolution")
         bounding_box = BoundingBox(bounding_box_layer, resolution)
@@ -156,9 +159,12 @@ class Project:
                 classifier_details.get("lookup_table")
                 or config.find_lookup_table(layer_path))
 
+            attribute, attribute_filter = Project._extract_attribute(classifier_details)
+
             layer = Layer(
-                classifier_name, layer_path, classifier_details.get("attribute"),
-                config.resolve(layer_lookup_table) if layer_lookup_table else None)
+                classifier_name, layer_path, attribute,
+                config.resolve(layer_lookup_table) if layer_lookup_table else None,
+                attribute_filter)
             
             classifiers.append(Classifier(
                 layer,
@@ -179,17 +185,20 @@ class Project:
                     layer_details.get("lookup_table")
                     or config.find_lookup_table(layer_path))
 
+                attribute, attribute_filter = Project._extract_attribute(layer_details)
+
                 layers.append(Layer(
-                    layer_name,
-                    layer_path,
-                    layer_details.get("attribute"),
-                    config.resolve(layer_lookup_table) if layer_lookup_table else None))
+                    layer_name, layer_path, attribute,
+                    config.resolve(layer_lookup_table) if layer_lookup_table else None,
+                    attribute_filter))
 
         disturbances = [
             Disturbance(
-                config.resolve(pattern), input_db, dist_config.get("year"),
-                dist_config.get("disturbance_type"), dist_config.get("age_after"),
-                dist_config.get("regen_delay"), config.config_path)
+                config.resolve(pattern), input_db,
+                dist_config.get("year"), dist_config.get("disturbance_type"),
+                dist_config.get("age_after"), dist_config.get("regen_delay"),
+                {c.name: dist_config[c.name] for c in classifiers if c.name in dist_config},
+                config.config_path)
             for pattern, dist_config in config.get("disturbances", {}).items()
         ]
 
@@ -229,3 +238,16 @@ class Project:
 
         return cls(project_name, bounding_box, classifiers, layers, input_db,
                    str(config.working_path), disturbances, rollback)
+
+    @staticmethod
+    def _extract_attribute(config):
+        attribute = config.get("attribute")
+        if not attribute:
+            return None, None
+
+        attribute_filter = None
+        if isinstance(attribute, dict):
+            attribute, filter_value = next(iter(attribute.items()))
+            attribute_filter = {attribute: filter_value}
+
+        return attribute, attribute_filter

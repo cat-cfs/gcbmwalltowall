@@ -145,7 +145,7 @@ class CasfriProjectBuilder(ProjectBuilder):
             checked = pd.DataFrame(False, columns=df.columns, index=df.index)
 
             for r, row in search_mask.iterrows():
-                for c, val in enumerate(row):
+                for c, _ in enumerate(row):
                     # Skip previously checked cells.
                     if checked.loc[r, c]:
                         continue
@@ -175,8 +175,6 @@ class CasfriProjectBuilder(ProjectBuilder):
 
                         checked.loc[r:r, c:c + 2] = True
                     
-                        current_dist_type = None
-                        current_matrix = None
                         for row_idx in range(r + 1, len(search_mask)):
                             if not np.all(search_mask.loc[row_idx:row_idx, c:c + 2].values == sub_item):
                                 # The table is complete when the content pattern ends.
