@@ -29,15 +29,19 @@ class Configuration(dict):
 
     @property
     def gcbm_disturbance_order(self):
-        disturbance_order_file = (
-            self.get("disturbance_order")
-            or next(self.config_path.glob("disturbance_order.*"), None))
-
+        disturbance_order_file = self.gcbm_disturbance_order_path
         disturbance_order = [
             line[0] for line in csv.reader(open(self.resolve(disturbance_order_file)))
         ] if disturbance_order_file else None
 
         return disturbance_order
+
+    @property
+    def gcbm_disturbance_order_path(self):
+        return self.get(
+            "disturbance_order",
+            next(self.config_path.glob("disturbance_order.*"), None)
+        )
 
     @property
     def gcbm_template_path(self):

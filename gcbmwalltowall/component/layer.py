@@ -10,12 +10,13 @@ class Layer(Tileable):
     raster_formats = [".tif", ".tiff"]
     vector_formats = [".shp", ".gdb"]
 
-    def __init__(self, name, path, attributes=None, lookup_table=None, filters=None):
+    def __init__(self, name, path, attributes=None, lookup_table=None, filters=None, **tiler_kwargs):
         self.name = name
         self.path = Path(path).absolute()
         self.attributes = [attributes] if isinstance(attributes, str) else attributes
         self.filters = filters or {}
         self.lookup_table = Path(lookup_table) if lookup_table else None
+        self.tiler_kwargs = tiler_kwargs
 
     @property
     def attribute_table(self):
@@ -34,6 +35,7 @@ class Layer(Tileable):
         return self.path.suffix in Layer.raster_formats
 
     def to_tiler_layer(self, rule_manager, **kwargs):
+        kwargs.update(self.tiler_kwargs)
         lookup_table = self._load_lookup_table()
         if self.is_raster:
             return RasterLayer(

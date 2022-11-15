@@ -1,6 +1,7 @@
 import json
 import pandas as pd
 import numpy as np
+from psutil import virtual_memory
 from collections import defaultdict
 from pathlib import Path
 from spatial_inventory_rollback.application.app import run as spatial_rollback
@@ -10,7 +11,7 @@ class Rollback:
     def __init__(
         self, age_distribution, inventory_year, rollback_year=1990,
         prioritize_disturbances=False, single_draw=False,
-        establishment_disturbance_type="Wildfire"
+        establishment_disturbance_type="Wildfire", disturbance_order=None
     ):
         self.age_distribution = Path(age_distribution)
         self.inventory_year = inventory_year
@@ -18,6 +19,7 @@ class Rollback:
         self.prioritize_disturbances = prioritize_disturbances
         self.single_draw = single_draw
         self.establishment_disturbance_type = establishment_disturbance_type
+        self.disturbance_order = disturbance_order
     
     def run(self, classifiers, tiled_layers_path, input_db_path):
         tiled_layers_path = Path(tiled_layers_path).absolute()
@@ -45,7 +47,9 @@ class Rollback:
             establishment_disturbance_type=self.establishment_disturbance_type,
             single_draw=self.single_draw,
             output_path=str(output_path),
-            stand_replacing_lookup=None)
+            stand_replacing_lookup=None,
+            disturbance_type_order=self.disturbance_order,
+            memory_limit_MB=int(virtual_memory().available / 1024**2 / 2))
 
     def _convert_age_distribution(self, classifiers, output_path):
         age_distributions = []

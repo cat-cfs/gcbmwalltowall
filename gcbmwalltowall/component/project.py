@@ -191,14 +191,17 @@ class Project:
                     layer_name, layer_path, attribute,
                     config.resolve(layer_lookup_table) if layer_lookup_table else None,
                     attribute_filter))
-
+        
         disturbances = [
             Disturbance(
                 config.resolve(pattern), input_db,
                 dist_config.get("year"), dist_config.get("disturbance_type"),
                 dist_config.get("age_after"), dist_config.get("regen_delay"),
                 {c.name: dist_config[c.name] for c in classifiers if c.name in dist_config},
-                config.config_path)
+                config.config_path, **{
+                    k: v for k, v in dist_config.items()
+                    if k not in {"year", "disturbance_type", "age_after", "regen_delay"}
+                    and k not in {c.name for c in classifiers if c.name in dist_config}})
             for pattern, dist_config in config.get("disturbances", {}).items()
         ]
 
@@ -234,7 +237,9 @@ class Project:
                 age_distribution,
                 inventory_year_layer.name if inventory_year_layer else inventory_year,
                 rollback_year, rollback_config.get("prioritize_disturbances", False),
-                rollback_config.get("single_draw", False))
+                rollback_config.get("single_draw", False),
+                rollback_config.get("establishment_disturbance_type", "Wildfire"),
+                config.gcbm_disturbance_order_path)
 
         return cls(project_name, bounding_box, classifiers, layers, input_db,
                    str(config.working_path), disturbances, rollback)
