@@ -4,14 +4,14 @@ from glob import glob
 
 setup(
     name="gcbmwalltowall",
-    version="1.0a1",
+    version="1.0b",
     description="gcbmwalltowall",
     classifiers=[
         "Programming Language :: Python :: 3",
     ],
     packages=find_packages(exclude=["contrib", "docs", "tests"]),
     install_requires=[
-        "mojadata>=3.9.1",
+        "mojadata>=4.0",
     ],
     extras_require={},
     package_data={},
