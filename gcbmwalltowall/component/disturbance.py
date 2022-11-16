@@ -133,9 +133,12 @@ class Disturbance(Tileable):
                 return attribute
         
         # Then check if the disturbance year is parseable from the filename.
-        parse_result = re.search(r"(\d{4})", str(layer_path))
+        parse_result = re.findall(r"(\d{4})", str(layer_path))
         if parse_result is not None:
-            return int(parse_result.group())
+            try:
+                return int(parse_result[-1])
+            except:
+                pass
 
         raise RuntimeError(f"No disturbance year configured or found in {layer_path}.")
 
