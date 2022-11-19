@@ -7,12 +7,12 @@
     <StartupFile>gcbmwalltowall\application\walltowall.py</StartupFile>
     <SearchPath>
     </SearchPath>
-    <WorkingDirectory>C:\Projects\tmp</WorkingDirectory>
+    <WorkingDirectory>C:\Projects\39_wall_to_wall\05_working\09_bgi_txomin</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <Name>gcbmwalltowall</Name>
     <RootNamespace>gcbmwalltowall</RootNamespace>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>prepare casfri_yt\casfri_yt.json</CommandLineArguments>
+    <CommandLineArguments>prepare config\walltowall_config.json</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
     <IsWindowsApplication>False</IsWindowsApplication>
   </PropertyGroup>
@@ -65,6 +65,7 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="gcbmwalltowall\component\attributetable.py" />
+    <Compile Include="gcbmwalltowall\component\preparedproject.py" />
     <Compile Include="gcbmwalltowall\component\vectorattributetable.py" />
     <Compile Include="gcbmwalltowall\component\rasterattributetable.py" />
     <Compile Include="gcbmwalltowall\component\rollback.py">
