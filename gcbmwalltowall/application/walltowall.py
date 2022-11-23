@@ -50,7 +50,10 @@ def merge(args):
             inventories, str(merged_output_path), str(db_output_path),
             start_year, memory_limit_MB=memory_limit)
 
-        gcbm_merge_tile.tile(str(tiled_output_path), merged_data, inventories)
+        gcbm_merge_tile.tile(
+            str(tiled_output_path), merged_data, inventories,
+            args.include_index_layer)
+
         replace_direct_attached_transition_rules(
             str(db_output_path.joinpath("gcbm_input.db")),
             str(tiled_output_path.joinpath("transition_rules.csv")))
@@ -103,7 +106,7 @@ def cli():
     merge_parser = subparsers.add_parser(
         "merge",
         help="Merge two or more walltowall-prepared inventories together.")
-    merge_parser.set_defaults(func=merge)
+    merge_parser.set_defaults(func=merge, include_index_layer=False)
     merge_parser.add_argument(
         "config_path",
         help="path to walltowall config file for disturbance order and GCBM config templates")
@@ -113,6 +116,9 @@ def cli():
     merge_parser.add_argument(
         "--output_path", required=True,
         help="path to generate merged output in")
+    merge_parser.add_argument(
+        "--include_index_layer", action="store_true",
+        help="include merged index as reporting classifier")
 
     run_parser = subparsers.add_parser(
         "run", help="Run the specified project either locally or on the cluster.")

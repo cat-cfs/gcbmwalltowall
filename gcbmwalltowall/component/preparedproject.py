@@ -44,7 +44,7 @@ class PreparedProject:
     @property
     def end_year(self):
         config = json.load(open(self.gcbm_config_path.joinpath("localdomain.json")))
-        return datetime.strptime(config["LocalDomain"]["end_date"], "%Y/%m/%d").year
+        return datetime.strptime(config["LocalDomain"]["end_date"], "%Y/%m/%d").year - 1
 
     @property
     def all_study_area_layers(self):
