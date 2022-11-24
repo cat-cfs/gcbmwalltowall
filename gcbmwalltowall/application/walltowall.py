@@ -1,5 +1,6 @@
 import logging
-import sys
+from logging import FileHandler
+from logging import StreamHandler
 from psutil import virtual_memory
 from pathlib import Path
 from argparse import ArgumentParser
@@ -71,8 +72,6 @@ def run(args):
     print(args)
 
 def cli():
-    logging.basicConfig(stream=sys.stdout, level=logging.INFO, format="%(message)s")
-
     parser = ArgumentParser(description="Manage GCBM wall-to-wall projects")
     parser.set_defaults(func=lambda _: parser.print_help())
     subparsers = parser.add_subparsers(help="Command to run")
@@ -127,6 +126,11 @@ def cli():
         "host", choices=["local", "cluster"], help="run either locally or on the cluster")
 
     args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", handlers=[
+        FileHandler(Path(args.output_path).joinpath("walltowall.log"), mode="w"),
+        StreamHandler()
+    ])
+
     args.func(args)
 
 if __name__ == "__main__":

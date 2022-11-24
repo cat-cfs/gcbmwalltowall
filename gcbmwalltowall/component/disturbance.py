@@ -109,7 +109,7 @@ class Disturbance(Tileable):
                     attr_filter = {attributes[year]: disturbance_year}
 
                     year_layer = Layer(
-                        f"{layer_path.stem}_{disturbance_year}",
+                        f"{layer_path.stem}_{int(disturbance_year)}",
                         str(layer_path), attributes, self.lookup_table_dir, attr_filter,
                         **self.layer_kwargs)
 

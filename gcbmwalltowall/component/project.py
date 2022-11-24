@@ -1,5 +1,7 @@
+import logging
 import csv
 import shutil
+from multiprocessing import cpu_count
 from datetime import date
 from pathlib import Path
 from itertools import chain
@@ -73,7 +75,7 @@ class Project:
                     else:
                         tiler_layers.append(layer)
 
-            tiler = GdalTiler2D(tiler_bbox, use_bounding_box_resolution=True)
+            tiler = GdalTiler2D(tiler_bbox, use_bounding_box_resolution=True, workers=cpu_count())
             tiler.tile(tiler_layers, str(self.tiler_output_path))
             rule_manager.write_rules(str(self.tiler_output_path.joinpath("transition_rules.csv")))
 
