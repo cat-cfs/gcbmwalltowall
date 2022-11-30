@@ -4,6 +4,7 @@ import numpy as np
 from psutil import virtual_memory
 from collections import defaultdict
 from pathlib import Path
+from sqlalchemy import create_engine
 from spatial_inventory_rollback.application.app import run as spatial_rollback
 
 class Rollback:
@@ -27,6 +28,11 @@ class Rollback:
         
         output_path = tiled_layers_path.joinpath("..", "rollback")
         output_path.mkdir(parents=True, exist_ok=True)
+
+        if not self.disturbance_order:
+            self.disturbance_order = output_path.joinpath("disturbance_order.txt")
+            open(self.disturbance_order, "w").writelines(
+                "\n".join(self._get_default_disturbance_order(input_db_path)))
 
         inventory_year = self.inventory_year
         if isinstance(inventory_year, str):
@@ -76,6 +82,16 @@ class Rollback:
             age_distributions.extend(distribution.to_json())
     
         json.dump(age_distributions, open(output_path, "w"), indent=4)
+
+    def _get_default_disturbance_order(self, input_db_path):
+        engine = create_engine(f"sqlite:///{input_db_path}")
+        with engine.connect() as conn:
+            dist_types = [
+                row[0] for row in
+                conn.execute("SELECT name FROM disturbance_type ORDER BY code")
+            ]
+
+            return dist_types
 
 class _ClassifierSet(dict):
 

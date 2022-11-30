@@ -15,11 +15,14 @@ from gcbmwalltowall.component.project import Project
 from gcbmwalltowall.component.preparedproject import PreparedProject
 
 def build(args):
+    logging.info(f"Building {args.config_path}")
     ProjectBuilder.build_from_file(args.config_path, args.output_path)
 
 def prepare(args):
     config = Configuration.load(args.config_path, args.output_path)
     project = Project.from_configuration(config)
+    logging.info(f"Preparing {project.name}")
+
     project.tile()
     project.create_input_database(config.recliner2gcbm_exe)
     project.run_rollback(config.recliner2gcbm_exe)
@@ -36,6 +39,7 @@ def prepare(args):
 def merge(args):
     with TemporaryDirectory() as tmp:
         projects = [PreparedProject(path) for path in args.project_paths]
+        logging.info("Merging projects:\n{}".format("\n".join((str(p.path) for p in projects))))
         inventories = [project.prepare_merge(tmp, i) for i, project in enumerate(projects)]
 
         output_path = Path(args.output_path)
