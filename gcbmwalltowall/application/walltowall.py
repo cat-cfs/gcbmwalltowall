@@ -166,8 +166,8 @@ def cli():
     args = parser.parse_args()
 
     log_path = Path(
-        args["output_path"] if getattr(args, "output_path", None)
-        else args["project_path"] if getattr(args, "project_path", None)
+        args.output_path if getattr(args, "output_path", None)
+        else args.project_path if getattr(args, "project_path", None)
         else "."
     ).joinpath("walltowall.log")
     
