@@ -6,26 +6,26 @@ from pathlib import Path
 
 class Configuration(dict):
 
+    global_settings = Path(sys.prefix, "Tools", "gcbmwalltowall", "settings.json")
+    user_settings = Path(site.USER_BASE, "Tools", "gcbmwalltowall", "settings.json")
+
     def __init__(self, d, config_path, working_path=None):
         super().__init__(d)
         self.config_path = Path(config_path).absolute()
         self.working_path = Path(working_path or config_path).absolute()
+        self._load_settings()
 
     @property
     def recliner2gcbm_exe(self):
-        user_settings = Path(site.USER_BASE, "Tools", "gcbmwalltowall", "settings.json")
-        global_settings = Path(sys.prefix, "Tools", "gcbmwalltowall", "settings.json")
+        return self._find_file("recliner2gcbm_exe", "Recliner2GCBM.exe")
 
-        recliner2gcbm_exe = None
-        for config_path in (user_settings, global_settings):
-            if config_path.is_file():
-                recliner2gcbm_exe = Path(json.load(open(config_path)).get("recliner2gcbm_exe", ""))
-                if recliner2gcbm_exe.is_file():
-                    return recliner2gcbm_exe
+    @property
+    def gcbm_exe(self):
+        return self._find_file("gcbm_exe", "moja.cli.exe")
 
-        raise RuntimeError(
-            "Recliner2GCBM.exe not found - please check configuration in either "
-            f"{global_settings} or {user_settings}")
+    @property
+    def distributed_client(self):
+        return self._find_file("distributed_client", "gcbm_client.py")
 
     @property
     def gcbm_disturbance_order(self):
@@ -80,11 +80,28 @@ class Configuration(dict):
 
         return None
 
+    def _load_settings(self):
+        project_settings = self.copy()
+        for config_path in (Configuration.global_settings, Configuration.user_settings):
+            if config_path.is_file():
+                self.update(json.load(open(config_path)))
+
+        self.update(project_settings)
+
+    def _find_file(self, setting_name, file_name):
+        target_file = self.resolve(Path(self.get(setting_name, "")))
+        if target_file.is_file():
+            return target_file
+
+        raise RuntimeError(
+            f"{file_name} not found - please check {setting_name} setting in either "
+            f"{Configuration.global_settings} or {Configuration.user_settings}")
+
     @classmethod
     def load(cls, config_path, working_path=None):
-        config_path = Path(config_path)
+        config_path = Path(config_path).absolute()
 
         return cls(
             json.load(open(config_path, "r")),
-            Path(config_path).absolute().parent,
-            Path(working_path or config_path.absolute().parent))
+            config_path.parent,
+            Path(working_path or config_path.parent))

@@ -1,4 +1,7 @@
 import logging
+import subprocess
+import sys
+from datetime import datetime
 from logging import FileHandler
 from logging import StreamHandler
 from psutil import virtual_memory
@@ -73,7 +76,35 @@ def merge(args):
         configurer.configure()
 
 def run(args):
-    print(args)
+    project = PreparedProject(args.project_path)
+    logging.info(f"Running project ({args.host}):\n{project.path}")
+
+    config = (
+        Configuration.load(args.config_path, args.project_path)
+        if args.config_path
+        else Configuration({}, "")
+    )
+
+    if args.host == "local":
+        logging.info(f"Using {config.resolve(config.gcbm_exe)}")
+        subprocess.run([
+            str(config.resolve(config.gcbm_exe)),
+            "--config_file", "gcbm_config.cfg",
+            "--config_provider", "provider_config.json"
+        ], cwd=project.gcbm_config_path)
+    elif args.host == "cluster":
+        logging.info(f"Using {config.resolve(config.distributed_client)}")
+        project_name = config.get("project_name", project.path.stem)
+        subprocess.run([
+            sys.executable, str(config.resolve(config.distributed_client)),
+            "--title", datetime.now().strftime(f"gcbm_{project_name}_%Y%m%d_%H%M%S"),
+            "--gcbm-config", str(project.gcbm_config_path.joinpath("gcbm_config.cfg")),
+            "--provider-config", str(project.gcbm_config_path.joinpath("provider_config.json")),
+            "--study-area", str(
+                (project.rollback_layer_path or project.tiled_layer_path)
+                .joinpath("study_area.json")),
+            "--no-wait"
+        ], cwd=project.path)
 
 def cli():
     parser = ArgumentParser(description="Manage GCBM wall-to-wall projects")
@@ -90,8 +121,7 @@ def cli():
         "config_path",
         help="path to config file containing shortcut 'builder' section")
     build_parser.add_argument(
-        "output_path", nargs="?",
-        help="destination directory for build output")
+        "output_path", nargs="?", help="destination directory for build output")
 
     prepare_parser = subparsers.add_parser(
         "prepare",
@@ -103,8 +133,7 @@ def cli():
         "config_path",
         help="path to config file containing fully-specified project configuration")
     prepare_parser.add_argument(
-        "output_path", nargs="?",
-        help="destination directory for project files")
+        "output_path", nargs="?", help="destination directory for project files")
 
     merge_parser = subparsers.add_parser(
         "merge",
@@ -128,10 +157,17 @@ def cli():
     run_parser.set_defaults(func=run)
     run_parser.add_argument(
         "host", choices=["local", "cluster"], help="run either locally or on the cluster")
+    run_parser.add_argument(
+        "project_path", help="root directory of the walltowall-prepared project to run")
+    run_parser.add_argument(
+        "--config_path",
+        help="path to config file containing fully-specified project configuration")
 
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", handlers=[
-        FileHandler(Path(args.output_path).joinpath("walltowall.log"), mode="w"),
+        FileHandler(Path(
+            getattr(args, "output_path", getattr(args, "project_path", "."))
+        ).joinpath("walltowall.log"), mode="a" if args.func == run else "w"),
         StreamHandler()
     ])
 
