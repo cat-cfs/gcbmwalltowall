@@ -58,6 +58,15 @@ class Configuration(dict):
 
         return Path(template_path).absolute()
 
+    @property
+    def settings_keys(self):
+        settings_keys = set()
+        for config_path in (Configuration.global_settings, Configuration.user_settings):
+            if config_path.is_file():
+                settings_keys.update(json.load(open(config_path)).keys())
+
+        return settings_keys
+
     def resolve(self, path=None):
         return self.config_path.joinpath(path)
 

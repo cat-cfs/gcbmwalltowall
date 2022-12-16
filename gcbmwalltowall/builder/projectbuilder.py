@@ -44,9 +44,14 @@ class ProjectBuilder:
 
     @staticmethod
     def _write_config(config, output_file, include_builder_config=True):
+        settings_keys = config.settings_keys
+        
+        config = config.copy()
         if not include_builder_config:
-            config = config.copy()
             config.pop("builder", None)
+
+        for key in settings_keys:
+            config.pop(key)
 
         json.dump(config, open(output_file, "w", newline=""), indent=4)
 
