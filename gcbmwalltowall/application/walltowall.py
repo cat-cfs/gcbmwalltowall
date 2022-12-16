@@ -164,10 +164,15 @@ def cli():
         help="path to config file containing fully-specified project configuration")
 
     args = parser.parse_args()
+
+    log_path = Path(
+        args["output_path"] if getattr(args, "output_path", None)
+        else args["project_path"] if getattr(args, "project_path", None)
+        else "."
+    ).joinpath("walltowall.log")
+    
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", handlers=[
-        FileHandler(Path(
-            getattr(args, "output_path", getattr(args, "project_path", "."))
-        ).joinpath("walltowall.log"), mode="a" if args.func == run else "w"),
+        FileHandler(log_path, mode=("a" if args.func == run else "w")),
         StreamHandler()
     ])
 
