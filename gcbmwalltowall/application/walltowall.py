@@ -170,6 +170,8 @@ def cli():
         else args.project_path if getattr(args, "project_path", None)
         else "."
     ).joinpath("walltowall.log")
+
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", handlers=[
         FileHandler(log_path, mode=("a" if args.func == run else "w")),
