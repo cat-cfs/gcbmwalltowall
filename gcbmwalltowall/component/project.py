@@ -192,7 +192,9 @@ class Project:
                 layers.append(Layer(
                     layer_name, layer_path, attribute,
                     config.resolve(layer_lookup_table) if layer_lookup_table else None,
-                    attribute_filter))
+                    attribute_filter, **{k: v for k, v in layer_details.items() if k not in (
+                        "layer", "lookup_table", "attribute"
+                    )}))
         
         disturbances = [
             Disturbance(
