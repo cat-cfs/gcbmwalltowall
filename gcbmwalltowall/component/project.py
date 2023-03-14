@@ -202,9 +202,9 @@ class Project:
                 dist_config.get("year"), dist_config.get("disturbance_type"),
                 dist_config.get("age_after"), dist_config.get("regen_delay"),
                 {c.name: dist_config[c.name] for c in classifiers if c.name in dist_config},
-                config.config_path, **{
+                config.resolve(dist_config.get("lookup_table", config.config_path)), **{
                     k: v for k, v in dist_config.items()
-                    if k not in {"year", "disturbance_type", "age_after", "regen_delay"}
+                    if k not in {"year", "disturbance_type", "age_after", "regen_delay", "lookup_table"}
                     and k not in {c.name for c in classifiers if c.name in dist_config}})
             for pattern, dist_config in config.get("disturbances", {}).items()
         ]

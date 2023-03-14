@@ -1,4 +1,5 @@
 import re
+import logging
 from pathlib import Path
 from mojadata.layer.attribute import Attribute
 from mojadata.layer.filter.valuefilter import ValueFilter
@@ -11,7 +12,7 @@ class Disturbance(Tileable):
 
     def __init__(
         self, pattern, input_db, year=None, disturbance_type=None, age_after=None,
-        regen_delay=None, transition=None, lookup_table_dir=None, **layer_kwargs
+        regen_delay=None, transition=None, lookup_table=None, **layer_kwargs
     ):
         self.pattern = Path(pattern)
         self.input_db = input_db
@@ -20,14 +21,14 @@ class Disturbance(Tileable):
         self.age_after = age_after
         self.regen_delay = regen_delay
         self.transition = transition
-        self.lookup_table_dir = Path(lookup_table_dir) if lookup_table_dir else None
+        self.lookup_table = Path(lookup_table) if lookup_table else None
         self.layer_kwargs = layer_kwargs or {}
 
     def to_tiler_layer(self, rule_manager, **kwargs):
         disturbance_layers = []
         for layer_path in self.pattern.absolute().parent.glob(self.pattern.name):
             layer = Layer(
-                layer_path.stem, layer_path, lookup_table=self.lookup_table_dir,
+                layer_path.stem, layer_path, lookup_table=self.lookup_table,
                 **self.layer_kwargs)
 
             attribute_table = layer.attribute_table
@@ -65,7 +66,7 @@ class Disturbance(Tileable):
                     
                     attributes.update({v: k for k, v in self.transition.items()})
                     disturbance_layer = Layer(
-                        layer_path.stem, layer_path, attributes, self.lookup_table_dir,
+                        layer_path.stem, layer_path, attributes, self.lookup_table,
                         **self.layer_kwargs)
 
                 disturbance_layers.append(DisturbanceLayer(
@@ -88,7 +89,7 @@ class Disturbance(Tileable):
                     rule_manager,
                     Layer(
                         layer_path.stem, layer_path, attributes,
-                        lookup_table=self.lookup_table_dir, **self.layer_kwargs
+                        lookup_table=self.lookup_table, **self.layer_kwargs
                     ).to_tiler_layer(rule_manager, **kwargs),
                     year,
                     Attribute(disturbance_type) if disturbance_type in attributes else disturbance_type,
@@ -110,7 +111,7 @@ class Disturbance(Tileable):
 
                     year_layer = Layer(
                         f"{layer_path.stem}_{int(disturbance_year)}",
-                        str(layer_path), attributes, self.lookup_table_dir, attr_filter,
+                        str(layer_path), attributes, self.lookup_table, attr_filter,
                         **self.layer_kwargs)
 
                     disturbance_layers.append(DisturbanceLayer(
@@ -122,33 +123,53 @@ class Disturbance(Tileable):
 
         return disturbance_layers
 
+    def _try_parse_year(self, layer_path):
+        parse_result = re.findall(r"(\d{4})", str(layer_path))
+        if parse_result is not None:
+            try:
+                year = int(parse_result[-1])
+                logging.info(f"  using value from filename: {year}")
+                return year
+            except:
+                pass
+
     def _get_disturbance_year_or_attribute(self, layer_path, attribute_table):
+        logging.info(f"Checking for disturbance year in {layer_path.name}...")
+        if self.year == "filename":
+            year = self._try_parse_year(layer_path)
+            if year is None:
+                raise RuntimeError(f"Year not parseable from filename in {layer_path}.")
+
+            return year
+
         if self.year is not None:
+            logging.info(f"  using configured value: {self.year}")
             return self.year
 
         # Check for the first attribute where all the unique values could be
         # interpreted as a disturbance year.
         for attribute, values in attribute_table.items():
             if all((self._looks_like_disturbance_year(v) for v in values if v is not None)):
+                logging.info(f"  using attribute: {attribute}")
                 return attribute
         
         # Then check if the disturbance year is parseable from the filename.
-        parse_result = re.findall(r"(\d{4})", str(layer_path))
-        if parse_result is not None:
-            try:
-                return int(parse_result[-1])
-            except:
-                pass
+        year = self._try_parse_year(layer_path)
+        if year is None:
+            raise RuntimeError(f"No disturbance year configured or found in {layer_path}.")
 
-        raise RuntimeError(f"No disturbance year configured or found in {layer_path}.")
+        return year
 
     def _get_disturbance_type_or_attribute(self, layer_path, attribute_table):
+        logging.info(f"Checking for disturbance type in {layer_path.name}...")
         if self.disturbance_type is not None:
+            logging.info(f"  using configured value: {self.disturbance_type}")
             return self.disturbance_type
 
         gcbm_disturbance_types = self.input_db.get_disturbance_types()
         for attribute, values in attribute_table.items():
             if all((v in gcbm_disturbance_types for v in values)):
+                logging.info(f"  using attribute: {attribute}")
                 return attribute
 
         raise RuntimeError(f"No disturbance type configured or found in {layer_path}.")
