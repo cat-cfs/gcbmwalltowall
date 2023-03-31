@@ -1,6 +1,7 @@
 import logging
 import subprocess
 import sys
+import shutil
 from datetime import datetime
 from logging import FileHandler
 from logging import StreamHandler
@@ -49,6 +50,8 @@ def merge(args):
         merged_output_path = output_path.joinpath("layers", "merged")
         tiled_output_path = output_path.joinpath("layers", "tiled")
         db_output_path = output_path.joinpath("input_database")
+
+        shutil.rmtree(merged_output_path, ignore_errors=True)
         
         start_year = min((project.start_year for project in projects))
         end_year = max((project.end_year for project in projects))
