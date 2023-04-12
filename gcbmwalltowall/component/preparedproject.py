@@ -1,5 +1,6 @@
 import json
 import shutil
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from spatial_inventory_rollback.gcbm.merge.gcbm_merge_layer_input import MergeInputLayers
@@ -67,6 +68,19 @@ class PreparedProject:
             layer["name"]: layer for layer in
             config["Providers"]["RasterTiled"]["layers"]
         }
+
+    @contextmanager
+    def temporary_new_end_year(self, end_year=None):
+        localdomain_path = self.gcbm_config_path.joinpath("localdomain.json")
+        try:
+            with GCBMConfigurer.update_json_file(localdomain_path) as project_config:
+                original_end_date = project_config["LocalDomain"]["end_date"]
+                project_config["LocalDomain"]["end_date"] = f"{end_year + 1}/01/01"
+
+            yield
+        finally:
+            with GCBMConfigurer.update_json_file(localdomain_path) as project_config:
+                project_config["LocalDomain"]["end_date"] = original_end_date
 
     def prepare_merge(self, working_path, priority):
         if not self.has_rollback:

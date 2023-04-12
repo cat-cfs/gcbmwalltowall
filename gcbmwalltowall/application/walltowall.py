@@ -82,32 +82,33 @@ def run(args):
     project = PreparedProject(args.project_path)
     logging.info(f"Running project ({args.host}):\n{project.path}")
 
-    config = (
-        Configuration.load(args.config_path, args.project_path)
-        if args.config_path
-        else Configuration({}, "")
-    )
+    with project.temporary_new_end_year(args.end_year):
+        config = (
+            Configuration.load(args.config_path, args.project_path)
+            if args.config_path
+            else Configuration({}, "")
+        )
 
-    if args.host == "local":
-        logging.info(f"Using {config.resolve(config.gcbm_exe)}")
-        subprocess.run([
-            str(config.resolve(config.gcbm_exe)),
-            "--config_file", "gcbm_config.cfg",
-            "--config_provider", "provider_config.json"
-        ], cwd=project.gcbm_config_path)
-    elif args.host == "cluster":
-        logging.info(f"Using {config.resolve(config.distributed_client)}")
-        project_name = config.get("project_name", project.path.stem)
-        subprocess.run([
-            sys.executable, str(config.resolve(config.distributed_client)),
-            "--title", datetime.now().strftime(f"gcbm_{project_name}_%Y%m%d_%H%M%S"),
-            "--gcbm-config", str(project.gcbm_config_path.joinpath("gcbm_config.cfg")),
-            "--provider-config", str(project.gcbm_config_path.joinpath("provider_config.json")),
-            "--study-area", str(
-                (project.rollback_layer_path or project.tiled_layer_path)
-                .joinpath("study_area.json")),
-            "--no-wait"
-        ], cwd=project.path)
+        if args.host == "local":
+            logging.info(f"Using {config.resolve(config.gcbm_exe)}")
+            subprocess.run([
+                str(config.resolve(config.gcbm_exe)),
+                "--config_file", "gcbm_config.cfg",
+                "--config_provider", "provider_config.json"
+            ], cwd=project.gcbm_config_path)
+        elif args.host == "cluster":
+            logging.info(f"Using {config.resolve(config.distributed_client)}")
+            project_name = config.get("project_name", project.path.stem)
+            subprocess.run([
+                sys.executable, str(config.resolve(config.distributed_client)),
+                "--title", datetime.now().strftime(f"gcbm_{project_name}_%Y%m%d_%H%M%S"),
+                "--gcbm-config", str(project.gcbm_config_path.joinpath("gcbm_config.cfg")),
+                "--provider-config", str(project.gcbm_config_path.joinpath("provider_config.json")),
+                "--study-area", str(
+                    (project.rollback_layer_path or project.tiled_layer_path)
+                    .joinpath("study_area.json")),
+                "--no-wait"
+            ], cwd=project.path)
 
 def cli():
     parser = ArgumentParser(description="Manage GCBM wall-to-wall projects")
@@ -165,6 +166,8 @@ def cli():
     run_parser.add_argument(
         "--config_path",
         help="path to config file containing fully-specified project configuration")
+    run_parser.add_argument(
+        "--end_year", type=int, help="temporarily set a new end year for this run")
 
     args = parser.parse_args()
 
