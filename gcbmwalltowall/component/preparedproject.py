@@ -71,16 +71,20 @@ class PreparedProject:
 
     @contextmanager
     def temporary_new_end_year(self, end_year=None):
-        localdomain_path = self.gcbm_config_path.joinpath("localdomain.json")
-        try:
-            with GCBMConfigurer.update_json_file(localdomain_path) as project_config:
-                original_end_date = project_config["LocalDomain"]["end_date"]
-                project_config["LocalDomain"]["end_date"] = f"{end_year + 1}/01/01"
+        if end_year is None:
+            try: yield
+            finally: pass
+        else:
+            localdomain_path = self.gcbm_config_path.joinpath("localdomain.json")
+            try:
+                with GCBMConfigurer.update_json_file(localdomain_path) as project_config:
+                    original_end_date = project_config["LocalDomain"]["end_date"]
+                    project_config["LocalDomain"]["end_date"] = f"{end_year + 1}/01/01"
 
-            yield
-        finally:
-            with GCBMConfigurer.update_json_file(localdomain_path) as project_config:
-                project_config["LocalDomain"]["end_date"] = original_end_date
+                yield
+            finally:
+                with GCBMConfigurer.update_json_file(localdomain_path) as project_config:
+                    project_config["LocalDomain"]["end_date"] = original_end_date
 
     def prepare_merge(self, working_path, priority):
         if not self.has_rollback:
