@@ -8,6 +8,7 @@ from subprocess import run
 from sqlalchemy import create_engine
 from sqlalchemy import table
 from sqlalchemy import column
+from sqlalchemy import select
 from pathlib import Path
 
 class InputDatabase:
@@ -146,16 +147,14 @@ class InputDatabase:
         with self._connect() as conn:
             species_type_table = table("tblspeciestypedefault", column("speciestypename"))
             species_types = {
-                row[0] for row in conn.execute(
-                    species_type_table
-                        .select(species_type_table.c.speciestypename)
-                        .distinct()
+                row[0].lower() for row in conn.execute(
+                    select(species_type_table.c.speciestypename).distinct()
                 )
             }
 
         yield_table = pd.read_csv(self.yield_path)
         for col in yield_table.columns:
-            yield_col_values = set(yield_table[col].unique())
+            yield_col_values = {str(v).lower() for v in yield_table[col].unique()}
             if yield_col_values.issubset(species_types):
                 return yield_table.columns.get_loc(col)
 

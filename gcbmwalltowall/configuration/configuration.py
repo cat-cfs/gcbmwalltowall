@@ -46,7 +46,10 @@ class Configuration(dict):
     @property
     def gcbm_template_path(self):
         template_path = self.get("gcbm_config_templates")
-        if not template_path or not Path(template_path).exists():
+        if template_path:
+            template_path = self.resolve(self["gcbm_config_templates"])
+
+        if not template_path or not template_path.exists():
             template_path = next((path for path in (
                 self.resolve("templates"),
                 Path(site.USER_BASE, "Tools", "gcbmwalltowall", "templates", "default"),

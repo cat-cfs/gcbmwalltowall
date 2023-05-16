@@ -183,7 +183,10 @@ class GCBMConfigurer:
         config_file_path = self.find_config_file(self._output_path, "SpinupVariables")
         with self.update_json_file(config_file_path) as spinup_config:
             spinup_variables = spinup_config["SpinupVariables"]
-            last_pass_disturbances = spinup_variables.get("last_pass_disturbance_timeseries")
+            last_pass_disturbances = spinup_variables.get(
+                "last_pass_disturbance_timeseries", {}
+            ).get("vars", [])
+
             if not last_pass_disturbances:
                 last_pass_disturbances = []
             
