@@ -1,5 +1,6 @@
 import re
 import logging
+from itertools import product
 from pathlib import Path
 from mojadata.layer.attribute import Attribute
 from mojadata.layer.filter.valuefilter import ValueFilter
@@ -12,7 +13,8 @@ class Disturbance(Tileable):
 
     def __init__(
         self, pattern, input_db, year=None, disturbance_type=None, age_after=None,
-        regen_delay=None, transition=None, lookup_table=None, **layer_kwargs
+        regen_delay=None, transition=None, lookup_table=None, filters=None,
+        split_on=None, name=None, **layer_kwargs
     ):
         self.pattern = Path(pattern)
         self.input_db = input_db
@@ -22,13 +24,16 @@ class Disturbance(Tileable):
         self.regen_delay = regen_delay
         self.transition = transition
         self.lookup_table = Path(lookup_table) if lookup_table else None
+        self.filters = filters or {}
+        self.split_on = [split_on] if isinstance(split_on, str) else split_on if split_on else ["year"]
+        self.name = name
         self.layer_kwargs = layer_kwargs or {}
 
     def to_tiler_layer(self, rule_manager, **kwargs):
         disturbance_layers = []
         for layer_path in self.pattern.absolute().parent.glob(self.pattern.name):
             layer = Layer(
-                layer_path.stem, layer_path, lookup_table=self.lookup_table,
+                self._make_tiler_name(layer_path), layer_path, lookup_table=self.lookup_table,
                 **self.layer_kwargs)
 
             attribute_table = layer.attribute_table
@@ -53,21 +58,45 @@ class Disturbance(Tileable):
             disturbance_type = self._get_disturbance_type_or_attribute(layer_path, attribute_table)
             year = self._get_disturbance_year_or_attribute(layer_path, attribute_table)
 
+            tiler_attributes = {
+                attr: attr for attr in (year, disturbance_type, age_after, regen_delay)
+                if attr in attribute_table
+            }
+
+            if spatial_classifier_transition:
+                # Transition is configured as classifier to layer attribute;
+                # use the inverse to rename those attributes to match the
+                # classifiers when tiling.
+                tiler_attributes.update({v: k for k, v in self.transition.items()})
+
+            layer_filters = {}
+            for filter_attr, filter_value in self.filters.items():
+                layer_filter_attr = (
+                    filter_attr if filter_attr not in ("year", "disturbance_type")
+                    else year if (filter_attr == "year" and year in tiler_attributes)
+                    else disturbance_type if (
+                        filter_attr == "disturbance_type"
+                        and disturbance_type in tiler_attributes
+                    ) else None
+                )
+    
+                if not layer_filter_attr:
+                    continue
+    
+                layer_filters[layer_filter_attr] = self._parse_filter_value(filter_value)
+                tiler_attributes[layer_filter_attr] = layer_filter_attr
+
             if layer.is_raster:
+                if "year" in self.filters and year not in layer_filters:
+                    # Raster layers support simple year filtering - skip layers
+                    # not in the allowed range.
+                    if year not in self._parse_filter_value(self.filters["year"]):
+                        continue
+
                 disturbance_layer = layer
                 if spatial_classifier_transition:
-                    # Transition is configured as classifier to layer attribute;
-                    # use the inverse to rename those attributes to match the
-                    # classifiers when tiling.
-                    attributes = {
-                        attr: attr for attr in (year, disturbance_type, age_after, regen_delay)
-                        if attr in attribute_table
-                    }
-                    
-                    attributes.update({v: k for k, v in self.transition.items()})
-                    disturbance_layer = Layer(
-                        layer_path.stem, layer_path, attributes, self.lookup_table,
-                        **self.layer_kwargs)
+                    disturbance_layer = layer.split(
+                        self._make_tiler_name(layer_path), tiler_attributes)
 
                 disturbance_layers.append(DisturbanceLayer(
                     rule_manager,
@@ -75,53 +104,75 @@ class Disturbance(Tileable):
                     Attribute(year) if year in attribute_table else year,
                     Attribute(disturbance_type) if disturbance_type in attribute_table else disturbance_type,
                     transition_rule))
-            elif year not in attribute_table:
-                kwargs["raw"] = False
-                attributes = {
-                    attr: attr for attr in (disturbance_type, age_after, regen_delay)
-                    if attr in attribute_table
-                }
-
-                if spatial_classifier_transition:
-                    attributes.update({v: k for k, v in self.transition.items()})
-
-                disturbance_layers.append(DisturbanceLayer(
-                    rule_manager,
-                    Layer(
-                        layer_path.stem, layer_path, attributes,
-                        lookup_table=self.lookup_table, **self.layer_kwargs
-                    ).to_tiler_layer(rule_manager, **kwargs),
-                    year,
-                    Attribute(disturbance_type) if disturbance_type in attributes else disturbance_type,
-                    transition_rule))
             else:
-                # Vector disturbance layers must be split on at least year and
-                # possibly disturbance type to avoid overlaps in rasterization.
+                # Vector disturbance layers sometimes need to be split on year and/or
+                # disturbance type to handle overlapping polygons in rasterization.
                 kwargs["raw"] = False
-                for disturbance_year in attribute_table[year]:
-                    attributes = {
-                        attr: attr for attr in (year, disturbance_type, age_after, regen_delay)
-                        if attr in attribute_table
-                    }
 
-                    if spatial_classifier_transition:
-                        attributes.update({v: k for k, v in self.transition.items()})
+                split_attributes = []
+                if "year" in self.split_on and year in attribute_table:
+                    split_attributes.append(year)
 
-                    attr_filter = {attributes[year]: disturbance_year}
+                if "disturbance_type" in self.split_on and disturbance_type in attribute_table:
+                    split_attributes.append(disturbance_type)
 
-                    year_layer = Layer(
-                        f"{layer_path.stem}_{int(disturbance_year)}",
-                        str(layer_path), attributes, self.lookup_table, attr_filter,
-                        **self.layer_kwargs)
-
+                if not split_attributes:
                     disturbance_layers.append(DisturbanceLayer(
                         rule_manager,
-                        year_layer.to_tiler_layer(rule_manager, **kwargs),
-                        Attribute(year),
-                        Attribute(disturbance_type) if disturbance_type in attribute_table else disturbance_type,
+                        layer.split(
+                            self._make_tiler_name(layer_path), tiler_attributes, layer_filters
+                        ).to_tiler_layer(rule_manager, **kwargs),
+                        Attribute(year) if year in tiler_attributes else year,
+                        Attribute(disturbance_type) if disturbance_type in tiler_attributes else disturbance_type,
                         transition_rule))
+                else:
+                    # Split vector into a raster per combination of split attribute values,
+                    # while also obeying any configured filters.
+                    logging.info(f"  splitting on: {', '.join(split_attributes)}")
+                    split_values = {}
+                    for split_attr in split_attributes:
+                        split_attr_values = attribute_table[split_attr]
+                        filter_values = layer_filters.get(split_attr)
+                        if isinstance(filter_values, list):
+                            split_attr_values = list(set(split_attr_values).intersection(
+                                set((type(split_attr_values[0])(v) for v in filter_values))))
+
+                        split_values[split_attr] = split_attr_values
+                    
+                    non_splitting_filters = {k: v for k, v in layer_filters.items() if k not in split_values}
+
+                    for i, split_target_values in enumerate(product(*split_values.values())):
+                        split_layer_filters = dict(zip(split_values.keys(), split_target_values))
+                        split_layer_filters.update(non_splitting_filters)
+
+                        logging.info(f"    split {i}: {split_layer_filters}")
+                        split_layer = layer.split(
+                            self._make_tiler_name(layer_path, i), tiler_attributes, split_layer_filters)
+
+                        disturbance_layers.append(DisturbanceLayer(
+                            rule_manager,
+                            split_layer.to_tiler_layer(rule_manager, **kwargs),
+                            Attribute(year) if year in tiler_attributes else year,
+                            Attribute(disturbance_type) if disturbance_type in tiler_attributes else disturbance_type,
+                            transition_rule))
 
         return disturbance_layers
+
+    def _make_tiler_name(self, layer_path, *args):
+        return (
+            "_".join([self.name, layer_path.stem, *(str(a) for a in args)]) if self.name
+            else "_".join([layer_path.stem, *(str(a) for a in args)])
+        )
+
+    def _parse_filter_value(self, filter_value):
+        if (isinstance(filter_value, str)
+            and filter_value.startswith("(")
+            and filter_value.endswith(")")
+        ):
+            filter_min, filter_max = eval(filter_value)
+            return list(range(filter_min, filter_max + 1))
+
+        return filter_value
 
     def _try_parse_year(self, layer_path):
         parse_result = re.findall(r"(\d{4})", str(layer_path))
@@ -134,7 +185,7 @@ class Disturbance(Tileable):
                 pass
 
     def _get_disturbance_year_or_attribute(self, layer_path, attribute_table):
-        logging.info(f"Checking for disturbance year in {layer_path.name}...")
+        logging.info(f"  checking for disturbance year in {layer_path.name}...")
         if self.year == "filename":
             year = self._try_parse_year(layer_path)
             if year is None:
@@ -161,7 +212,7 @@ class Disturbance(Tileable):
         return year
 
     def _get_disturbance_type_or_attribute(self, layer_path, attribute_table):
-        logging.info(f"Checking for disturbance type in {layer_path.name}...")
+        logging.info(f"  checking for disturbance type in {layer_path.name}...")
         if self.disturbance_type is not None:
             logging.info(f"  using configured value: {self.disturbance_type}")
             return self.disturbance_type

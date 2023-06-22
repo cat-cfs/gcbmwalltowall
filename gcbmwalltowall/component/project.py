@@ -21,6 +21,13 @@ from gcbmwalltowall.validation.generic import require_instance_of
 
 class Project:
 
+    _layer_reserved_keywords = {"layer", "lookup_table", "attribute"}
+    
+    _disturbance_reserved_keywords = {
+        "year", "disturbance_type", "age_after", "regen_delay", "lookup_table",
+        "pattern"
+    }
+
     def __init__(self, name, bounding_box, classifiers, layers, input_db, output_path,
                  disturbances=None, rollback=None):
         self.name = require_not_null(name)
@@ -56,6 +63,7 @@ class Project:
         mgr.start()
         rule_manager = mgr.TransitionRuleManager()
         with cleanup():
+            logging.info(f"Preparing non-disturbance layers")
             tiler_bbox = self.bounding_box.to_tiler_layer(rule_manager)
             tiler_layers = [
                 layer.to_tiler_layer(
@@ -67,14 +75,19 @@ class Project:
                 for layer in chain(self.layers, self.classifiers)
             ]
 
+            logging.info(f"Finished preparing non-disturbance layers")
             if self.disturbances:
                 for disturbance in self.disturbances:
+                    logging.info(f"Preparing {disturbance.name or disturbance.pattern}")
                     layer = disturbance.to_tiler_layer(rule_manager)
                     if isinstance(layer, list):
                         tiler_layers.extend(layer)
                     else:
                         tiler_layers.append(layer)
 
+                    logging.info(f"Finished preparing {disturbance.name or disturbance.pattern}")
+
+            logging.info("Starting up tiler...")
             tiler = GdalTiler2D(tiler_bbox, use_bounding_box_resolution=True, workers=cpu_count())
             tiler.tile(tiler_layers, str(self.tiler_output_path))
             rule_manager.write_rules(str(self.tiler_output_path.joinpath("transition_rules.csv")))
@@ -192,22 +205,28 @@ class Project:
                 layers.append(Layer(
                     layer_name, layer_path, attribute,
                     config.resolve(layer_lookup_table) if layer_lookup_table else None,
-                    attribute_filter, **{k: v for k, v in layer_details.items() if k not in (
-                        "layer", "lookup_table", "attribute"
-                    )}))
+                    attribute_filter, **{
+                        k: v for k, v in layer_details.items()
+                        if k not in Project._layer_reserved_keywords
+                    }))
         
-        disturbances = [
-            Disturbance(
-                config.resolve(pattern), input_db,
-                dist_config.get("year"), dist_config.get("disturbance_type"),
-                dist_config.get("age_after"), dist_config.get("regen_delay"),
-                {c.name: dist_config[c.name] for c in classifiers if c.name in dist_config},
-                config.resolve(dist_config.get("lookup_table", config.config_path)), **{
-                    k: v for k, v in dist_config.items()
-                    if k not in {"year", "disturbance_type", "age_after", "regen_delay", "lookup_table"}
-                    and k not in {c.name for c in classifiers if c.name in dist_config}})
-            for pattern, dist_config in config.get("disturbances", {}).items()
-        ]
+        disturbances = []
+        for pattern_or_name, dist_config in config.get("disturbances", {}).items():
+            if isinstance(dist_config, str):
+                disturbance_pattern = dist_config
+                disturbances.append(Disturbance(
+                    config.resolve(disturbance_pattern), input_db, name=pattern_or_name))
+            else:
+                disturbances.append(Disturbance(
+                    config.resolve(dist_config.get("pattern", pattern_or_name)), input_db,
+                    dist_config.get("year"), dist_config.get("disturbance_type"),
+                    dist_config.get("age_after"), dist_config.get("regen_delay"),
+                    {c.name: dist_config[c.name] for c in classifiers if c.name in dist_config},
+                    config.resolve(dist_config.get("lookup_table", config.config_path)),
+                    name=pattern_or_name if "pattern" in dist_config else None, **{
+                        k: v for k, v in dist_config.items()
+                        if k not in Project._disturbance_reserved_keywords
+                        and k not in {c.name for c in classifiers if c.name in dist_config}}))
 
         rollback = None
         rollback_config = config.get("rollback")

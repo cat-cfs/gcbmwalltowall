@@ -9,6 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy import table
 from sqlalchemy import column
 from sqlalchemy import select
+from sqlalchemy import distinct
 from pathlib import Path
 
 class InputDatabase:
@@ -99,9 +100,7 @@ class InputDatabase:
             dist_type_table = table("tbldisturbancetypedefault", column("disttypename"))
             dist_types = {
                 row[0] for row in conn.execute(
-                    dist_type_table
-                        .select(dist_type_table.c.disttypename)
-                        .distinct()
+                    select(distinct(dist_type_table.c.disttypename))
                 )
             }
             
@@ -193,7 +192,7 @@ class InputDatabase:
 
         raise RuntimeError(
             f"Unable to find matching column for classifier '{classifier.name}' "
-            "in {self.yield_path}")
+            f"in {self.yield_path}")
 
     def _find_transition_col(self, transition_rules_path, classifier):
         if not transition_rules_path:

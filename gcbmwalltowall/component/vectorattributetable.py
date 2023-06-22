@@ -1,5 +1,6 @@
 import csv
 import json
+import logging
 from ftfy import fix_encoding
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -10,10 +11,11 @@ from gcbmwalltowall.component.attributetable import AttributeTable
 
 class VectorAttributeTable(AttributeTable):
 
-    def __init__(self, layer_path, lookup_path=None):
+    def __init__(self, layer_path, lookup_path=None, layer=None):
         self._cached_data = None
         self.layer_path = Path(layer_path).absolute()
         self.lookup_path = Path(lookup_path).absolute() if lookup_path else None
+        self.layer = layer
         if not self.layer_path.exists():
             raise ValueError(f"{layer_path} not found")
 
@@ -64,18 +66,20 @@ class VectorAttributeTable(AttributeTable):
         return self._cached_data.copy()
 
     def _extract_attribute_table(self):
-        shp = ogr.Open(str(self.layer_path))
-        lyr = shp.GetLayer(0)
+        ds = ogr.Open(str(self.layer_path))
+        lyr = ds.GetLayerByName(self.layer) if self.layer else ds.GetLayer(0)
         defn = lyr.GetLayerDefn()
+        ds_table = self.layer or self.layer_path.stem
 
         attribute_table = {}
-        for i in range(defn.GetFieldCount()):
+        num_attributes = defn.GetFieldCount()
+        for i in range(num_attributes):
+            field_num = i + 1
+            logging.info(f"  reading attribute table (field {field_num} / {num_attributes})")
             attribute = defn.GetFieldDefn(i).GetName()
-            unique_values = shp.ExecuteSQL(
-                f"SELECT DISTINCT {attribute} FROM {self.layer_path.stem}")
-
+            unique_values = ds.ExecuteSQL(f"SELECT DISTINCT {attribute} FROM {ds_table}")
             attribute_table[attribute] = [row.GetField(0) for row in unique_values]
-            shp.ReleaseResultSet(unique_values)
+            ds.ReleaseResultSet(unique_values)
 
         # Fix any unicode errors and ensure the final attribute values are UTF-8. 
         # This fixes cases where a shapefile has a bad encoding along with non-ASCII

@@ -10,13 +10,18 @@ class Layer(Tileable):
     raster_formats = [".tif", ".tiff"]
     vector_formats = [".shp", ".gdb"]
 
-    def __init__(self, name, path, attributes=None, lookup_table=None, filters=None, **tiler_kwargs):
+    def __init__(
+        self, name, path, attributes=None, lookup_table=None, filters=None, layer=None,
+        **tiler_kwargs
+    ):
         self.name = name
         self.path = Path(path).absolute()
         self.attributes = [attributes] if isinstance(attributes, str) else attributes
-        self.filters = filters or {}
         self.lookup_table = Path(lookup_table) if lookup_table else None
+        self.filters = filters or {}
+        self.layer = layer
         self.tiler_kwargs = tiler_kwargs
+        self._cached_lookup_table = None
 
     @property
     def attribute_table(self):
@@ -59,13 +64,27 @@ class Layer(Tileable):
             self.name,
             str(self.path.absolute()),
             **lookup_table.to_tiler_args(attributes, self.filters),
+            layer=self.layer,
             **kwargs)
+
+    def split(self, name=None, attributes=None, filters=None):
+        layer_copy = __class__(
+            name or self.name, self.path, attributes or self.attributes,
+            self.lookup_table, filters or self.filters, self.layer, **self.tiler_kwargs
+        )
+
+        layer_copy._cached_lookup_table = self._cached_lookup_table
+        
+        return layer_copy
 
     def _find_lookup_table(self):
         if not self.lookup_table:
             return None
 
-        if self.lookup_table and self.lookup_table.is_file():
+        if self.lookup_table and not self.lookup_table.is_dir():
+            if not self.lookup_table.exists():
+                raise RuntimeError(f"{self.lookup_table} not found")
+
             return self.lookup_table
 
         # First check if the lookup table is specified as a directory, then see
@@ -78,8 +97,16 @@ class Layer(Tileable):
         return lookup_table if lookup_table.exists() else None
 
     def _load_lookup_table(self):
+        if self._cached_lookup_table is not None:
+            return self._cached_lookup_table
+
         lookup_table = self._find_lookup_table()
         if self.path.suffix in Layer.raster_formats:
-            return RasterAttributeTable(lookup_table) if lookup_table else None
+            self._cached_lookup_table = (
+                RasterAttributeTable(lookup_table) if lookup_table else None
+            )
+        else:
+            self._cached_lookup_table = VectorAttributeTable(
+                self.path, lookup_table, layer=self.layer)
 
-        return VectorAttributeTable(self.path, lookup_table)
+        return self._cached_lookup_table
