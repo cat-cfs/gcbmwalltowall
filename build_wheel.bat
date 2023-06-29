@@ -1,5 +1,5 @@
 @echo off
-set PYTHONHOME=c:\python37
+REM set PYTHONHOME=c:\python37
 
 if exist dist rd /s /q dist
 

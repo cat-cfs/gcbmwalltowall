@@ -1,10 +1,10 @@
 import json
 import pandas as pd
 import numpy as np
-from psutil import virtual_memory
 from collections import defaultdict
 from pathlib import Path
 from sqlalchemy import create_engine
+from spatial_inventory_rollback.application.rollback_app_parameters import RollbackAppParameters
 from spatial_inventory_rollback.application.app import run as spatial_rollback
 
 class Rollback:
@@ -12,7 +12,7 @@ class Rollback:
     def __init__(
         self, age_distribution, inventory_year, rollback_year=1990,
         prioritize_disturbances=False, single_draw=False,
-        establishment_disturbance_type="Wildfire", disturbance_order=None
+        establishment_disturbance_type="Wildfire", disturbance_order=None,
     ):
         self.age_distribution = Path(age_distribution)
         self.inventory_year = inventory_year
@@ -43,19 +43,26 @@ class Rollback:
             rollback_age_distribution = output_path.joinpath("age_distribution.json")
             self._convert_age_distribution(classifiers, rollback_age_distribution)
 
-        spatial_rollback(
+        spatial_rollback(RollbackAppParameters(
             input_layers=str(tiled_layers_path),
             input_db=str(input_db_path),
             inventory_year=inventory_year,
             rollback_year=self.rollback_year,
             rollback_age_distribution=str(rollback_age_distribution),
             prioritize_disturbances=self.prioritize_disturbances,
-            establishment_disturbance_type=self.establishment_disturbance_type,
+            establishment_disturbance_type=(
+                self.establishment_disturbance_type
+                if not Path(self.establishment_disturbance_type).exists()
+                else None),
+            establishment_disturbance_type_distribution=(
+                self.establishment_disturbance_type
+                if Path(self.establishment_disturbance_type).exists()
+                else None),
             single_draw=self.single_draw,
             output_path=str(output_path),
             stand_replacing_lookup=None,
             disturbance_type_order=self.disturbance_order,
-            memory_limit_MB=int(virtual_memory().available / 1024**2 / 2))
+            logging_level="INFO"))
 
     def _convert_age_distribution(self, classifiers, output_path):
         age_distributions = []

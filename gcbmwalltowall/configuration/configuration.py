@@ -38,10 +38,15 @@ class Configuration(dict):
 
     @property
     def gcbm_disturbance_order_path(self):
-        return self.get(
+        disturbance_order_path = self.get(
             "disturbance_order",
             next(self.config_path.glob("disturbance_order.*"), None)
         )
+
+        if not disturbance_order_path:
+            return None
+
+        return self.resolve(disturbance_order_path)
 
     @property
     def gcbm_template_path(self):
@@ -71,10 +76,10 @@ class Configuration(dict):
         return settings_keys
 
     def resolve(self, path=None):
-        return self.config_path.joinpath(path)
+        return self.config_path.joinpath(path).resolve()
 
     def resolve_working(self, path=None):
-        return self.working_path.joinpath(path)
+        return self.working_path.joinpath(path).resolve()
 
     def find_lookup_table(self, layer_path):
         layer_path = Path(layer_path).absolute()

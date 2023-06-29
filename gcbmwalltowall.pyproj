@@ -7,12 +7,12 @@
     <StartupFile>gcbmwalltowall\application\walltowall.py</StartupFile>
     <SearchPath>
     </SearchPath>
-    <WorkingDirectory>C:\Projects\39_wall_to_wall\05_working\09_bgi_txomin</WorkingDirectory>
+    <WorkingDirectory>C:\Projects\39_wall_to_wall\05_working\02_qc</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <Name>gcbmwalltowall</Name>
     <RootNamespace>gcbmwalltowall</RootNamespace>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>prepare config\walltowall_config.json</CommandLineArguments>
+    <CommandLineArguments>merge 02_qc_casfri_nbac_ntems\config\walltowall_config.json 02_qc_casfri_nbac_ntems 03_qc_bgi_txomin_nbac_ntems --include_index_layer --output_path 04_qc_merged_casfri_bgi_txomin_nbac_ntems</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
     <IsWindowsApplication>False</IsWindowsApplication>
   </PropertyGroup>
@@ -42,6 +42,7 @@
     <Compile Include="gcbmwalltowall\application\__init__.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="gcbmwalltowall\builder\compositeprojectbuilder.py" />
     <Compile Include="gcbmwalltowall\builder\casfriprojectbuilder.py">
       <SubType>Code</SubType>
     </Compile>

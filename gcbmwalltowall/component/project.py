@@ -256,12 +256,18 @@ class Project:
             if inventory_year_layer:
                 layers.append(inventory_year_layer)
 
+            establishment_disturbance_type = rollback_config.get(
+                "establishment_disturbance_type", "Wildfire")
+
+            if config.resolve(establishment_disturbance_type).exists():
+                establishment_disturbance_type = config.resolve(establishment_disturbance_type)
+
             rollback = Rollback(
                 age_distribution,
                 inventory_year_layer.name if inventory_year_layer else inventory_year,
                 rollback_year, rollback_config.get("prioritize_disturbances", False),
                 rollback_config.get("single_draw", False),
-                rollback_config.get("establishment_disturbance_type", "Wildfire"),
+                establishment_disturbance_type,
                 config.gcbm_disturbance_order_path)
 
         return cls(project_name, bounding_box, classifiers, layers, input_db,

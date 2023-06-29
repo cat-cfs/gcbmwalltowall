@@ -8,9 +8,11 @@ class ProjectBuilder:
     @staticmethod
     def get_builders():
         from gcbmwalltowall.builder.casfriprojectbuilder import CasfriProjectBuilder
+        from gcbmwalltowall.builder.compositeprojectbuilder import CompositeProjectBuilder
 
         return {
             "casfri": CasfriProjectBuilder,
+            "composite": CompositeProjectBuilder,
         }
 
     @staticmethod
@@ -61,15 +63,20 @@ class ProjectBuilder:
             if isinstance(v, dict):
                 if k == "disturbances":
                     for dist_pattern, dist_config in v.copy().items():
-                        dist_config = ProjectBuilder._update_relative_paths(
-                            dist_config, original_path, output_path)
+                        if "*" in dist_config or original_path.joinpath(f"{dist_config}").exists():
+                            v[dist_pattern] = relpath(original_path.joinpath(dist_config), output_path)
+                        elif "pattern" in dist_config:
+                            v[dist_pattern] = relpath(original_path.joinpath(dist_config["pattern"]), output_path)
+                        else:
+                            dist_config = ProjectBuilder._update_relative_paths(
+                                dist_config, original_path, output_path)
 
-                        working_pattern = relpath(
-                            original_path.joinpath(dist_pattern), output_path)
+                            working_pattern = relpath(
+                                original_path.joinpath(dist_pattern), output_path)
 
-                        v[working_pattern] = dist_config
-                        if working_pattern != dist_pattern:
-                            del v[dist_pattern]
+                            v[working_pattern] = dist_config
+                            if working_pattern != dist_pattern:
+                                del v[dist_pattern]
                 else:
                     config[k] = ProjectBuilder._update_relative_paths(
                         v, original_path, output_path)
