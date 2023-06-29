@@ -66,7 +66,10 @@ class ProjectBuilder:
                         if "*" in dist_config or original_path.joinpath(f"{dist_config}").exists():
                             v[dist_pattern] = relpath(original_path.joinpath(dist_config), output_path)
                         elif "pattern" in dist_config:
-                            v[dist_pattern] = relpath(original_path.joinpath(dist_config["pattern"]), output_path)
+                            dist_config = ProjectBuilder._update_relative_paths(
+                                dist_config, original_path, output_path)
+
+                            v[dist_pattern] = dist_config
                         else:
                             dist_config = ProjectBuilder._update_relative_paths(
                                 dist_config, original_path, output_path)
