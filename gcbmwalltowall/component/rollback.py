@@ -1,4 +1,5 @@
 import json
+import shutil
 import pandas as pd
 import numpy as np
 from collections import defaultdict
@@ -27,6 +28,7 @@ class Rollback:
         input_db_path = Path(input_db_path).absolute()
         
         output_path = tiled_layers_path.joinpath("..", "rollback")
+        shutil.rmtree(output_path, ignore_errors=True)
         output_path.mkdir(parents=True, exist_ok=True)
 
         if not self.disturbance_order:
