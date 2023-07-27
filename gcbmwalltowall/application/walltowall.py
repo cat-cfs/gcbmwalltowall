@@ -101,7 +101,7 @@ def run(args):
             project_name = config.get("project_name", project.path.stem)
             subprocess.run([
                 sys.executable, str(config.resolve(config.distributed_client)),
-                "--title", datetime.now().strftime(f"gcbm_{project_name}_%Y%m%d_%H%M%S"),
+                "--title", datetime.now().strftime(f"gcbm_{args.get('title', project_name)}_%Y%m%d_%H%M%S"),
                 "--gcbm-config", str(project.gcbm_config_path.joinpath("gcbm_config.cfg")),
                 "--provider-config", str(project.gcbm_config_path.joinpath("provider_config.json")),
                 "--study-area", str(
@@ -168,6 +168,8 @@ def cli():
         help="path to config file containing fully-specified project configuration")
     run_parser.add_argument(
         "--end_year", type=int, help="temporarily set a new end year for this run")
+    run_parser.add_argument(
+        "--title", help="explicitly specify a title for this run")
 
     args = parser.parse_args()
 
