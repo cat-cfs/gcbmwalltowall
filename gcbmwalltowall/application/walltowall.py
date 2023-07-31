@@ -101,7 +101,7 @@ def run(args):
             project_name = config.get("project_name", project.path.stem)
             subprocess.run([
                 sys.executable, str(config.resolve(config.distributed_client)),
-                "--title", datetime.now().strftime(f"gcbm_{args.get('title', project_name)}_%Y%m%d_%H%M%S"),
+                "--title", datetime.now().strftime(f"gcbm_{getattr(args, 'title', project_name)}_%Y%m%d_%H%M%S"),
                 "--gcbm-config", str(project.gcbm_config_path.joinpath("gcbm_config.cfg")),
                 "--provider-config", str(project.gcbm_config_path.joinpath("provider_config.json")),
                 "--study-area", str(
