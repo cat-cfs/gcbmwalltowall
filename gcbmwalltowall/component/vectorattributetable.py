@@ -1,4 +1,4 @@
-import csv
+import pandas as pd
 import json
 import logging
 from ftfy import fix_encoding
@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 from mojadata.util import ogr
 from mojadata.layer.attribute import Attribute
 from mojadata.layer.filter.valuefilter import ValueFilter
+from pandas._libs import interval
 from gcbmwalltowall.component.attributetable import AttributeTable
 
 class VectorAttributeTable(AttributeTable):
@@ -38,13 +39,28 @@ class VectorAttributeTable(AttributeTable):
             else dict(zip(selected_attributes, selected_attributes))
         )
 
-        filters = {k: v for k, v in filters.items() if v is not None} if filters else {}
+        # Tiler filters by original layer values, while gcbmwalltowall expects
+        # users to filter by substituted values, if applicable.
+        tiler_filters = {}
+        if filters:
+            original_values = self._load_substitutions(invert=True)
+            for attr, user_filter in filters.items():
+                attr_filter_values = []
+                if isinstance(user_filter, list):
+                    for user_filter_value in user_filter:
+                        attr_filter_values.extend(
+                            original_values.get(attr, {}).get(user_filter_value, [user_filter_value])
+                        )
+                else:
+                    attr_filter_values.extend(original_values.get(attr, {}).get(user_filter, [user_filter]))
+                
+                tiler_filters[attr] = attr_filter_values
 
         return {
             "attributes": [
                 Attribute(
                     layer_attribute, tiler_attribute,
-                    ValueFilter(filters[layer_attribute]) if layer_attribute in filters else None,
+                    ValueFilter(tiler_filters[layer_attribute]) if layer_attribute in tiler_filters else None,
                     self._data.get(layer_attribute))
                 for layer_attribute, tiler_attribute in tiler_attributes.items()
             ]
@@ -95,14 +111,14 @@ class VectorAttributeTable(AttributeTable):
 
             return json.loads(open(tmp_path, encoding="utf8").read())
 
-    def _load_substitutions(self):
+    def _load_substitutions(self, invert=False):
         if not self.lookup_path:
             return {}
 
-        substitutions = csv.reader(open(str(self.lookup_path)))
-        header = next(substitutions)
+        substitutions = pd.read_csv(str(self.lookup_path), dtype=str)
+        header = substitutions.columns
         substitution_table = {col: {} for col in header[::2]}
-        for row in substitutions:
+        for _, row in substitutions.iterrows():
             for original_col in range(0, len(header), 2):
                 replacement_col = original_col + 1
                 original_value = row[original_col]
@@ -111,7 +127,13 @@ class VectorAttributeTable(AttributeTable):
                     continue
                 
                 attribute = header[original_col]
-                substitution_table[attribute][original_value] = replacement_value
+                if not invert:
+                    substitution_table[attribute][original_value] = replacement_value
+                else:
+                    if not substitution_table[attribute].get(replacement_value):
+                        substitution_table[attribute][replacement_value] = []
+
+                    substitution_table[attribute][replacement_value].append(original_value)
 
         return substitution_table
 

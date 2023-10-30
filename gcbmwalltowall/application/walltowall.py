@@ -99,7 +99,8 @@ def run(args):
         elif args.host == "cluster":
             logging.info(f"Using {config.resolve(config.distributed_client)}")
             project_name = config.get("project_name", project.path.stem)
-            subprocess.run([
+            
+            run_args = [
                 sys.executable, str(config.resolve(config.distributed_client)),
                 "--title", datetime.now().strftime(f"gcbm_{getattr(args, 'title', project_name)}_%Y%m%d_%H%M%S"),
                 "--gcbm-config", str(project.gcbm_config_path.joinpath("gcbm_config.cfg")),
@@ -108,7 +109,13 @@ def run(args):
                     (project.rollback_layer_path or project.tiled_layer_path)
                     .joinpath("study_area.json")),
                 "--no-wait"
-            ], cwd=project.path)
+            ]
+            
+            compile_results_config = getattr(args, "compile_results_config")
+            if compile_results_config:
+                run_args.extend(["--compile-results-config", Path(compile_results_config).absolute()])
+
+            subprocess.run(run_args, cwd=project.path)
 
 def cli():
     parser = ArgumentParser(description="Manage GCBM wall-to-wall projects")
@@ -170,6 +177,8 @@ def cli():
         "--end_year", type=int, help="temporarily set a new end year for this run")
     run_parser.add_argument(
         "--title", help="explicitly specify a title for this run")
+    run_parser.add_argument(
+        "--compile_results_config", help="path to custom compile results config file")
 
     args = parser.parse_args()
 
