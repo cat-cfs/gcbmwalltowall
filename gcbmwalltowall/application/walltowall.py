@@ -111,7 +111,7 @@ def run(args):
                 "--no-wait"
             ]
             
-            compile_results_config = getattr(args, "compile_results_config")
+            compile_results_config = getattr(args, "compile_results_config", None)
             if compile_results_config:
                 run_args.extend(["--compile-results-config", Path(compile_results_config).absolute()])
 
