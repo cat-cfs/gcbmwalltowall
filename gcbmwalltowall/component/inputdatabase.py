@@ -66,22 +66,27 @@ class InputDatabase:
                     "Column": self._find_classifier_col(classifier)
                 } for classifier in classifiers]
             },
+            # gcbmwalltowall expects a specific naming convention for transition rules:
+            #   - id, regen_delay, age_after, age_reset_type, disturbance_type
+            #   - exact classifier name: the classifier values to transition to
+            #   - exact classifier name with "_match" suffix: the classifier values to match
+            #       if supplying rule-based transitions
             "TransitionRules": {
                 "Path": relpath(transition_rules_path, output_dir) if transition_rules_path else "",
                 "Page": 0,
                 "Header": True,
-                "NameCol": 0,
-                "AgeCol": 2,
-                "DelayCol": 1,
-                "TypeCol": None,
-                "RuleDisturbanceTypeCol": None,
+                "NameCol": self._find_col_index(transition_rules_path, "id"),
+                "AgeCol": self._find_col_index(transition_rules_path, "age_after"),
+                "DelayCol": self._find_col_index(transition_rules_path, "regen_delay"),
+                "TypeCol": self._find_col_index(transition_rules_path, "age_reset_type"),
+                "RuleDisturbanceTypeCol": self._find_col_index(transition_rules_path, "disturbance_type"),
                 "Classifiers": [{
                     "Name": classifier.name,
                     "Column": self._find_transition_col(transition_rules_path, classifier)
                 } for classifier in classifiers],
                 "RuleClassifiers": [{
                     "Name": classifier.name,
-                    "Column": None
+                    "Column": self._find_col_index(transition_rules_path, f"{classifier.name}_match")
                 } for classifier in classifiers]
             }
         }
@@ -195,14 +200,17 @@ class InputDatabase:
             f"in {self.yield_path}")
 
     def _find_transition_col(self, transition_rules_path, classifier):
-        if not transition_rules_path:
-            return -1
-
-        transition_rules = pd.read_csv(transition_rules_path)
-        if classifier.name not in transition_rules:
-            return -1
-
-        return transition_rules.columns.get_loc(classifier.name)
+        return self._find_col_index(transition_rules_path, classifier.name, -1)
+    
+    def _find_col_index(self, csv_path, col_name, default=None):
+        if not (csv_path and csv_path.exists()):
+            return default
+        
+        header = pd.read_csv(csv_path, nrows=1)
+        if col_name not in header:
+            return default
+        
+        return header.columns.get_loc(col_name)
 
     def _only_numeric(self, values):
         return all((isinstance(v, Number) for v in values))

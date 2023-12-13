@@ -29,7 +29,7 @@ class Project:
     }
 
     def __init__(self, name, bounding_box, classifiers, layers, input_db, output_path,
-                 disturbances=None, rollback=None):
+                 disturbances=None, rollback=None, soft_transition_rules_path=None):
         self.name = require_not_null(name)
         self.bounding_box = require_instance_of(bounding_box, BoundingBox)
         self.classifiers = require_instance_of(classifiers, list)
@@ -38,6 +38,10 @@ class Project:
         self.output_path = Path(require_not_null(output_path)).absolute()
         self.disturbances = disturbances
         self.rollback = rollback
+        self.soft_transition_rules_path = (
+            Path(soft_transition_rules_path).absolute() if soft_transition_rules_path
+            else None
+        )
 
     @property
     def tiler_output_path(self):
@@ -95,9 +99,9 @@ class Project:
     def create_input_database(self, recliner2gcbm_exe):
         output_path = self.input_db_path.parent
         output_path.mkdir(parents=True, exist_ok=True)
+        transition_rules = self._prepare_transition_rules(output_path)
         self.input_db.create(
-            recliner2gcbm_exe, self.classifiers, self.input_db_path,
-            self.tiler_output_path.joinpath("transition_rules.csv").absolute())
+            recliner2gcbm_exe, self.classifiers, self.input_db_path, transition_rules)
 
     def run_rollback(self, recliner2gcbm_exe):
         if self.rollback:
@@ -270,9 +274,46 @@ class Project:
                 establishment_disturbance_type,
                 config.gcbm_disturbance_order_path)
 
-        return cls(project_name, bounding_box, classifiers, layers, input_db,
-                   str(config.working_path), disturbances, rollback)
+        soft_transitions = config.get("transition_rules")
+        if soft_transitions:
+            soft_transitions = config.resolve(soft_transitions)
 
+        return cls(project_name, bounding_box, classifiers, layers, input_db,
+                   str(config.working_path), disturbances, rollback, soft_transitions)
+
+    def _prepare_transition_rules(self, output_dir):
+        output_path = output_dir.joinpath("gcbmwalltowall_transition_rules.csv")
+        output_path.unlink(True)
+
+        tiler_transition_rules_path = self.tiler_output_path.joinpath("transition_rules.csv").absolute()
+        if not (tiler_transition_rules_path.exists() or self.soft_transition_rules_path):
+            return None
+
+        all_transition_rules = []
+        if tiler_transition_rules_path.exists():
+            all_transition_rules.extend((
+                row for row in csv.DictReader(open(tiler_transition_rules_path, newline=""))))
+        
+            for transition in all_transition_rules:
+                transition["disturbance_type"] = ""
+                transition["age_reset_type"] = transition.get("age_reset_type", "absolute")
+                transition["regen_delay"] = transition.get("regen_delay", 0)
+                for classifier in self.classifiers:
+                    transition[classifier.name] = transition.get(classifier.name, "?")
+                    transition[f"{classifier.name}_match"] = ""
+
+        if self.soft_transition_rules_path:
+            all_transition_rules.extend((
+                row for row in csv.DictReader(open(self.soft_transition_rules_path, newline=""))))
+
+        with open(output_path, "w", newline="") as merged_transition_rules:
+            header = all_transition_rules[0].keys()
+            writer = csv.DictWriter(merged_transition_rules, fieldnames=header)
+            writer.writeheader()
+            writer.writerows(all_transition_rules)
+            
+        return output_path
+        
     @staticmethod
     def _extract_attribute(config):
         attribute = config.get("attribute")
