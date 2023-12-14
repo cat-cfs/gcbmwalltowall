@@ -1,3 +1,4 @@
+from calendar import c
 import pandas as pd
 import json
 import logging
@@ -7,13 +8,16 @@ from tempfile import TemporaryDirectory
 from mojadata.util import ogr
 from mojadata.layer.attribute import Attribute
 from mojadata.layer.filter.valuefilter import ValueFilter
+from multiprocessing import Pool
 from pandas._libs import interval
 from gcbmwalltowall.component.attributetable import AttributeTable
 
 class VectorAttributeTable(AttributeTable):
+   
+    _attribute_cache = {}
+    _data_cache = {}
 
     def __init__(self, layer_path, lookup_path=None, layer=None):
-        self._cached_data = None
         self.layer_path = Path(layer_path).absolute()
         self.lookup_path = Path(lookup_path).absolute() if lookup_path else None
         self.layer = layer
@@ -22,13 +26,23 @@ class VectorAttributeTable(AttributeTable):
 
     @property
     def attributes(self):
-        return list(self._data.keys())
+        attributes = __class__._attribute_cache.get(self._cache_key)
+        if attributes is None:
+            ds = ogr.Open(str(self.layer_path))
+            lyr = ds.GetLayerByName(self.layer) if self.layer else ds.GetLayer(0)
+            defn = lyr.GetLayerDefn()
+            num_attributes = defn.GetFieldCount()
+            attributes = [defn.GetFieldDefn(i).GetName() for i in range(num_attributes)]
+            __class__._attribute_cache[self._cache_key] = attributes
+
+        return attributes.copy()
 
     def get_unique_values(self, attributes=None):
         selected_attributes = self._get_selected_attributes(attributes)
+        attribute_data = self._data(selected_attributes)
 
         return {
-            attribute: list(self._data[attribute].values())
+            attribute: list(attribute_data[attribute].values())
             for attribute in selected_attributes
         }
 
@@ -56,46 +70,70 @@ class VectorAttributeTable(AttributeTable):
                 
                 tiler_filters[attr] = attr_filter_values
 
+        attribute_data = self._data(list(tiler_attributes.keys()))
+
         return {
             "attributes": [
                 Attribute(
                     layer_attribute, tiler_attribute,
                     ValueFilter(tiler_filters[layer_attribute]) if layer_attribute in tiler_filters else None,
-                    self._data.get(layer_attribute))
+                    attribute_data.get(layer_attribute))
                 for layer_attribute, tiler_attribute in tiler_attributes.items()
             ]
         }
 
     @property
-    def _data(self):
-        if self._cached_data is None:
-            self._cached_data = {}
-            substitutions = self._load_substitutions()
-            attribute_table = self._extract_attribute_table()
-            for attribute, values in attribute_table.items():
-                self._cached_data[attribute] = {}
-                for value in values:
-                    self._cached_data[attribute][value] = (
-                        substitutions.get(attribute, {})
-                                     .get(value, value))
-            
-        return self._cached_data.copy()
+    def _cache_key(self):
+        return (self.layer_path, self.lookup_path, self.layer)
 
-    def _extract_attribute_table(self):
+    def _data(self, attributes=None):
+        cached_data = __class__._data_cache.get(self._cache_key, {})
+        lazy_load_attributes = set(self._get_selected_attributes(attributes)) - set(cached_data.keys())
+        if not lazy_load_attributes:
+            return cached_data.copy()
+
+        substitutions = self._load_substitutions()
+        attribute_table = self._extract_attribute_table(lazy_load_attributes)
+        for attribute, values in attribute_table.items():
+            cached_data[attribute] = {}
+            for value in values:
+                cached_data[attribute][value] = (
+                    substitutions.get(attribute, {})
+                                 .get(value, value))
+            
+        __class__._data_cache[self._cache_key] = cached_data
+
+        return cached_data.copy()
+    
+    def _get_distinct_attribute_values(self, table, attribute):
+        ds = ogr.Open(str(self.layer_path))
+        query = ds.ExecuteSQL(f"SELECT DISTINCT {attribute} FROM {table}")
+        unique_values = [row.GetField(0) for row in query]
+        ds.ReleaseResultSet(query)
+        
+        return attribute, unique_values
+
+    def _extract_attribute_table(self, attributes):
         ds = ogr.Open(str(self.layer_path))
         lyr = ds.GetLayerByName(self.layer) if self.layer else ds.GetLayer(0)
-        defn = lyr.GetLayerDefn()
-        ds_table = self.layer or self.layer_path.stem
+        ds_table = lyr.GetName()
+        logging.info(f"  reading attribute table: {self.layer_path.stem} [{ds_table}]")
 
         attribute_table = {}
-        num_attributes = defn.GetFieldCount()
-        for i in range(num_attributes):
-            field_num = i + 1
-            logging.info(f"  reading attribute table (field {field_num} / {num_attributes})")
-            attribute = defn.GetFieldDefn(i).GetName()
-            unique_values = ds.ExecuteSQL(f"SELECT DISTINCT {attribute} FROM {ds_table}")
-            attribute_table[attribute] = [row.GetField(0) for row in unique_values]
-            ds.ReleaseResultSet(unique_values)
+        tasks = []
+        with Pool() as pool:
+            num_attributes = len(attributes)
+            for i, attribute in enumerate(attributes):
+                field_num = i + 1
+                logging.info(f"    ({field_num} / {num_attributes}) {attribute}")
+                tasks.append(pool.apply_async(self._get_distinct_attribute_values, (ds_table, attribute)))
+            
+            pool.close()
+            pool.join()
+
+        for task in tasks:
+            attribute, unique_values = task.get()
+            attribute_table[attribute] = unique_values
 
         # Fix any unicode errors and ensure the final attribute values are UTF-8. 
         # This fixes cases where a shapefile has a bad encoding along with non-ASCII
@@ -114,7 +152,7 @@ class VectorAttributeTable(AttributeTable):
     def _load_substitutions(self, invert=False):
         if not self.lookup_path:
             return {}
-
+        
         substitutions = pd.read_csv(str(self.lookup_path), dtype=str)
         header = substitutions.columns
         substitution_table = {col: {} for col in header[::2]}

@@ -290,21 +290,18 @@ class Project:
             return None
 
         all_transition_rules = []
-        if tiler_transition_rules_path.exists():
-            all_transition_rules.extend((
-                row for row in csv.DictReader(open(tiler_transition_rules_path, newline=""))))
-        
-            for transition in all_transition_rules:
-                transition["disturbance_type"] = ""
-                transition["age_reset_type"] = transition.get("age_reset_type", "absolute")
-                transition["regen_delay"] = transition.get("regen_delay", 0)
-                for classifier in self.classifiers:
-                    transition[classifier.name] = transition.get(classifier.name, "?")
-                    transition[f"{classifier.name}_match"] = ""
+        for transition_path in (tiler_transition_rules_path, self.soft_transition_rules_path):
+            if transition_path and transition_path.exists():
+                all_transition_rules.extend((
+                    row for row in csv.DictReader(open(transition_path, newline=""))))
 
-        if self.soft_transition_rules_path:
-            all_transition_rules.extend((
-                row for row in csv.DictReader(open(self.soft_transition_rules_path, newline=""))))
+        for transition in all_transition_rules:
+            transition["disturbance_type"] = transition.get("disturbance_type", "")
+            transition["age_reset_type"] = transition.get("age_reset_type", "absolute")
+            transition["regen_delay"] = transition.get("regen_delay", 0)
+            for classifier in self.classifiers:
+                transition[classifier.name] = transition.get(classifier.name, "?")
+                transition[f"{classifier.name}_match"] = transition.get(f"{classifier.name}_match", "")
 
         with open(output_path, "w", newline="") as merged_transition_rules:
             header = all_transition_rules[0].keys()

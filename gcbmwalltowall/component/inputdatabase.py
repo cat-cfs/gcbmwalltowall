@@ -75,11 +75,11 @@ class InputDatabase:
                 "Path": relpath(transition_rules_path, output_dir) if transition_rules_path else "",
                 "Page": 0,
                 "Header": True,
-                "NameCol": self._find_col_index(transition_rules_path, "id"),
-                "AgeCol": self._find_col_index(transition_rules_path, "age_after"),
-                "DelayCol": self._find_col_index(transition_rules_path, "regen_delay"),
-                "TypeCol": self._find_col_index(transition_rules_path, "age_reset_type"),
-                "RuleDisturbanceTypeCol": self._find_col_index(transition_rules_path, "disturbance_type"),
+                "NameCol": self._find_col_index(transition_rules_path, "id", -1),
+                "AgeCol": self._find_col_index(transition_rules_path, "age_after", -1),
+                "DelayCol": self._find_col_index(transition_rules_path, "regen_delay", -1),
+                "TypeCol": self._find_col_index(transition_rules_path, "age_reset_type", -1),
+                "RuleDisturbanceTypeCol": self._find_col_index(transition_rules_path, "disturbance_type", -1),
                 "Classifiers": [{
                     "Name": classifier.name,
                     "Column": self._find_transition_col(transition_rules_path, classifier)
