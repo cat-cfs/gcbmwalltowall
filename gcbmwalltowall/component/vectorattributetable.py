@@ -29,7 +29,11 @@ class VectorAttributeTable(AttributeTable):
         attributes = __class__._attribute_cache.get(self._cache_key)
         if attributes is None:
             ds = ogr.Open(str(self.layer_path))
-            lyr = ds.GetLayerByName(self.layer) if self.layer else ds.GetLayer(0)
+            layer_id = self.layer if self.layer else 0
+            lyr = ds.GetLayer(layer_id)
+            if lyr is None:
+                raise IOError(f"Error getting layer {layer_id} from {self.layer_path}")
+
             defn = lyr.GetLayerDefn()
             num_attributes = defn.GetFieldCount()
             attributes = [defn.GetFieldDefn(i).GetName() for i in range(num_attributes)]

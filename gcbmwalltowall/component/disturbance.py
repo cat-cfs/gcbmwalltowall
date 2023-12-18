@@ -49,7 +49,7 @@ class Disturbance(Tileable):
                     layer_kwargs = self.layer_kwargs.copy()
                     layer_kwargs.update({"layer": sublayer})
                     disturbance_layers.extend(self._to_tiler_layer(
-                        layer_path, rule_manager, self.layer_kwargs, **kwargs))
+                        layer_path, rule_manager, layer_kwargs, **kwargs))
             else:
                 disturbance_layers.extend(self._to_tiler_layer(
                     layer_path, rule_manager, self.layer_kwargs, **kwargs))
@@ -59,8 +59,8 @@ class Disturbance(Tileable):
     def _to_tiler_layer(self, layer_path, rule_manager, layer_kwargs, **kwargs):
         disturbance_layers = []
         layer = Layer(
-            self._make_tiler_name(layer_path), layer_path, lookup_table=self.lookup_table,
-            **layer_kwargs)
+            self._make_tiler_name(layer_path, layer_kwargs.get("layer")), layer_path,
+            lookup_table=self.lookup_table, **layer_kwargs)
 
         attribute_table = layer.attribute_table
 
@@ -146,7 +146,8 @@ class Disturbance(Tileable):
                 disturbance_layers.append(DisturbanceLayer(
                     rule_manager,
                     layer.split(
-                        self._make_tiler_name(layer_path), tiler_attributes, layer_filters
+                        self._make_tiler_name(layer_path, layer_kwargs.get("layer")),
+                        tiler_attributes, layer_filters
                     ).to_tiler_layer(rule_manager, **kwargs),
                     Attribute(year) if year in tiler_attributes else year,
                     Attribute(disturbance_type) if disturbance_type in tiler_attributes else disturbance_type,
@@ -173,7 +174,8 @@ class Disturbance(Tileable):
 
                     logging.info(f"    split {i}: {split_layer_filters}")
                     split_layer = layer.split(
-                        self._make_tiler_name(layer_path, i), tiler_attributes, split_layer_filters)
+                        self._make_tiler_name(layer_path, layer_kwargs.get("layer"), i),
+                        tiler_attributes, split_layer_filters)
 
                     disturbance_layers.append(DisturbanceLayer(
                         rule_manager,
@@ -186,8 +188,8 @@ class Disturbance(Tileable):
 
     def _make_tiler_name(self, layer_path, *args):
         return (
-            "_".join([self.name, layer_path.stem, *(str(a) for a in args)]) if self.name
-            else "_".join([layer_path.stem, *(str(a) for a in args)])
+            "_".join([self.name, layer_path.stem, *(str(a) for a in args if a is not None)]) if self.name
+            else "_".join([layer_path.stem, *(str(a) for a in args if a is not None)])
         )
 
     def _parse_filter_value(self, filter_value):
@@ -226,7 +228,9 @@ class Disturbance(Tileable):
         # Check for the first attribute where all the unique values could be
         # interpreted as a disturbance year.
         for attribute, values in attribute_table.items():
-            if all((self._looks_like_disturbance_year(v) for v in values if v is not None)):
+            if (any((v is not None for v in values))
+                and all((self._looks_like_disturbance_year(v) for v in values if v is not None))
+            ):
                 logging.info(f"  using attribute: {attribute}")
                 return attribute
         
