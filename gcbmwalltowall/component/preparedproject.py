@@ -6,6 +6,34 @@ from pathlib import Path
 from spatial_inventory_rollback.gcbm.merge.gcbm_merge_layer_input import MergeInputLayers
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 
+class PreparedLayer:
+    
+    def __init__(self, name, path):
+        self.name = name
+        self.path = Path(path)
+    
+    @property
+    def tiler_metadata(self):
+        return json.load(open(self.path.with_suffix(".json")))
+
+    @property
+    def study_area_metadata(self):
+        study_area_metadata = {
+            "name": self.name,
+            "type": "RasterLayer"
+        }
+
+        study_area_path = self.path.parent.joinpath("study_area.json")
+        if not study_area_path.exists():
+            return study_area_metadata
+        
+        study_area_layers = json.load(open(study_area_path))["layers"]
+        study_area_metadata.update(next((
+            l for l in study_area_layers if l["name"] == self.name
+        )))
+        
+        return study_area_metadata
+        
 class PreparedProject:
 
     def __init__(self, path):
@@ -48,27 +76,17 @@ class PreparedProject:
         return datetime.strptime(config["LocalDomain"]["end_date"], "%Y/%m/%d").year - 1
 
     @property
-    def all_study_area_layers(self):
-        layer_metadata = {}
-        for layer_path in (self.tiled_layer_path, self.rollback_layer_path):
-            if not layer_path:
-                continue
-
-            layer_metadata.update({
-                layer["name"]: layer for layer in
-                json.load(open(layer_path.joinpath("study_area.json")))["layers"]
-            })
-
-        return layer_metadata
-
-    @property
-    def configured_layers(self):
+    def layers(self):
         config = json.load(open(self.gcbm_config_path.joinpath("provider_config.json")))
-        return {
-            layer["name"]: layer for layer in
-            config["Providers"]["RasterTiled"]["layers"]
-        }
-
+        provider_layers = config["Providers"]["RasterTiled"]["layers"]
+        
+        return [
+            PreparedLayer(
+                l["name"],
+                self.gcbm_config_path.joinpath(l["layer_path"]).absolute()
+            ) for l in provider_layers
+        ]
+    
     @contextmanager
     def temporary_new_end_year(self, end_year=None):
         if end_year is None:
@@ -106,14 +124,13 @@ class PreparedProject:
         staging_study_area = staging_path.joinpath("study_area.json")
         shutil.copyfile(self.rollback_layer_path.joinpath("study_area.json"), staging_study_area)
 
-        all_study_area_layers = self.all_study_area_layers
         with GCBMConfigurer.update_json_file(staging_study_area) as study_area:
             study_area["layers"] = []
-            for layer_name, layer in self.configured_layers.items():
-                study_area["layers"].append(all_study_area_layers[layer_name])
+            for layer in self.layers.items():
+                study_area["layers"].append(layer.study_area_metadata)
                 for layer_file in (
-                    self.gcbm_config_path.joinpath(layer["layer_path"]),
-                    self.gcbm_config_path.joinpath(layer["layer_path"]).with_suffix(".json")
+                    layer.path,
+                    layer.path.with_suffix(".json")
                 ):
                     shutil.copyfile(layer_file, staging_path.joinpath(layer_file.name))
 

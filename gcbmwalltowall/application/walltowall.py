@@ -17,7 +17,13 @@ from gcbmwalltowall.configuration.configuration import Configuration
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.component.project import Project
 from gcbmwalltowall.component.preparedproject import PreparedProject
+from gcbmwalltowall.converter.projectconverter import ProjectConverter
 
+def convert(args):
+    project = PreparedProject(args.project_path)
+    logging.info(f"Converting {project.path} to CBM4")
+    ProjectConverter().convert(project, args.output_path)
+    
 def build(args):
     logging.info(f"Building {args.config_path}")
     ProjectBuilder.build_from_file(args.config_path, args.output_path)
@@ -179,6 +185,14 @@ def cli():
         "--title", help="explicitly specify a title for this run")
     run_parser.add_argument(
         "--compile_results_config", help="path to custom compile results config file")
+
+    convert_parser = subparsers.add_parser(
+        "convert", help=("Convert a walltowall-prepared GCBM project to CBM4."))
+    convert_parser.set_defaults(func=convert)
+    convert_parser.add_argument(
+        "project_path", help="root directory of a walltowall-prepared GCBM project")
+    convert_parser.add_argument(
+        "output_path", nargs="?", help="destination directory for CBM4 project files")
 
     args = parser.parse_args()
 
