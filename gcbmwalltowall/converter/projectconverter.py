@@ -53,7 +53,7 @@ class ProjectConverter:
         for att_id, att_value in gcbm_attribute_table.items():
             row = {"id": int(att_id)}
             if isinstance(att_value, dict):
-                row.update(att_value)
+                row.update({k: v for k, v in att_value.items() if k != "conditions"})
             else:
                 row.update({"value": att_value})
             
