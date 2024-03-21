@@ -126,7 +126,7 @@ class PreparedProject:
 
         with GCBMConfigurer.update_json_file(staging_study_area) as study_area:
             study_area["layers"] = []
-            for layer in self.layers.items():
+            for layer in self.layers:
                 study_area["layers"].append(layer.study_area_metadata)
                 for layer_file in (
                     layer.path,

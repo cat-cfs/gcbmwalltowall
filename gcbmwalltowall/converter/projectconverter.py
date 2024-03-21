@@ -1,4 +1,6 @@
+import logging
 import shutil
+import json
 import pandas as pd
 from tempfile import TemporaryDirectory
 from contextlib import contextmanager
@@ -8,6 +10,7 @@ from pathlib import Path
 from arrow_space.input_layer import InputLayer
 from arrow_space.input_layer import InputLayerCollection
 from arrow_space.flattened_coordinate_dataset import create as create_arrowspace_dataset
+from cbm_defaults.app import run as make_cbm_defaults
 from mojadata.util import gdal
 from mojadata.util.gdal_calc import Calc
 from mojadata.config import GDAL_CREATION_OPTIONS
@@ -96,7 +99,7 @@ class ProjectConverter:
     def __init__(self, layer_converter_factory=None):
         self._layer_converter_factory = layer_converter_factory or LayerConverterFactory()
 
-    def convert(self, project, output_path):
+    def convert(self, project, output_path, aidb_path=None):
         output_path = Path(output_path)
         shutil.rmtree(output_path, ignore_errors=True)
         output_path.mkdir(parents=True, exist_ok=True)
@@ -104,6 +107,7 @@ class ProjectConverter:
         self._convert_spatial_data(project, output_path)
         self._convert_yields(project, output_path)
         self._convert_transitions(project, output_path)
+        self._build_input_database(project, output_path, aidb_path)
 
     @contextmanager
     def _input_db_connection(self, project):
@@ -116,6 +120,28 @@ class ProjectConverter:
         engine = create_engine(connection_url)
         with engine.connect() as conn:
             yield conn
+
+    def _find_aidb_path(self, project):
+        aidb_keys = ["aidb", "AIDBPath"]
+        for json_file in project.path.rglob("*.json"):
+            json_data = json.load(open(json_file))
+            for aidb_key in aidb_keys:
+                aidb_path = json_data.get(aidb_key)
+                if aidb_path:
+                    aidb_path = json_file.parent.joinpath(aidb_path).absolute()
+                    if aidb_path.exists():
+                        return aidb_path
+        
+        # Last resort: try the default opscale AIDB path.
+        default_aidb_path = Path(
+            r"C:\Program Files (x86)\Operational-Scale CBM-CFS3\Admin\DBs",
+            "ArchiveIndex_Beta_Install.mdb"
+        )
+        
+        if default_aidb_path.exists():
+            return default_aidb_path
+        
+        raise IOError("Failed to locate AIDB.")
 
     def _convert_spatial_data(self, project, output_path):
         arrowspace_layers = InputLayerCollection([
@@ -198,3 +224,12 @@ class ProjectConverter:
             
             transition_output_path = output_path.joinpath("sit_transitions.csv")
             transitions.to_csv(transition_output_path, index=False)
+
+    def _build_input_database(self, project, output_path, aidb_path=None):
+        aidb_path = aidb_path or self._find_aidb_path(project)
+        make_cbm_defaults({
+            "output_path": output_path.joinpath("cbm_defaults.db"),
+            "default_locale": "en-CA",
+            "locales": [{"id": 1, "code": "en-CA"}],
+            "archive_index_data": [{"locale": "en-CA", "path": str(aidb_path)}]
+        })

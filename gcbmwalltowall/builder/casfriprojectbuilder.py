@@ -54,14 +54,16 @@ class CasfriProjectBuilder(ProjectBuilder):
         # Use only the first set of disturbance layers found.
         disturbance_data = next(casfri_data.rglob("disturbances_*.tiff"), None)
         if disturbance_data:
+            if "disturbances" not in config:
+                config["disturbances"] = {}
+            
             disturbance_dir = disturbance_data.parent
             for disturbance_layer in disturbance_dir.glob("disturbances_*.tiff"):
-                CasfriProjectBuilder._write_disturbance_attribute_table(
+                has_valid_disturbances = CasfriProjectBuilder._write_disturbance_attribute_table(
                     config, disturbance_layer.with_suffix(".csv"), dist_type_substitutions)
 
-            config["disturbances"] = {
-                relpath(disturbance_dir.joinpath("disturbances_*.tiff"), config.working_path): {}
-            }
+                if has_valid_disturbances:
+                    config["disturbances"][relpath(disturbance_layer, config.working_path)] = {}
 
         age_distribution = config.resolve(builder_config.get("age_distribution", "age_distribution.json"))
         if age_distribution.exists():
@@ -90,6 +92,7 @@ class CasfriProjectBuilder(ProjectBuilder):
 
     @staticmethod
     def _write_disturbance_attribute_table(config, casfri_csv, dist_type_substitutions):
+        rows_written = 0
         with open(
             config.resolve_working(casfri_csv.name), "w", encoding="utf-8", newline=""
         ) as dist_layer_lookup:
@@ -114,6 +117,9 @@ class CasfriProjectBuilder(ProjectBuilder):
 
                 reset_age = 0 if stand_replacing else -1
                 writer.writerow([int(row["raster_id"]), dist_year, gcbm_dist_type, reset_age])
+                rows_written += 1
+                
+        return rows_written > 0
 
     @staticmethod
     def _df_to_xls(row, col):

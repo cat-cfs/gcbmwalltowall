@@ -22,7 +22,7 @@ from gcbmwalltowall.converter.projectconverter import ProjectConverter
 def convert(args):
     project = PreparedProject(args.project_path)
     logging.info(f"Converting {project.path} to CBM4")
-    ProjectConverter().convert(project, args.output_path)
+    ProjectConverter().convert(project, args.output_path, args.aidb_path)
     
 def build(args):
     logging.info(f"Building {args.config_path}")
@@ -192,7 +192,9 @@ def cli():
     convert_parser.add_argument(
         "project_path", help="root directory of a walltowall-prepared GCBM project")
     convert_parser.add_argument(
-        "output_path", nargs="?", help="destination directory for CBM4 project files")
+        "output_path", help="destination directory for CBM4 project files")
+    convert_parser.add_argument(
+        "--aidb_path", help="AIDB to use when building CBM4 input database")
 
     args = parser.parse_args()
 
