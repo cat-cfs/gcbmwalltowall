@@ -33,6 +33,7 @@
     <Folder Include="gcbmwalltowall\builder\" />
     <Folder Include="gcbmwalltowall\component\" />
     <Folder Include="gcbmwalltowall\configuration\" />
+    <Folder Include="gcbmwalltowall\converter\" />
     <Folder Include="gcbmwalltowall\validation\" />
   </ItemGroup>
   <ItemGroup>
@@ -86,6 +87,10 @@
     </Compile>
     <Compile Include="gcbmwalltowall\configuration\gcbmconfigurer.py" />
     <Compile Include="gcbmwalltowall\configuration\__init__.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="gcbmwalltowall\converter\projectconverter.py" />
+    <Compile Include="gcbmwalltowall\converter\__init__.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="gcbmwalltowall\validation\generic.py">
