@@ -32,19 +32,6 @@ class Classifier(Tileable):
 
         return self.layer.to_tiler_layer(rule_manager, tags=["classifier"], **kwargs)
 
-    def to_recliner(self, output_path=None):
-        values_path = (
-            relpath(str(self.values_path), str(output_path))
-            if output_path else self.values_path)
-
-        return {
-            "Name": self.name,
-            "Path": str(values_path),
-            "Page": 0,
-            "Column": self._find_values_col_index(),
-            "Header": True
-        }
-
     def _find_values_col_index(self):
         if isinstance(self.values_col, Number):
             return self.values_col

@@ -1,16 +1,16 @@
-import json
 import pandas as pd
-from os.path import relpath
 from urllib.parse import quote_plus
 from contextlib import contextmanager
 from numbers import Number
-from subprocess import run
 from sqlalchemy import create_engine
 from sqlalchemy import table
 from sqlalchemy import column
 from sqlalchemy import select
 from sqlalchemy import distinct
 from pathlib import Path
+from gcbminputloader.project.projectfactory import ProjectFactory
+from gcbminputloader.project.project import ProjectType
+from gcbminputloader.util.configuration import Configuration
 
 class InputDatabase:
 
@@ -19,7 +19,9 @@ class InputDatabase:
         self.yield_path = Path(yield_path).absolute()
         self.yield_interval = yield_interval
 
-    def create(self, recliner2gcbm_exe, classifiers, output_path, transition_rules_path=None):
+    def create(self, classifiers, output_path, transition_rules_path=None):
+        output_path = Path(output_path).absolute()
+        input_db_config_path = output_path.with_suffix(".json")
         output_dir = Path(output_path).absolute().parent
 
         # Add any missing classifier columns to the transition rules.
@@ -38,67 +40,47 @@ class InputDatabase:
 
         increment_start_col, increment_end_col = self._find_increment_cols()
 
-        recliner_config = {
-            "Project": {
-                "Mode": 0,
-                "Configuration": 0
-            },
-            "OutputConfiguration": {
-                "Name": "SQLite",
-                "Parameters": {
-                    "path": output_path.name
+        input_db_config = Configuration({
+            "aidb": self.aidb_path,
+            "classifiers": [c.name for c in classifiers],
+            "features": {
+                "growth_curves": {
+                    "path": self.yield_path,
+                    "interval": self.yield_interval,
+                    "aidb_species_col": self._find_species_col(),
+                    "increment_start_col": increment_start_col,
+                    "increment_end_col": increment_end_col,
+                    "classifier_cols": {c.name: self._find_classifier_col(c) for c in classifiers}
                 }
-            },
-            "AIDBPath": relpath(self.aidb_path, output_dir),
-            "ClassifierSet": [
-                classifier.to_recliner(output_dir) for classifier in classifiers
-            ],
-            "GrowthCurves": {
-                "Path": relpath(self.yield_path, output_dir),
-                "Page": 0,
-                "Header": True,
-                "SpeciesCol": self._find_species_col(),
-                "IncrementStartCol": increment_start_col,
-                "IncrementEndCol": increment_end_col,
-                "Interval": self.yield_interval,
-                "Classifiers": [{
-                    "Name": classifier.name,
-                    "Column": self._find_classifier_col(classifier)
-                } for classifier in classifiers]
-            },
+            }
+        }, output_dir)
+
+        if transition_rules_path and Path(transition_rules_path).exists():
             # gcbmwalltowall expects a specific naming convention for transition rules:
             #   - id, regen_delay, age_after, age_reset_type, disturbance_type
             #   - exact classifier name: the classifier values to transition to
             #   - exact classifier name with "_match" suffix: the classifier values to match
             #       if supplying rule-based transitions
-            "TransitionRules": {
-                "Path": relpath(transition_rules_path, output_dir) if transition_rules_path else "",
-                "Page": 0,
-                "Header": True,
-                "NameCol": self._find_col_index(transition_rules_path, "id", -1),
-                "AgeCol": self._find_col_index(transition_rules_path, "age_after", -1),
-                "DelayCol": self._find_col_index(transition_rules_path, "regen_delay", -1),
-                "TypeCol": self._find_col_index(transition_rules_path, "age_reset_type", -1),
-                "RuleDisturbanceTypeCol": self._find_col_index(transition_rules_path, "disturbance_type", -1),
-                "Classifiers": [{
-                    "Name": classifier.name,
-                    "Column": self._find_transition_col(transition_rules_path, classifier)
-                } for classifier in classifiers],
-                "RuleClassifiers": [{
-                    "Name": classifier.name,
-                    "Column": self._find_col_index(transition_rules_path, f"{classifier.name}_match")
-                } for classifier in classifiers]
+            input_db_config["features"]["transition_rules"] = {
+                "path": transition_rules_path,
+                "id_col": self._find_col_index(transition_rules_path, "id"),
+                "reset_age_col": self._find_col_index(transition_rules_path, "age_after"),
+                "reset_age_type_col": self._find_col_index(transition_rules_path, "age_reset_type"),
+                "regen_delay_col": self._find_col_index(transition_rules_path, "regen_delay"),
+                "classifier_transition_cols": {
+                    c.name: self._find_transition_col(transition_rules_path, classifier)
+                    for c in classifiers
+                },
+                "disturbance_type_col": self._find_col_index(transition_rules_path, "disturbance_type"),
+                "classifier_matching_cols": {
+                    c.name: self._find_col_index(transition_rules_path, f"{classifier.name}_match")
+                    for c in classifiers
+                }
             }
-        }
 
-        recliner2gcbm_config_path = output_path.with_suffix(".json")
-
-        json.dump(
-            recliner_config,
-            open(recliner2gcbm_config_path, "w", newline="", encoding="utf-8"),
-            ensure_ascii=False, indent=4)
-
-        run([str(recliner2gcbm_exe), "-c", str(recliner2gcbm_config_path)])
+        input_db = ProjectFactory().from_config(ProjectType.LegacyGcbmClassicSpatial, input_db_config)
+        input_db.save(input_db_config_path)
+        input_db.create(str(output_path))
 
     def get_disturbance_types(self):
         with self._connect() as conn:
@@ -200,7 +182,7 @@ class InputDatabase:
             f"in {self.yield_path}")
 
     def _find_transition_col(self, transition_rules_path, classifier):
-        return self._find_col_index(transition_rules_path, classifier.name, -1)
+        return self._find_col_index(transition_rules_path, classifier.name)
     
     def _find_col_index(self, csv_path, col_name, default=None):
         if not (csv_path and csv_path.exists()):

@@ -1,5 +1,4 @@
 {
-  "recliner2gcbm_exe": "c:\\some\\path\\to\\recliner2gcbm.exe",
   "gcbm_exe": "c:\\some\\path\\to\\moja.cli.exe",
   "distributed_client": "c:\\some\\path\\to\\gcbm_client.py"
 }

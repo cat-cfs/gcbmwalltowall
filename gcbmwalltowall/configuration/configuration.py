@@ -16,10 +16,6 @@ class Configuration(dict):
         self._load_settings()
 
     @property
-    def recliner2gcbm_exe(self):
-        return self._find_file("recliner2gcbm_exe", "Recliner2GCBM.exe")
-
-    @property
     def gcbm_exe(self):
         return self._find_file("gcbm_exe", "moja.cli.exe")
 

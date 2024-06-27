@@ -34,8 +34,8 @@ def prepare(args):
     logging.info(f"Preparing {project.name}")
 
     project.tile()
-    project.create_input_database(config.recliner2gcbm_exe)
-    project.run_rollback(config.recliner2gcbm_exe)
+    project.create_input_database()
+    project.run_rollback()
 
     extra_args = {
         param: config.get(param) for param in ("start_year", "end_year")

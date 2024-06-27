@@ -5,6 +5,7 @@ import numpy as np
 from collections import defaultdict
 from pathlib import Path
 from sqlalchemy import create_engine
+from sqlalchemy import text
 from spatial_inventory_rollback.application.rollback_app_parameters import RollbackAppParameters
 from spatial_inventory_rollback.application.app import run as spatial_rollback
 
@@ -97,7 +98,7 @@ class Rollback:
         with engine.connect() as conn:
             dist_types = [
                 row[0] for row in
-                conn.execute("SELECT name FROM disturbance_type ORDER BY code")
+                conn.execute(text("SELECT name FROM disturbance_type ORDER BY code"))
             ]
 
             return dist_types

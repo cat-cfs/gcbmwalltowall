@@ -1,6 +1,7 @@
 import logging
 import csv
 import shutil
+from uuid import uuid4
 from multiprocessing import cpu_count
 from datetime import date
 from pathlib import Path
@@ -96,18 +97,17 @@ class Project:
             tiler.tile(tiler_layers, str(self.tiler_output_path))
             rule_manager.write_rules(str(self.tiler_output_path.joinpath("transition_rules.csv")))
 
-    def create_input_database(self, recliner2gcbm_exe):
+    def create_input_database(self):
         output_path = self.input_db_path.parent
         output_path.mkdir(parents=True, exist_ok=True)
         transition_rules = self._prepare_transition_rules(output_path)
-        self.input_db.create(
-            recliner2gcbm_exe, self.classifiers, self.input_db_path, transition_rules)
+        self.input_db.create(self.classifiers, self.input_db_path, transition_rules)
 
-    def run_rollback(self, recliner2gcbm_exe):
+    def run_rollback(self):
         if self.rollback:
             self.rollback.run(self.classifiers, self.tiler_output_path, self.input_db_path)
             self.input_db.create(
-                recliner2gcbm_exe, self.classifiers, self.rollback_input_db_path,
+                self.classifiers, self.rollback_input_db_path,
                 self.rollback_output_path.joinpath("transition_rules.csv").absolute())
 
     def configure_gcbm(self, template_path, disturbance_order=None,
@@ -296,6 +296,7 @@ class Project:
                     row for row in csv.DictReader(open(transition_path, newline=""))))
 
         for transition in all_transition_rules:
+            transition["id"] = transition.get("id", str(uuid4()))
             transition["disturbance_type"] = transition.get("disturbance_type", "")
             transition["age_reset_type"] = transition.get("age_reset_type", "absolute")
             transition["regen_delay"] = transition.get("regen_delay", 0)

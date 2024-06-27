@@ -1,4 +1,3 @@
-from calendar import c
 import pandas as pd
 import json
 import logging
@@ -9,7 +8,6 @@ from mojadata.util import ogr
 from mojadata.layer.attribute import Attribute
 from mojadata.layer.filter.valuefilter import ValueFilter
 from multiprocessing import Pool
-from pandas._libs import interval
 from gcbmwalltowall.component.attributetable import AttributeTable
 
 class VectorAttributeTable(AttributeTable):
