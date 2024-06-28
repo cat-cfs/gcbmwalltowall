@@ -7,10 +7,12 @@ from sqlalchemy import table
 from sqlalchemy import column
 from sqlalchemy import select
 from sqlalchemy import distinct
+from sqlalchemy import text
 from pathlib import Path
 from gcbminputloader.project.projectfactory import ProjectFactory
 from gcbminputloader.project.project import ProjectType
 from gcbminputloader.util.configuration import Configuration
+from gcbminputloader.util.db import get_connection
 
 class InputDatabase:
 
@@ -78,18 +80,35 @@ class InputDatabase:
                 }
             }
 
-        input_db = ProjectFactory().from_config(ProjectType.LegacyGcbmClassicSpatial, input_db_config)
+        input_db_type = (
+            ProjectType.LegacyGcbmClassicSpatial if self.aidb_path.suffix == ".mdb"
+            else ProjectType.GcbmClassicSpatial
+        )
+        
+        input_db = ProjectFactory().from_config(input_db_type, input_db_config)
         input_db.save(input_db_config_path)
         input_db.create(str(output_path))
 
     def get_disturbance_types(self):
-        with self._connect() as conn:
-            dist_type_table = table("tbldisturbancetypedefault", column("disttypename"))
-            dist_types = {
-                row[0] for row in conn.execute(
-                    select(distinct(dist_type_table.c.disttypename))
-                )
-            }
+        with get_connection(self.aidb_path) as conn:
+            if self.aidb_path.suffix == ".mdb":
+                dist_types = {
+                    row[0] for row in conn.execute(text(
+                        f"SELECT DISTINCT disttypename FROM tbldisturbancetypedefault"
+                    ))
+                }
+            else:
+                dist_types = {
+                    row[0] for row in conn.execute(text(
+                        """
+                        SELECT DISTINCT name
+                        FROM disturbance_type dt
+                        INNER JOIN disturbance_type_tr d_tr
+                            ON dt.id = d_tr.disturbance_type_id
+                        WHERE locale_id = 1
+                        """
+                    ))
+                }
             
             return dist_types
 
@@ -130,13 +149,25 @@ class InputDatabase:
         raise RuntimeError(f"Unable to find increment columns in {self.yield_path}")
 
     def _find_species_col(self):
-        with self._connect() as conn:
-            species_type_table = table("tblspeciestypedefault", column("speciestypename"))
-            species_types = {
-                row[0].lower() for row in conn.execute(
-                    select(species_type_table.c.speciestypename).distinct()
-                )
-            }
+        with get_connection(self.aidb_path) as conn:
+            if self.aidb_path.suffix == ".mdb":
+                species_types = {
+                    row[0].lower() for row in conn.execute(text(
+                        "SELECT DISTINCT speciestypename FROM tblspeciestypedefault"
+                    ))
+                }
+            else:
+                species_types = {
+                    row[0].lower() for row in conn.execute(text(
+                        """
+                        SELECT DISTINCT name
+                        FROM species s
+                        INNER JOIN species_tr s_tr
+                            ON s.id = s_tr.species_id
+                        WHERE locale_id = 1
+                        """
+                    ))
+                }
 
         yield_table = pd.read_csv(self.yield_path)
         for col in yield_table.columns:
@@ -196,19 +227,3 @@ class InputDatabase:
 
     def _only_numeric(self, values):
         return all((isinstance(v, Number) for v in values))
-
-    @contextmanager
-    def _connect(self):
-        connection_string = quote_plus(
-            r"DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};"
-            f"DBQ={self.aidb_path};"
-            r"ExtendedAnsiSQL=1;"
-        )
-
-        engine = create_engine(f"access+pyodbc:///?odbc_connect={connection_string}")
-
-        try:
-            with engine.connect() as conn:
-                yield conn
-        finally:
-            engine.dispose()
