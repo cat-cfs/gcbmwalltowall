@@ -1,4 +1,3 @@
-import logging
 import shutil
 import json
 import pandas as pd
@@ -227,9 +226,13 @@ class ProjectConverter:
 
     def _build_input_database(self, project, output_path, aidb_path=None):
         aidb_path = aidb_path or self._find_aidb_path(project)
-        make_cbm_defaults({
-            "output_path": output_path.joinpath("cbm_defaults.db"),
-            "default_locale": "en-CA",
-            "locales": [{"id": 1, "code": "en-CA"}],
-            "archive_index_data": [{"locale": "en-CA", "path": str(aidb_path)}]
-        })
+        output_cbm_defaults_path = output_path.joinpath("cbm_defaults.db")
+        if aidb_path.suffix == ".db":
+            shutil.copyfile(aidb_path, output_cbm_defaults_path)
+        else:
+            make_cbm_defaults({
+                "output_path": output_cbm_defaults_path,
+                "default_locale": "en-CA",
+                "locales": [{"id": 1, "code": "en-CA"}],
+                "archive_index_data": [{"locale": "en-CA", "path": str(aidb_path)}]
+            })

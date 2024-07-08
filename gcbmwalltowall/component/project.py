@@ -100,15 +100,19 @@ class Project:
     def create_input_database(self):
         output_path = self.input_db_path.parent
         output_path.mkdir(parents=True, exist_ok=True)
-        transition_rules = self._prepare_transition_rules(output_path)
-        self.input_db.create(self.classifiers, self.input_db_path, transition_rules)
+        prepared_transition_rules_path = output_path.joinpath("gcbmwalltowall_transition_rules.csv")
+        tiler_transition_rules_path = self.tiler_output_path.joinpath("transition_rules.csv").absolute()
+        self._prepare_transition_rules(tiler_transition_rules_path, prepared_transition_rules_path)
+        self.input_db.create(self.classifiers, self.input_db_path, prepared_transition_rules_path)
 
     def run_rollback(self):
         if self.rollback:
             self.rollback.run(self.classifiers, self.tiler_output_path, self.input_db_path)
-            self.input_db.create(
-                self.classifiers, self.rollback_input_db_path,
-                self.rollback_output_path.joinpath("transition_rules.csv").absolute())
+            output_path = self.input_db_path.parent
+            prepared_transition_rules_path = output_path.joinpath("gcbmwalltowall_rollback_transition_rules.csv")
+            tiler_transition_rules_path = self.rollback_output_path.joinpath("transition_rules.csv").absolute()
+            self._prepare_transition_rules(tiler_transition_rules_path, prepared_transition_rules_path)
+            self.input_db.create(self.classifiers, self.rollback_input_db_path, prepared_transition_rules_path)
 
     def configure_gcbm(self, template_path, disturbance_order=None,
                        start_year=1990, end_year=date.today().year):
@@ -281,11 +285,8 @@ class Project:
         return cls(project_name, bounding_box, classifiers, layers, input_db,
                    str(config.working_path), disturbances, rollback, soft_transitions)
 
-    def _prepare_transition_rules(self, output_dir):
-        output_path = output_dir.joinpath("gcbmwalltowall_transition_rules.csv")
+    def _prepare_transition_rules(self, tiler_transition_rules_path, output_path):
         output_path.unlink(True)
-
-        tiler_transition_rules_path = self.tiler_output_path.joinpath("transition_rules.csv").absolute()
         if not (tiler_transition_rules_path.exists() or self.soft_transition_rules_path):
             return None
 
@@ -309,8 +310,6 @@ class Project:
             writer = csv.DictWriter(merged_transition_rules, fieldnames=header)
             writer.writeheader()
             writer.writerows(all_transition_rules)
-            
-        return output_path
         
     @staticmethod
     def _extract_attribute(config):
