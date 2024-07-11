@@ -1,3 +1,4 @@
+from __future__ import annotations
 from gcbmwalltowall.builder.projectbuilder import ProjectBuilder
 from gcbmwalltowall.configuration.configuration import Configuration
 

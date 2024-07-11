@@ -1,112 +1,45 @@
+from __future__ import annotations
 import shutil
 import json
 import pandas as pd
-from tempfile import TemporaryDirectory
 from contextlib import contextmanager
 from sqlalchemy import create_engine
-from pandas import DataFrame
 from pathlib import Path
-from arrow_space.input_layer import InputLayer
-from arrow_space.input_layer import InputLayerCollection
+from arrow_space.input.input_layer_collection import InputLayerCollection
 from arrow_space.flattened_coordinate_dataset import create as create_arrowspace_dataset
 from cbm_defaults.app import run as make_cbm_defaults
-from mojadata.util import gdal
-from mojadata.util.gdal_calc import Calc
-from mojadata.config import GDAL_CREATION_OPTIONS
-
-class LayerConverterFactory:
-    
-    def __init__(self):
-        self._temp_dir = TemporaryDirectory()
-        self._converters = {
-            "initial_current_land_class": self._convert_land_class,
-            "initial_age": lambda layer: self._rename_layer(layer, "age"),
-            "mean_annual_temperature": lambda layer: self._rename_layer(layer, "mean_annual_temp"),
-            "inventory_delay": lambda layer: self._rename_layer(layer, "delay")
-        }
-    
-    def convert(self, layer):
-        converter = self._converters.get(layer.name)
-        if converter:
-            return converter(layer)
-        
-        return InputLayer(
-            layer.name, str(layer.path),
-            self._build_attribute_table(layer.tiler_metadata),
-            layer.study_area_metadata.get("tags")
-        )
-
-    def _build_attribute_table(self, layer_metadata):
-        gcbm_attribute_table = layer_metadata.get("attributes")
-        if not gcbm_attribute_table:
-            return None
-        
-        rows = []
-        for att_id, att_value in gcbm_attribute_table.items():
-            row = {"id": int(att_id)}
-            if isinstance(att_value, dict):
-                row.update({k: v for k, v in att_value.items() if k != "conditions"})
-            else:
-                row.update({"value": att_value})
-            
-            rows.append(row)
-
-        return DataFrame(rows)
-
-    def _rename_layer(self, layer, name):
-        return InputLayer(
-            name, str(layer.path),
-            self._build_attribute_table(layer.tiler_metadata),
-            layer.study_area_metadata.get("tags")
-        )
-    
-    def _convert_land_class(self, layer):
-        gcbm_cbm4_landclass_lookup = {
-            "FL": 0,
-            "CL": 1,
-            "GL": 2,
-            "WL": 3,
-            "SL": 4,
-            "OL": 5,
-            "UFL": 16,
-        }
-        
-        original_ndv = layer.tiler_metadata["nodata"]
-        new_ndv = 32767
-
-        px_calcs = (
-            f"((A == {original_px}) * {gcbm_cbm4_landclass_lookup.get(gcbm_landclass, new_ndv)})"
-            for original_px, gcbm_landclass in layer.tiler_metadata["attributes"].items()
-        )
-
-        calc = "+".join((
-            f"((A == {original_ndv}) * {new_ndv})",
-            *px_calcs
-        ))
-
-        output_path = Path(self._temp_dir.name).joinpath(f"{layer.name}.tif")
-        Calc(calc, str(output_path), new_ndv, quiet=True, creation_options=GDAL_CREATION_OPTIONS,
-             overwrite=True, hideNoData=False, type=gdal.GDT_Int16, A=layer.path)
-        
-        return InputLayer(
-            "land_class", str(output_path),
-            tags=layer.study_area_metadata.get("tags")
-        )
+from gcbmwalltowall.converter.layerconverter import DelegatingLayerConverter
+from gcbmwalltowall.converter.layerconverter import DefaultLayerConverter
+from gcbmwalltowall.converter.layerconverter import LandClassLayerConverter
+from gcbmwalltowall.converter.disturbance.mergingdisturbancelayerconverter import MergingDisturbanceLayerConverter
 
 class ProjectConverter:
     
-    def __init__(self, layer_converter_factory=None):
-        self._layer_converter_factory = layer_converter_factory or LayerConverterFactory()
+    def __init__(self, merge_disturbance_matrices=False):
+        self._merge_disturbance_matrices = merge_disturbance_matrices
 
     def convert(self, project, output_path, aidb_path=None):
         output_path = Path(output_path)
         shutil.rmtree(output_path, ignore_errors=True)
         output_path.mkdir(parents=True, exist_ok=True)
         
-        self._convert_spatial_data(project, output_path)
         self._convert_yields(project, output_path)
         self._convert_transitions(project, output_path)
-        self._build_input_database(project, output_path, aidb_path)
+        cbm_defaults_path = self._build_input_database(project, output_path, aidb_path)
+
+        layer_converter = DelegatingLayerConverter([
+            MergingDisturbanceLayerConverter(
+                cbm_defaults_path, project.start_year, project.disturbance_order
+            ),
+            LandClassLayerConverter(),
+            DefaultLayerConverter({
+                "initial_age": "age",
+                "mean_annual_temperature": "mean_annual_temp",
+                "inventory_delay": "delay"
+            })
+        ])
+
+        self._convert_spatial_data(layer_converter, project, output_path)
 
     @contextmanager
     def _input_db_connection(self, project):
@@ -142,15 +75,12 @@ class ProjectConverter:
         
         raise IOError("Failed to locate AIDB.")
 
-    def _convert_spatial_data(self, project, output_path):
-        arrowspace_layers = InputLayerCollection([
-            self._layer_converter_factory.convert(layer)
-            for layer in project.layers
-        ])
-            
+    def _convert_spatial_data(self, layer_converter, project, output_path):
+        arrowspace_layers = InputLayerCollection(layer_converter.convert(project.layers))
         create_arrowspace_dataset(
             arrowspace_layers, "inventory", "local_storage",
-            str(output_path.joinpath("inventory.arrowspace"))
+            str(output_path.joinpath("inventory.arrowspace")),
+            {}
         )
 
     def _flatten_pivot_columns(self, pivot_data):
@@ -236,3 +166,5 @@ class ProjectConverter:
                 "locales": [{"id": 1, "code": "en-CA"}],
                 "archive_index_data": [{"locale": "en-CA", "path": str(aidb_path)}]
             })
+
+        return output_cbm_defaults_path

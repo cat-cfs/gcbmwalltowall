@@ -12,7 +12,7 @@
     <Name>gcbmwalltowall</Name>
     <RootNamespace>gcbmwalltowall</RootNamespace>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>merge 02_qc_casfri_nbac_ntems\config\walltowall_config.json 02_qc_casfri_nbac_ntems 03_qc_bgi_txomin_nbac_ntems --include_index_layer --output_path 04_qc_merged_casfri_bgi_txomin_nbac_ntems</CommandLineArguments>
+    <CommandLineArguments>convert "C:\Projects\GCBM software and training components\3b_Sample_Data_Exercise_New_Scripts" "C:\Projects\GCBM software and training components\3b_Sample_Data_Exercise_New_Scripts_cbm4"</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
     <IsWindowsApplication>False</IsWindowsApplication>
   </PropertyGroup>
@@ -34,6 +34,8 @@
     <Folder Include="gcbmwalltowall\component\" />
     <Folder Include="gcbmwalltowall\configuration\" />
     <Folder Include="gcbmwalltowall\converter\" />
+    <Folder Include="gcbmwalltowall\converter\disturbance\" />
+    <Folder Include="gcbmwalltowall\util\" />
     <Folder Include="gcbmwalltowall\validation\" />
   </ItemGroup>
   <ItemGroup>
@@ -89,10 +91,20 @@
     <Compile Include="gcbmwalltowall\configuration\__init__.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="gcbmwalltowall\converter\disturbance\compositedisturbancetypemanager.py" />
+    <Compile Include="gcbmwalltowall\converter\disturbance\eventmerger.py" />
+    <Compile Include="gcbmwalltowall\converter\disturbance\mergingdisturbancelayerconverter.py" />
+    <Compile Include="gcbmwalltowall\util\numba.py" />
+    <Compile Include="gcbmwalltowall\util\rasterbound.py" />
+    <Compile Include="gcbmwalltowall\converter\disturbance\__init__.py" />
+    <Compile Include="gcbmwalltowall\converter\layerconverter.py" />
     <Compile Include="gcbmwalltowall\converter\projectconverter.py" />
     <Compile Include="gcbmwalltowall\converter\__init__.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="gcbmwalltowall\util\gdalhelpers.py" />
+    <Compile Include="gcbmwalltowall\util\rasterchunks.py" />
+    <Compile Include="gcbmwalltowall\util\__init__.py" />
     <Compile Include="gcbmwalltowall\validation\generic.py">
       <SubType>Code</SubType>
     </Compile>
