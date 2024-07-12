@@ -88,13 +88,14 @@ class MergingDisturbanceLayerConverter(LayerConverter):
         )
         
         for year in years:
+            logging.info(f"Processing year: {year}")
             year_filtered_info = self._get_year_filtered_disturbance_info(year, disturbance_info)
             chunks = list(
                 get_memory_limited_raster_chunks(
                     n_rasters=len(year_filtered_info),
                     height=dimension.y_size,
                     width=dimension.x_size,
-                    memory_limit_MB=int(global_memory_limit / 1024**2 / max_threads),
+                    memory_limit_MB=int(global_memory_limit / 1024**2 / max_threads / len(year_filtered_info)),
                 )
             )
             

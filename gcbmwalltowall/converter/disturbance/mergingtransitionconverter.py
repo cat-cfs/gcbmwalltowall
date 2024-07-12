@@ -89,6 +89,7 @@ class MergingTransitionConverter(LayerConverter):
             next_id = manager.Value("i", max_transition_id + 1)
             next_id_lock = manager.Lock()
             for year in years:
+                logging.info(f"Processing year: {year}")
                 out_path = self._temp_dir.joinpath(f"{year}_transition.tiff")
                 output_raster_paths[year] = out_path
                 create_empty_raster(
