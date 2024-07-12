@@ -12,7 +12,7 @@
     <Name>gcbmwalltowall</Name>
     <RootNamespace>gcbmwalltowall</RootNamespace>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>convert "C:\Projects\GCBM software and training components\3b_Sample_Data_Exercise_New_Scripts" "C:\Projects\GCBM software and training components\3b_Sample_Data_Exercise_New_Scripts_cbm4"</CommandLineArguments>
+    <CommandLineArguments>convert "C:\Projects\GCBM software and training components\1_standalone_template" "C:\Projects\GCBM software and training components\1_standalone_template_cbm4"</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
     <IsWindowsApplication>False</IsWindowsApplication>
   </PropertyGroup>
@@ -93,6 +93,8 @@
     </Compile>
     <Compile Include="gcbmwalltowall\converter\disturbance\compositedisturbancetypemanager.py" />
     <Compile Include="gcbmwalltowall\converter\disturbance\eventmerger.py" />
+    <Compile Include="gcbmwalltowall\converter\disturbance\lastpassdisturbancelayerconverter.py" />
+    <Compile Include="gcbmwalltowall\converter\disturbance\mergingtransitionconverter.py" />
     <Compile Include="gcbmwalltowall\converter\disturbance\mergingdisturbancelayerconverter.py" />
     <Compile Include="gcbmwalltowall\util\numba.py" />
     <Compile Include="gcbmwalltowall\util\rasterbound.py" />

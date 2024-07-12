@@ -96,8 +96,13 @@ class PreparedProject:
     
     @property
     def disturbance_order(self):
-        config = json.load(open(self.gcbm_config_path.joinpath("variables.json")))
-        return config["Variables"].get("user_disturbance_order", [])
+        config = json.load(open(self.gcbm_config_path.joinpath("variables.json"), "rb"))
+        return list(set(config["Variables"].get("user_disturbance_order", [])))
+
+    @property
+    def classifiers(self):
+        config = json.load(open(self.gcbm_config_path.joinpath("variables.json"), "rb"))
+        return config["Variables"]["initial_classifier_set"]["transform"]["vars"]
 
     @contextmanager
     def temporary_new_end_year(self, end_year=None):

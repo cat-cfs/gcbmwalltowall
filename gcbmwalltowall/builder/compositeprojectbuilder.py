@@ -7,7 +7,7 @@ class CompositeProjectBuilder(ProjectBuilder):
     composite_builder_keys = {"builder", "type", "config_files"}
 
     @staticmethod
-    def build(config):
+    def build(config: Configuration) -> Configuration:
         builder_config = config["builder"]
 
         for base_config_file in builder_config["config_files"]:
@@ -24,7 +24,7 @@ class CompositeProjectBuilder(ProjectBuilder):
         return config
 
     @staticmethod
-    def _merge(root_config, extra_config):
+    def _merge(root_config: Configuration, extra_config: dict[str, Any]) -> Configuration:
         for k, v in extra_config.items():
             if k in CompositeProjectBuilder.composite_builder_keys:
                 continue

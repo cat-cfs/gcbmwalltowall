@@ -17,7 +17,7 @@ class CasfriProjectBuilder(ProjectBuilder):
     }
 
     @staticmethod
-    def build(config):
+    def build(config: Configuration) -> Configuration:
         builder_config = config["builder"]
         casfri_data = config.resolve(Path(builder_config["casfri_data"]))
         other_data = config.resolve(Path(builder_config["other_data"]))
@@ -92,7 +92,7 @@ class CasfriProjectBuilder(ProjectBuilder):
         return config
 
     @staticmethod
-    def _write_disturbance_attribute_table(config, casfri_csv, dist_type_substitutions):
+    def _write_disturbance_attribute_table(config: Configuration, casfri_csv: Path, dist_type_substitutions: dict[str, list[Any]) -> bool:
         rows_written = 0
         with open(
             config.resolve_working(casfri_csv.name), "w", encoding="utf-8", newline=""
@@ -123,11 +123,11 @@ class CasfriProjectBuilder(ProjectBuilder):
         return rows_written > 0
 
     @staticmethod
-    def _df_to_xls(row, col):
+    def _df_to_xls(row: int, col: int) -> str:
         return f"{string.ascii_uppercase[col]}{row + 1}"
 
     @staticmethod
-    def _read_casfri_subsitutions(dm_xls):
+    def _read_casfri_subsitutions(dm_xls: Path | str) -> dict[str, list[Any]]:
         dist_type_substitutions = defaultdict(list)
 
         sub_header = ["s", "s", "s"]

@@ -1,10 +1,11 @@
+from __future__ import annotations
 import pandas as pd
 from pathlib import Path
 from gcbmwalltowall.component.attributetable import AttributeTable
 
 class RasterAttributeTable(AttributeTable):
 
-    def __init__(self, path):
+    def __init__(self, path: str | Path):
         self._cached_data = None
         self.path = Path(path).absolute()
         if not self.path.exists():

@@ -11,7 +11,9 @@ from cbm_defaults.app import run as make_cbm_defaults
 from gcbmwalltowall.converter.layerconverter import DelegatingLayerConverter
 from gcbmwalltowall.converter.layerconverter import DefaultLayerConverter
 from gcbmwalltowall.converter.layerconverter import LandClassLayerConverter
+from gcbmwalltowall.converter.disturbance.lastpassdisturbancelayerconverter import LastPassDisturbanceLayerConverter
 from gcbmwalltowall.converter.disturbance.mergingdisturbancelayerconverter import MergingDisturbanceLayerConverter
+from gcbmwalltowall.converter.disturbance.mergingtransitionconverter import MergingTransitionConverter
 
 class ProjectConverter:
     
@@ -20,17 +22,23 @@ class ProjectConverter:
 
     def convert(self, project, output_path, aidb_path=None):
         output_path = Path(output_path)
+        aidb_path = Path(aidb_path) if aidb_path else None
         shutil.rmtree(output_path, ignore_errors=True)
         output_path.mkdir(parents=True, exist_ok=True)
         
         self._convert_yields(project, output_path)
-        self._convert_transitions(project, output_path)
         cbm_defaults_path = self._build_input_database(project, output_path, aidb_path)
 
         layer_converter = DelegatingLayerConverter([
             MergingDisturbanceLayerConverter(
-                cbm_defaults_path, project.start_year, project.disturbance_order
+                cbm_defaults_path, project.start_year, disturbance_order=project.disturbance_order
             ),
+            MergingTransitionConverter(
+                cbm_defaults_path, project.start_year, project.classifiers,
+                self._get_transitions(project), output_path,
+                disturbance_order=project.disturbance_order
+            ),
+            LastPassDisturbanceLayerConverter(cbm_defaults_path),
             LandClassLayerConverter(),
             DefaultLayerConverter({
                 "initial_age": "age",
@@ -129,11 +137,11 @@ class ProjectConverter:
             ).pivot(index="growth_curve_component_id", columns="age")
             self._flatten_pivot_columns(component_values)
 
-            yield_output_path = output_path.joinpath("sit_yields.csv")
+            yield_output_path = output_path.joinpath("yield.csv")
             yield_curves = components.join(component_species).join(component_values).reset_index()
             yield_curves.drop("growth_curve_component_id", axis=1).to_csv(yield_output_path, index=False)
 
-    def _convert_transitions(self, project, output_path):
+    def _get_transitions(self, project):
         with self._input_db_connection(project) as conn:
             transitions = pd.read_sql(
                 """
@@ -150,9 +158,8 @@ class ProjectConverter:
                 """, conn
             ).pivot(index=["id", "regen_delay", "age_after"], columns="classifier_name").reset_index()
             self._flatten_pivot_columns(transitions)
-            
-            transition_output_path = output_path.joinpath("sit_transitions.csv")
-            transitions.to_csv(transition_output_path, index=False)
+
+            return transitions
 
     def _build_input_database(self, project, output_path, aidb_path=None):
         aidb_path = aidb_path or self._find_aidb_path(project)
