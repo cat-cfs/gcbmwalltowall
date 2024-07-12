@@ -94,7 +94,7 @@ class MergingDisturbanceLayerConverter(LayerConverter):
                     n_rasters=len(year_filtered_info),
                     height=dimension.y_size,
                     width=dimension.x_size,
-                    memory_limit_MB=int(gdal_memory_limit / 1024**2),
+                    memory_limit_MB=int(global_memory_limit / 1024**2 / max_threads),
                 )
             )
             
@@ -117,8 +117,9 @@ class MergingDisturbanceLayerConverter(LayerConverter):
                 for task in as_completed(tasks):
                     result = task.result()
                     if result is not None:
-                        chunk, merge_data = result
-                        merger.merge(chunk, merge_data)
+                        chunk, chunk_merge_data = result
+                        for merge_data in chunk_merge_data:
+                            merger.merge(chunk, merge_data)
 
             write_output(output_raster_paths[year], merger.merged_layer, 0, 0)
             for dist, members in merger.composite_dist_types_by_type.items():
@@ -138,7 +139,8 @@ class MergingDisturbanceLayerConverter(LayerConverter):
             disturbance_layers[info["path"]] = read_dataset(
                 info["path"], bounds=chunk
             )
-                
+        
+        chunk_merge_data = []
         for info in year_filtered_info:
             dist_type_mapping = {}
             for att_key, att_value in info["attributes"].items():
@@ -156,11 +158,11 @@ class MergingDisturbanceLayerConverter(LayerConverter):
                 dist_type_mapping[np.float32(ds.nodata)] = np.float32(0)
                 merge_data = numba_map(
                     ds.data.astype("float32"), dist_type_mapping
-                )
+                ).astype("int32")
                         
-                merge_data = merge_data.astype("int32")
+                chunk_merge_data.append(merge_data)
                 
-                return chunk, merge_data
+        return chunk, chunk_merge_data
 
     def _load_disturbance_type_order(self) -> dict[str, int]:
         db_dist_types_df = pd.DataFrame(self._load_disturbance_types().keys(), columns=["name"])

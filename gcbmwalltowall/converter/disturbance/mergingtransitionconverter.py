@@ -78,7 +78,7 @@ class MergingTransitionConverter(LayerConverter):
                 n_rasters=len(transition_rule_ref) * 3,
                 width=full_bound.x_size,
                 height=full_bound.y_size,
-                memory_limit_MB=int(gdal_memory_limit / 1024**2),
+                memory_limit_MB=int(global_memory_limit / 1024**2 / max_threads),
                 bytes_per_pixel=4
             )
         )

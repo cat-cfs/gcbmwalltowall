@@ -39,7 +39,7 @@ class LastPassDisturbanceLayerConverter(LayerConverter):
                 n_rasters=2,
                 height=dimension.y_size,
                 width=dimension.x_size,
-                memory_limit_MB=int(gdal_memory_limit / 1024**2)
+                memory_limit_MB=int(global_memory_limit / 1024**2 / max_threads)
             )
         )
         
