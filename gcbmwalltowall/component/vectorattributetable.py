@@ -2,6 +2,7 @@ from __future__ import annotations
 import pandas as pd
 import json
 import logging
+from ftfy import guess_bytes
 from ftfy import fix_encoding
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -151,10 +152,10 @@ class VectorAttributeTable(AttributeTable):
             open(tmp_path, "w", encoding="utf8", errors="surrogateescape").write(
                 json.dumps(attribute_table, ensure_ascii=False))
 
-            tmp_txt = list(fix_encoding(open(tmp_path).read()))
-            open(tmp_path, "w", encoding="utf8").writelines(tmp_txt)
+            tmp_txt, _ = guess_bytes(open(tmp_path, "rb").read())
+            open(tmp_path, "w", encoding="utf8").write(tmp_txt)
 
-            return json.loads(open(tmp_path, encoding="utf8").read())
+            return json.loads(fix_encoding(open(tmp_path).read()))
 
     def _load_substitutions(self, invert: bool = False) -> dict[str, dict[str, list[Any]]]:
         if not self.lookup_path:

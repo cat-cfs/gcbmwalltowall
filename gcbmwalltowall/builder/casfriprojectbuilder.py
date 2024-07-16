@@ -92,7 +92,7 @@ class CasfriProjectBuilder(ProjectBuilder):
         return config
 
     @staticmethod
-    def _write_disturbance_attribute_table(config: Configuration, casfri_csv: Path, dist_type_substitutions: dict[str, list[Any]) -> bool:
+    def _write_disturbance_attribute_table(config: Configuration, casfri_csv: Path, dist_type_substitutions: dict[str, list[Any]]) -> bool:
         rows_written = 0
         with open(
             config.resolve_working(casfri_csv.name), "w", encoding="utf-8", newline=""
