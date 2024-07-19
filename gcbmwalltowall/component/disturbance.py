@@ -5,7 +5,6 @@ from itertools import product
 from pathlib import Path
 from mojadata.util import ogr
 from mojadata.layer.attribute import Attribute
-from mojadata.layer.filter.valuefilter import ValueFilter
 from mojadata.layer.gcbm.disturbancelayer import DisturbanceLayer
 from mojadata.layer.gcbm.transitionrule import TransitionRule
 from gcbmwalltowall.component.layer import Layer

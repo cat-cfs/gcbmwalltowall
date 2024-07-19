@@ -61,6 +61,9 @@ class ProjectBuilder:
     @staticmethod
     def _update_relative_paths(config: Configuration, original_path: Path | str, output_path: Path | str) -> Configuration:
         for k, v in config.items():
+            if k in getattr(config, "settings_keys", []):
+                continue
+            
             if isinstance(v, dict):
                 if k == "disturbances":
                     for dist_pattern, dist_config in v.copy().items():
