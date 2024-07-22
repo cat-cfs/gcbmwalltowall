@@ -3,6 +3,7 @@ import logging
 import subprocess
 import sys
 import shutil
+import multiprocessing as mp
 from datetime import datetime
 from logging import FileHandler
 from logging import StreamHandler
@@ -125,6 +126,8 @@ def run(args: Namespace):
             subprocess.run(run_args, cwd=project.path)
 
 def cli():
+    mp.set_start_method("spawn")
+
     parser = ArgumentParser(description="Manage GCBM wall-to-wall projects")
     parser.set_defaults(func=lambda _: parser.print_help())
     subparsers = parser.add_subparsers(help="Command to run")
