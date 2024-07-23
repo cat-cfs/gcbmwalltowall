@@ -17,10 +17,16 @@ class VectorAttributeTable(AttributeTable):
     _attribute_cache = {}
     _data_cache = {}
 
-    def __init__(self, layer_path: Path | str, lookup_path: Path | str = None, layer: str = None):
+    def __init__(
+        self, layer_path: Path | str,
+        lookup_path: Path | str = None,
+        layer: str = None,
+        strict_lookup_table: bool = False
+    ):
         self.layer_path = Path(layer_path).absolute()
         self.lookup_path = Path(lookup_path).absolute() if lookup_path else None
         self.layer = layer
+        self.strict_lookup_table = strict_lookup_table
         if not self.layer_path.exists():
             raise ValueError(f"{layer_path} not found")
 
@@ -85,7 +91,8 @@ class VectorAttributeTable(AttributeTable):
                 Attribute(
                     layer_attribute, tiler_attribute,
                     ValueFilter(tiler_filters[layer_attribute]) if layer_attribute in tiler_filters else None,
-                    attribute_data.get(layer_attribute))
+                    attribute_data.get(layer_attribute),
+                    only_substitutions=self.strict_lookup_table)
                 for layer_attribute, tiler_attribute in tiler_attributes.items()
             ]
         }
@@ -105,9 +112,14 @@ class VectorAttributeTable(AttributeTable):
         for attribute, values in attribute_table.items():
             cached_data[attribute] = {}
             for value in values:
-                cached_data[attribute][value] = (
-                    substitutions.get(attribute, {})
-                                 .get(value, value))
+                final_value = substitutions.get(
+                    attribute, {}
+                ).get(value,
+                      value if not self.strict_lookup_table or attribute not in substitutions
+                      else None)
+                
+                if final_value is not None:
+                    cached_data[attribute][value] = final_value
             
         __class__._data_cache[self._cache_key] = cached_data
 
