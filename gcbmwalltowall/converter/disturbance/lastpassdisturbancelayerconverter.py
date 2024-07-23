@@ -6,7 +6,7 @@ from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import as_completed
 from pathlib import Path
 from sqlalchemy import *
-from arrow_space.input.gdal_input_layer import GdalInputLayer
+from arrow_space.input.raster_input_layer import RasterInputLayer
 from gcbmwalltowall.util.gdalhelpers import *
 from gcbmwalltowall.util.rasterchunks import get_memory_limited_raster_chunks
 from gcbmwalltowall.converter.layerconverter import LayerConverter
@@ -26,7 +26,7 @@ class LastPassDisturbanceLayerConverter(LayerConverter):
         tags = layer.study_area_metadata.get("tags", [])
         return "last_pass_disturbance" in tags
 
-    def convert_internal(self, layers: list[PreparedLayer]) -> list[GdalInputLayer]:
+    def convert_internal(self, layers: list[PreparedLayer]) -> list[RasterInputLayer]:
         if not layers:
             return []
         
@@ -78,7 +78,7 @@ class LastPassDisturbanceLayerConverter(LayerConverter):
 
         write_output(str(output_path), last_past_disturbance, 0, 0)
 
-        return [GdalInputLayer(output_path.stem, str(output_path))]
+        return [RasterInputLayer(output_path.stem, str(output_path))]
 
     def _process_chunk(
         self,

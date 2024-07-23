@@ -7,7 +7,8 @@ from concurrent.futures import as_completed
 from multiprocessing import Manager
 from pathlib import Path
 from sqlalchemy import *
-from arrow_space.input.gdal_input_layer import GdalInputLayer
+from arrow_space.input.raster_input_layer import RasterInputLayer
+from arrow_space.input.raster_input_layer import RasterInputSource
 from gcbmwalltowall.util.gdalhelpers import *
 from gcbmwalltowall.util.rasterchunks import get_memory_limited_raster_chunks
 from gcbmwalltowall.util.numba import numba_map
@@ -40,7 +41,7 @@ class MergingTransitionConverter(LayerConverter):
         tags = layer.study_area_metadata.get("tags", [])
         return "disturbance" in tags and "last_pass_disturbance" not in tags
 
-    def convert_internal(self, layers: list[PreparedLayer]) -> list[GdalInputLayer]:
+    def convert_internal(self, layers: list[PreparedLayer]) -> list[RasterInputLayer]:
         if not layers:
             return []
 
@@ -118,9 +119,9 @@ class MergingTransitionConverter(LayerConverter):
         )
 
         return [
-            GdalInputLayer(
+            RasterInputLayer(
                 f"transition_{year}",
-                str(layer_path)
+                [RasterInputSource(path=str(layer_path))]
             ) for year, layer_path in output_raster_paths.items()
         ]
     

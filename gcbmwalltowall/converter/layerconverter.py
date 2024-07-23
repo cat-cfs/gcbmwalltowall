@@ -4,7 +4,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from arrow_space.input.attribute_table_reader import InMemoryAttributeTableReader
 from pandas import DataFrame
-from arrow_space.input.gdal_input_layer import GdalInputLayer
+from arrow_space.input.raster_input_layer import RasterInputLayer
+from arrow_space.input.raster_input_layer import RasterInputSource
 from mojadata.config import GDAL_CREATION_OPTIONS
 from mojadata.util import gdal
 from mojadata.util.gdal_calc import Calc
@@ -21,10 +22,10 @@ class LayerConverter:
     def handles(self, layer: PreparedLayer) -> bool:
         raise NotImplementedError()
 
-    def convert(self, layers: list[PreparedLayer]) -> list[GdalInputLayer]:
+    def convert(self, layers: list[PreparedLayer]) -> list[RasterInputLayer]:
         return self.convert_internal([l for l in layers if self.handles(l)])
 
-    def convert_internal(self, layers: list[PreparedLayer]) -> list[GdalInputLayer]:
+    def convert_internal(self, layers: list[PreparedLayer]) -> list[RasterInputLayer]:
         raise NotImplementedError()
 
 
@@ -37,7 +38,7 @@ class DelegatingLayerConverter(LayerConverter):
     def handles(self, layer: PreparedLayer) -> bool:
         return any((c.handles(layer) for c in self._converters))
     
-    def convert_internal(self, layers: list[PreparedLayer]) -> list[GdalInputLayer]:
+    def convert_internal(self, layers: list[PreparedLayer]) -> list[RasterInputLayer]:
         results = []
         for subconverter in self._converters:
             results.extend(subconverter.convert(layers))
@@ -57,16 +58,16 @@ class DefaultLayerConverter(LayerConverter):
             or layer.name in {"initial_current_land_class",}
         )
 
-    def convert_internal(self, layers: list[PreparedLayer]) -> list[GdalInputLayer]:
+    def convert_internal(self, layers: list[PreparedLayer]) -> list[RasterInputLayer]:
         if not layers:
             return []
         
         logging.info(f"Converting layers: {', '.join((l.name for l in layers))}")
 
         return [
-            GdalInputLayer(
+            RasterInputLayer(
                 self._name_remappings.get(layer.name, layer.name),
-                str(layer.path),
+                [RasterInputSource(path=str(layer.path))],
                 self._build_attribute_table(layer),
                 layer.study_area_metadata.get("tags")
             ) for layer in layers
@@ -98,7 +99,7 @@ class LandClassLayerConverter(LayerConverter):
     def handles(self, layer: PreparedLayer) -> bool:
         return layer.name == "initial_current_land_class"
 
-    def convert_internal(self, layers: list[PreparedLayer]) -> list[GdalInputLayer]:
+    def convert_internal(self, layers: list[PreparedLayer]) -> list[RasterInputLayer]:
         layer = next(iter(layers), None)
         if not layer:
             return []
@@ -133,8 +134,9 @@ class LandClassLayerConverter(LayerConverter):
              overwrite=True, hideNoData=False, type=gdal.GDT_Int16, A=layer.path)
         
         return [
-            GdalInputLayer(
-                "land_class", str(output_path),
+            RasterInputLayer(
+                "land_class",
+                [RasterInputSource(path=str(output_path))],
                 tags=layer.study_area_metadata.get("tags")
             )
         ]
