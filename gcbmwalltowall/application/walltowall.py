@@ -24,7 +24,8 @@ from gcbmwalltowall.converter.projectconverter import ProjectConverter
 def convert(args: Namespace):
     project = PreparedProject(args.project_path)
     logging.info(f"Converting {project.path} to CBM4")
-    ProjectConverter().convert(project, args.output_path, args.aidb_path)
+    converter = ProjectConverter(args.creation_options, args.merge_disturbance_matrices)
+    converter.convert(project, args.output_path, args.aidb_path)
     
 def build(args: Namespace):
     logging.info(f"Building {args.config_path}")
@@ -192,13 +193,16 @@ def cli():
 
     convert_parser = subparsers.add_parser(
         "convert", help=("Convert a walltowall-prepared GCBM project to CBM4."))
-    convert_parser.set_defaults(func=convert)
+    convert_parser.set_defaults(func=convert, creation_options={}, merge_disturbance_matrices=False)
     convert_parser.add_argument(
         "project_path", help="root directory of a walltowall-prepared GCBM project")
     convert_parser.add_argument(
         "output_path", help="destination directory for CBM4 project files")
     convert_parser.add_argument(
         "--aidb_path", help="AIDB to use when building CBM4 input database")
+    convert_parser.add_argument(
+        "--merge_disturbance_matrices", action="store_true",
+        help="merge disturbance layers/matrices")
 
     args = parser.parse_args()
 

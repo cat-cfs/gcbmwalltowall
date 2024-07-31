@@ -17,7 +17,14 @@ from gcbmwalltowall.converter.disturbance.mergingtransitionconverter import Merg
 
 class ProjectConverter:
     
-    def __init__(self, merge_disturbance_matrices=False):
+    def __init__(self, creation_options=None, merge_disturbance_matrices=False):
+        self._creation_options = creation_options or {
+            "chunk_options": {
+                "chunk_x_size_max": 2500,
+                "chunk_y_size_max": 2500,
+            }
+        }
+        
         self._merge_disturbance_matrices = merge_disturbance_matrices
 
     def convert(self, project, output_path, aidb_path=None):
@@ -29,23 +36,32 @@ class ProjectConverter:
         self._convert_yields(project, output_path)
         cbm_defaults_path = self._build_input_database(project, output_path, aidb_path)
 
-        layer_converter = DelegatingLayerConverter([
-            MergingDisturbanceLayerConverter(
-                cbm_defaults_path, project.start_year, disturbance_order=project.disturbance_order
-            ),
-            MergingTransitionConverter(
-                cbm_defaults_path, project.start_year, project.classifiers,
-                self._get_transitions(project), output_path,
-                disturbance_order=project.disturbance_order
-            ),
+        transitions = self._get_transitions(project)
+        if not self._merge_disturbance_matrices:
+            transitions.to_csv(output_path.joinpath("sit_transitions.csv"))
+
+        subconverters = [
             LastPassDisturbanceLayerConverter(cbm_defaults_path),
             LandClassLayerConverter(),
             DefaultLayerConverter({
                 "initial_age": "age",
                 "mean_annual_temperature": "mean_annual_temp",
                 "inventory_delay": "delay"
-            })
-        ])
+            }, include_disturbances=not self._merge_disturbance_matrices)
+        ]
+        
+        if self._merge_disturbance_matrices:
+            subconverters.extend([
+                MergingDisturbanceLayerConverter(
+                    cbm_defaults_path, project.start_year, disturbance_order=project.disturbance_order
+                ),
+                MergingTransitionConverter(
+                    cbm_defaults_path, project.start_year, project.classifiers,
+                    transitions, output_path, disturbance_order=project.disturbance_order
+                )
+            ])
+        
+        layer_converter = DelegatingLayerConverter(subconverters)
 
         self._convert_spatial_data(layer_converter, project, output_path)
 
@@ -85,10 +101,15 @@ class ProjectConverter:
 
     def _convert_spatial_data(self, layer_converter, project, output_path):
         arrowspace_layers = InputLayerCollection(layer_converter.convert(project.layers))
+        creation_options = self._creation_options.copy()
+        creation_options.update({
+            "mask_layers": ["age", "admin_boundary", "eco_boundary"]
+        })
+        
         create_arrowspace_dataset(
             arrowspace_layers, "inventory", "local_storage",
             str(output_path.joinpath("inventory.arrowspace")),
-            {}
+            creation_options
         )
 
     def _flatten_pivot_columns(self, pivot_data):
