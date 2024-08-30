@@ -103,7 +103,7 @@ class ProjectConverter:
         arrowspace_layers = InputLayerCollection(layer_converter.convert(project.layers))
         creation_options = self._creation_options.copy()
         creation_options.update({
-            "mask_layers": ["age", "admin_boundary", "eco_boundary"]
+            "mask_layers": ["age"]
         })
         
         create_arrowspace_dataset(

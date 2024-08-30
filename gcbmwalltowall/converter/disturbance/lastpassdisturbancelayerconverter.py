@@ -7,6 +7,7 @@ from concurrent.futures import as_completed
 from pathlib import Path
 from sqlalchemy import *
 from arrow_space.input.raster_input_layer import RasterInputLayer
+from arrow_space.input.raster_input_layer import RasterInputSource
 from gcbmwalltowall.util.gdalhelpers import *
 from gcbmwalltowall.util.rasterchunks import get_memory_limited_raster_chunks
 from gcbmwalltowall.converter.layerconverter import LayerConverter
@@ -78,7 +79,7 @@ class LastPassDisturbanceLayerConverter(LayerConverter):
 
         write_output(str(output_path), last_past_disturbance, 0, 0)
 
-        return [RasterInputLayer(output_path.stem, str(output_path))]
+        return [RasterInputLayer(output_path.stem, [RasterInputSource(path=str(output_path))])]
 
     def _process_chunk(
         self,
