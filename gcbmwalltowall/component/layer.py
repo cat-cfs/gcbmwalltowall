@@ -12,7 +12,7 @@ class Layer(Tileable):
 
     def __init__(
         self, name, path, attributes=None, lookup_table=None, filters=None, layer=None,
-        **tiler_kwargs
+        strict_lookup_table=False, **tiler_kwargs
     ):
         self.name = name
         self.path = Path(path).absolute()
@@ -20,6 +20,7 @@ class Layer(Tileable):
         self.lookup_table = Path(lookup_table) if lookup_table else None
         self.filters = filters or {}
         self.layer = layer
+        self.strict_lookup_table = strict_lookup_table
         self.tiler_kwargs = tiler_kwargs
         self._cached_lookup_table = None
 
@@ -107,6 +108,7 @@ class Layer(Tileable):
             )
         else:
             self._cached_lookup_table = VectorAttributeTable(
-                self.path, lookup_table, layer=self.layer)
+                self.path, lookup_table, layer=self.layer,
+                strict_lookup_table=self.strict_lookup_table)
 
         return self._cached_lookup_table

@@ -27,7 +27,7 @@ class Configuration(dict):
     def gcbm_disturbance_order(self):
         disturbance_order_file = self.gcbm_disturbance_order_path
         disturbance_order = [
-            line[0] for line in csv.reader(open(self.resolve(disturbance_order_file)))
+            line[0] for line in csv.reader(open(self.resolve(disturbance_order_file))) if line
         ] if disturbance_order_file else None
 
         return disturbance_order

@@ -1,6 +1,8 @@
+from __future__ import annotations
 import pandas as pd
 import json
 import logging
+from ftfy import guess_bytes
 from ftfy import fix_encoding
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -15,15 +17,21 @@ class VectorAttributeTable(AttributeTable):
     _attribute_cache = {}
     _data_cache = {}
 
-    def __init__(self, layer_path, lookup_path=None, layer=None):
+    def __init__(
+        self, layer_path: Path | str,
+        lookup_path: Path | str = None,
+        layer: str = None,
+        strict_lookup_table: bool = False
+    ):
         self.layer_path = Path(layer_path).absolute()
         self.lookup_path = Path(lookup_path).absolute() if lookup_path else None
         self.layer = layer
+        self.strict_lookup_table = strict_lookup_table
         if not self.layer_path.exists():
             raise ValueError(f"{layer_path} not found")
 
     @property
-    def attributes(self):
+    def attributes(self) -> list[str]:
         attributes = __class__._attribute_cache.get(self._cache_key)
         if attributes is None:
             ds = ogr.Open(str(self.layer_path))
@@ -39,7 +47,7 @@ class VectorAttributeTable(AttributeTable):
 
         return attributes.copy()
 
-    def get_unique_values(self, attributes=None):
+    def get_unique_values(self, attributes: str | list[str] = None) -> dict[str, list[Any]]:
         selected_attributes = self._get_selected_attributes(attributes)
         attribute_data = self._data(selected_attributes)
 
@@ -48,7 +56,11 @@ class VectorAttributeTable(AttributeTable):
             for attribute in selected_attributes
         }
 
-    def to_tiler_args(self, attributes=None, filters=None):
+    def to_tiler_args(
+        self,
+        attributes: str | list[str] = None,
+        filters: dict[str, Any | list[Any]] = None
+    ) -> dict[str, Any]:
         selected_attributes = self._get_selected_attributes(attributes)
         tiler_attributes = (
             selected_attributes if isinstance(selected_attributes, dict)
@@ -79,16 +91,17 @@ class VectorAttributeTable(AttributeTable):
                 Attribute(
                     layer_attribute, tiler_attribute,
                     ValueFilter(tiler_filters[layer_attribute]) if layer_attribute in tiler_filters else None,
-                    attribute_data.get(layer_attribute))
+                    attribute_data.get(layer_attribute),
+                    only_substitutions=self.strict_lookup_table)
                 for layer_attribute, tiler_attribute in tiler_attributes.items()
             ]
         }
 
     @property
-    def _cache_key(self):
+    def _cache_key(self) -> tuple[Path, Path, str]:
         return (self.layer_path, self.lookup_path, self.layer)
 
-    def _data(self, attributes=None):
+    def _data(self, attributes: str | list[str] = None) -> dict[str, dict[Any, Any]]:
         cached_data = __class__._data_cache.get(self._cache_key, {})
         lazy_load_attributes = set(self._get_selected_attributes(attributes)) - set(cached_data.keys())
         if not lazy_load_attributes:
@@ -99,23 +112,28 @@ class VectorAttributeTable(AttributeTable):
         for attribute, values in attribute_table.items():
             cached_data[attribute] = {}
             for value in values:
-                cached_data[attribute][value] = (
-                    substitutions.get(attribute, {})
-                                 .get(value, value))
+                final_value = substitutions.get(
+                    attribute, {}
+                ).get(value,
+                      value if not self.strict_lookup_table or attribute not in substitutions
+                      else None)
+                
+                if final_value is not None:
+                    cached_data[attribute][value] = final_value
             
         __class__._data_cache[self._cache_key] = cached_data
 
         return cached_data.copy()
     
-    def _get_distinct_attribute_values(self, table, attribute):
+    def _get_distinct_attribute_values(self, table: str, attribute: str) -> tuple[str, list[Any]]:
         ds = ogr.Open(str(self.layer_path))
-        query = ds.ExecuteSQL(f"SELECT DISTINCT {attribute} FROM {table}")
+        query = ds.ExecuteSQL(f"SELECT DISTINCT {attribute} FROM {table} WHERE {attribute} IS NOT NULL")
         unique_values = [row.GetField(0) for row in query]
         ds.ReleaseResultSet(query)
         
         return attribute, unique_values
 
-    def _extract_attribute_table(self, attributes):
+    def _extract_attribute_table(self, attributes: list[str]) -> dict[str, list[Any]]:
         ds = ogr.Open(str(self.layer_path))
         lyr = ds.GetLayerByName(self.layer) if self.layer else ds.GetLayer(0)
         ds_table = lyr.GetName()
@@ -146,12 +164,12 @@ class VectorAttributeTable(AttributeTable):
             open(tmp_path, "w", encoding="utf8", errors="surrogateescape").write(
                 json.dumps(attribute_table, ensure_ascii=False))
 
-            tmp_txt = list(fix_encoding(open(tmp_path).read()))
-            open(tmp_path, "w", encoding="utf8").writelines(tmp_txt)
+            tmp_txt, _ = guess_bytes(open(tmp_path, "rb").read())
+            open(tmp_path, "w", encoding="utf8").write(tmp_txt)
 
-            return json.loads(open(tmp_path, encoding="utf8").read())
+            return json.loads(fix_encoding(open(tmp_path).read()))
 
-    def _load_substitutions(self, invert=False):
+    def _load_substitutions(self, invert: bool = False) -> dict[str, dict[str, list[Any]]]:
         if not self.lookup_path:
             return {}
         
@@ -161,8 +179,8 @@ class VectorAttributeTable(AttributeTable):
         for _, row in substitutions.iterrows():
             for original_col in range(0, len(header), 2):
                 replacement_col = original_col + 1
-                original_value = row[original_col]
-                replacement_value = row[replacement_col]
+                original_value = row.iloc[original_col]
+                replacement_value = row.iloc[replacement_col]
                 if self._is_null(original_value) or self._is_null(replacement_value):
                     continue
                 
@@ -177,12 +195,12 @@ class VectorAttributeTable(AttributeTable):
 
         return substitution_table
 
-    def _get_selected_attributes(self, attributes):
+    def _get_selected_attributes(self, attributes: str | list[str]) -> list[str]:
         return (
             [attributes] if isinstance(attributes, str)
             else attributes if attributes is not None
             else self.attributes
         )
 
-    def _is_null(self, string):
+    def _is_null(self, string: str) -> bool:
         return not string or not isinstance(string, str) or string.isspace()

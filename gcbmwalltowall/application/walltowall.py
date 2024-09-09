@@ -1,7 +1,9 @@
+from __future__ import annotations
 import logging
 import subprocess
 import sys
 import shutil
+import multiprocessing as mp
 from datetime import datetime
 from logging import FileHandler
 from logging import StreamHandler
@@ -19,16 +21,17 @@ from gcbmwalltowall.component.project import Project
 from gcbmwalltowall.component.preparedproject import PreparedProject
 from gcbmwalltowall.converter.projectconverter import ProjectConverter
 
-def convert(args):
+def convert(args: Namespace):
     project = PreparedProject(args.project_path)
     logging.info(f"Converting {project.path} to CBM4")
-    ProjectConverter().convert(project, args.output_path, args.aidb_path)
+    converter = ProjectConverter(args.creation_options, args.merge_disturbance_matrices)
+    converter.convert(project, args.output_path, args.aidb_path)
     
-def build(args):
+def build(args: Namespace):
     logging.info(f"Building {args.config_path}")
     ProjectBuilder.build_from_file(args.config_path, args.output_path)
 
-def prepare(args):
+def prepare(args: Namespace):
     config = Configuration.load(args.config_path, args.output_path)
     project = Project.from_configuration(config)
     logging.info(f"Preparing {project.name}")
@@ -46,7 +49,7 @@ def prepare(args):
                            config.gcbm_disturbance_order,
                            **extra_args)
 
-def merge(args):
+def merge(args: Namespace):
     with TemporaryDirectory() as tmp:
         projects = [PreparedProject(path) for path in args.project_paths]
         logging.info("Merging projects:\n{}".format("\n".join((str(p.path) for p in projects))))
@@ -84,7 +87,7 @@ def merge(args):
     
         configurer.configure()
 
-def run(args):
+def run(args: Namespace):
     project = PreparedProject(args.project_path)
     logging.info(f"Running project ({args.host}):\n{project.path}")
 
@@ -124,6 +127,8 @@ def run(args):
             subprocess.run(run_args, cwd=project.path)
 
 def cli():
+    mp.set_start_method("spawn")
+
     parser = ArgumentParser(description="Manage GCBM wall-to-wall projects")
     parser.set_defaults(func=lambda _: parser.print_help())
     subparsers = parser.add_subparsers(help="Command to run")
@@ -188,13 +193,16 @@ def cli():
 
     convert_parser = subparsers.add_parser(
         "convert", help=("Convert a walltowall-prepared GCBM project to CBM4."))
-    convert_parser.set_defaults(func=convert)
+    convert_parser.set_defaults(func=convert, creation_options={}, merge_disturbance_matrices=False)
     convert_parser.add_argument(
         "project_path", help="root directory of a walltowall-prepared GCBM project")
     convert_parser.add_argument(
         "output_path", help="destination directory for CBM4 project files")
     convert_parser.add_argument(
         "--aidb_path", help="AIDB to use when building CBM4 input database")
+    convert_parser.add_argument(
+        "--merge_disturbance_matrices", action="store_true",
+        help="merge disturbance layers/matrices")
 
     args = parser.parse_args()
 

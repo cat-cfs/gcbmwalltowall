@@ -14,7 +14,7 @@ class PreparedLayer:
     
     @property
     def tiler_metadata(self):
-        return json.load(open(self.path.with_suffix(".json")))
+        return json.load(open(self.path.with_suffix(".json"), "rb"))
 
     @property
     def study_area_metadata(self):
@@ -33,6 +33,13 @@ class PreparedLayer:
         )))
         
         return study_area_metadata
+    
+    @property
+    def metadata(self):
+        metadata = self.study_area_metadata
+        metadata.update(self.tiler_metadata)
+        
+        return metadata
         
 class PreparedProject:
 
@@ -87,6 +94,16 @@ class PreparedProject:
             ) for l in provider_layers
         ]
     
+    @property
+    def disturbance_order(self):
+        config = json.load(open(self.gcbm_config_path.joinpath("variables.json"), "rb"))
+        return list(set(config["Variables"].get("user_disturbance_order", [])))
+
+    @property
+    def classifiers(self):
+        config = json.load(open(self.gcbm_config_path.joinpath("variables.json"), "rb"))
+        return config["Variables"]["initial_classifier_set"]["transform"]["vars"]
+
     @contextmanager
     def temporary_new_end_year(self, end_year=None):
         if end_year is None:

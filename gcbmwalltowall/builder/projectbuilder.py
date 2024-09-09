@@ -1,3 +1,4 @@
+from __future__ import annotations
 import json
 from os.path import relpath
 from pathlib import Path
@@ -6,7 +7,7 @@ from gcbmwalltowall.configuration.configuration import Configuration
 class ProjectBuilder:
 
     @staticmethod
-    def get_builders():
+    def get_builders() -> dict[str, ProjectBuilder]:
         from gcbmwalltowall.builder.casfriprojectbuilder import CasfriProjectBuilder
         from gcbmwalltowall.builder.compositeprojectbuilder import CompositeProjectBuilder
 
@@ -16,7 +17,7 @@ class ProjectBuilder:
         }
 
     @staticmethod
-    def build_from_file(config_path, output_path=None):
+    def build_from_file(config_path: str | Path, output_path: str | Path = None) -> Configuration:
         config_path = Path(config_path).absolute()
         output_path = Path(output_path or config_path.parent).absolute()
         output_path.mkdir(parents=True, exist_ok=True)
@@ -41,11 +42,11 @@ class ProjectBuilder:
         return config
 
     @staticmethod
-    def build(config):
+    def build(config: Configuration) -> Configuration:
         return config
 
     @staticmethod
-    def _write_config(config, output_file, include_builder_config=True):
+    def _write_config(config: Configuration, output_file: Path | str, include_builder_config: bool = True):
         settings_keys = config.settings_keys
         
         config = config.copy()
@@ -58,8 +59,11 @@ class ProjectBuilder:
         json.dump(config, open(output_file, "w", newline=""), indent=4)
 
     @staticmethod
-    def _update_relative_paths(config, original_path, output_path):
+    def _update_relative_paths(config: Configuration, original_path: Path | str, output_path: Path | str) -> Configuration:
         for k, v in config.items():
+            if k in getattr(config, "settings_keys", []):
+                continue
+            
             if isinstance(v, dict):
                 if k == "disturbances":
                     for dist_pattern, dist_config in v.copy().items():
