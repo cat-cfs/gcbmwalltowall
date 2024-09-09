@@ -127,7 +127,7 @@ class VectorAttributeTable(AttributeTable):
     
     def _get_distinct_attribute_values(self, table: str, attribute: str) -> tuple[str, list[Any]]:
         ds = ogr.Open(str(self.layer_path))
-        query = ds.ExecuteSQL(f"SELECT DISTINCT {attribute} FROM {table}")
+        query = ds.ExecuteSQL(f"SELECT DISTINCT {attribute} FROM {table} WHERE {attribute} IS NOT NULL")
         unique_values = [row.GetField(0) for row in query]
         ds.ReleaseResultSet(query)
         
@@ -179,8 +179,8 @@ class VectorAttributeTable(AttributeTable):
         for _, row in substitutions.iterrows():
             for original_col in range(0, len(header), 2):
                 replacement_col = original_col + 1
-                original_value = row[original_col]
-                replacement_value = row[replacement_col]
+                original_value = row.iloc[original_col]
+                replacement_value = row.iloc[replacement_col]
                 if self._is_null(original_value) or self._is_null(replacement_value):
                     continue
                 
