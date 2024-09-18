@@ -102,8 +102,12 @@ class ProjectConverter:
     def _convert_spatial_data(self, layer_converter, project, output_path):
         arrowspace_layers = InputLayerCollection(layer_converter.convert(project.layers))
         creation_options = self._creation_options.copy()
+        mask_layers = ["age"]
+        for optional_mask_layer in ["admin_boundary", "eco_boundary"]:
+            if optional_mask_layer in arrowspace_layers.layer_names:
+                mask_layers.append(optional_mask_layer)
         creation_options.update({
-            "mask_layers": ["age"]
+            "mask_layers": mask_layers
         })
         
         create_arrowspace_dataset(
