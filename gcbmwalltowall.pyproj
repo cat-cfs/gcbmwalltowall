@@ -93,7 +93,6 @@
     </Compile>
     <Compile Include="gcbmwalltowall\converter\disturbance\compositedisturbancetypemanager.py" />
     <Compile Include="gcbmwalltowall\converter\disturbance\eventmerger.py" />
-    <Compile Include="gcbmwalltowall\converter\disturbance\lastpassdisturbancelayerconverter.py" />
     <Compile Include="gcbmwalltowall\converter\disturbance\mergingtransitionconverter.py" />
     <Compile Include="gcbmwalltowall\converter\disturbance\mergingdisturbancelayerconverter.py" />
     <Compile Include="gcbmwalltowall\util\numba.py" />
