@@ -11,7 +11,6 @@ from cbm_defaults.app import run as make_cbm_defaults
 from gcbmwalltowall.converter.layerconverter import DelegatingLayerConverter
 from gcbmwalltowall.converter.layerconverter import DefaultLayerConverter
 from gcbmwalltowall.converter.layerconverter import LandClassLayerConverter
-from gcbmwalltowall.converter.disturbance.lastpassdisturbancelayerconverter import LastPassDisturbanceLayerConverter
 from gcbmwalltowall.converter.disturbance.mergingdisturbancelayerconverter import MergingDisturbanceLayerConverter
 from gcbmwalltowall.converter.disturbance.mergingtransitionconverter import MergingTransitionConverter
 
@@ -41,7 +40,6 @@ class ProjectConverter:
             transitions.to_csv(output_path.joinpath("sit_transitions.csv"))
 
         subconverters = [
-            LastPassDisturbanceLayerConverter(cbm_defaults_path),
             LandClassLayerConverter(),
             DefaultLayerConverter({
                 "initial_age": "age",
