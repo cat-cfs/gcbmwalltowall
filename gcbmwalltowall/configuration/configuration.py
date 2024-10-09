@@ -101,7 +101,11 @@ class Configuration(dict):
 
     def _load_settings(self):
         project_settings = self.copy()
-        for config_path in (Configuration.global_settings, Configuration.user_settings):
+        for config_path in (
+            Configuration.global_settings_windows,
+            Configuration.global_settings_linux,
+            Configuration.user_settings
+        ):
             if config_path.is_file():
                 self.update(json.load(open(config_path)))
 
@@ -114,7 +118,8 @@ class Configuration(dict):
 
         raise RuntimeError(
             f"{file_name} not found - please check {setting_name} setting in either "
-            f"{Configuration.global_settings} or {Configuration.user_settings}")
+            f"{Configuration.global_settings_windows}, {Configuration.global_settings_linux}, "
+            f"or {Configuration.user_settings}")
 
     @classmethod
     def load(cls, config_path, working_path=None):
