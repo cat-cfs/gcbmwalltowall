@@ -6,7 +6,8 @@ from pathlib import Path
 
 class Configuration(dict):
 
-    global_settings = Path(sys.prefix, "Tools", "gcbmwalltowall", "settings.json")
+    global_settings_windows = Path(sys.prefix, "Tools", "gcbmwalltowall", "settings.json")
+    global_settings_linux = Path(sys.prefix, "local", "Tools", "gcbmwalltowall", "settings.json")
     user_settings = Path(site.USER_BASE, "Tools", "gcbmwalltowall", "settings.json")
 
     def __init__(self, d, config_path, working_path=None):
@@ -54,7 +55,8 @@ class Configuration(dict):
             template_path = next((path for path in (
                 self.resolve("templates"),
                 Path(site.USER_BASE, "Tools", "gcbmwalltowall", "templates", "default"),
-                Path(sys.prefix, "Tools", "gcbmwalltowall", "templates", "default")
+                Path(sys.prefix, "Tools", "gcbmwalltowall", "templates", "default"),
+                Path(sys.prefix, "local", "Tools", "gcbmwalltowall", "templates", "default"),
             ) if path.exists()), None)
 
         if not template_path:
@@ -65,7 +67,11 @@ class Configuration(dict):
     @property
     def settings_keys(self):
         settings_keys = set()
-        for config_path in (Configuration.global_settings, Configuration.user_settings):
+        for config_path in (
+            Configuration.global_settings_windows,
+            Configuration.global_settings_linux,
+            Configuration.user_settings
+        ):
             if config_path.is_file():
                 settings_keys.update(json.load(open(config_path)).keys())
 
