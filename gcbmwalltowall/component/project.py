@@ -167,7 +167,8 @@ class Project:
                 attribute_filter)
 
         resolution = config.get("resolution")
-        bounding_box = BoundingBox(bounding_box_layer, resolution)
+        epsg = config.get("epsg")
+        bounding_box = BoundingBox(bounding_box_layer, epsg, resolution)
 
         input_db = InputDatabase(
             config.resolve(require_not_null(config.get("aidb"))),
