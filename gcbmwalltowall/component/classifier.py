@@ -1,8 +1,8 @@
 import pandas as pd
 from numbers import Number
-from os.path import relpath
 from pathlib import Path
 from gcbmwalltowall.component.tileable import Tileable
+from mojadata.layer.dummylayer import DummyLayer
 
 class Classifier(Tileable):
 
@@ -77,3 +77,27 @@ class Classifier(Tileable):
         raise RuntimeError(
             f"Unable to find column in {self.values_path} matching "
             f"{spatial_attribute} in {self.layer.path}")
+
+
+class DefaultClassifier(Classifier):
+
+    def __init__(self, name, default_value=None, values_path=None, values_col=None, yield_col=None):
+        self._name = name
+        self._default_value = default_value
+        self.values_path = Path(values_path) if values_path else None
+        self.values_col = values_col
+        self.yield_col = yield_col
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def values(self):
+        if self._default_value is None:
+            return set()
+
+        return {self._default_value}
+
+    def to_tiler_layer(self, rule_manager, **kwargs):
+        return DummyLayer(self._name, self._default_value, tags=["classifier"], **kwargs)

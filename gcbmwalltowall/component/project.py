@@ -12,6 +12,7 @@ from mojadata.gdaltiler2d import GdalTiler2D
 from mojadata.layer.gcbm.transitionrulemanager import SharedTransitionRuleManager
 from gcbmwalltowall.component.boundingbox import BoundingBox
 from gcbmwalltowall.component.classifier import Classifier
+from gcbmwalltowall.component.classifier import DefaultClassifier
 from gcbmwalltowall.component.disturbance import Disturbance
 from gcbmwalltowall.component.inputdatabase import InputDatabase
 from gcbmwalltowall.component.rollback import Rollback
@@ -178,6 +179,10 @@ class Project:
         classifiers = []
         classifier_config = require_instance_of(config.get("classifiers"), dict)
         for classifier_name, classifier_details in classifier_config.items():
+            if not isinstance(classifier_details, dict):
+                classifiers.append(DefaultClassifier(classifier_name, classifier_details))
+                continue
+
             layer_path = config.resolve(require_not_null(classifier_details.get("layer")))
             layer_lookup_table = (
                 classifier_details.get("lookup_table")

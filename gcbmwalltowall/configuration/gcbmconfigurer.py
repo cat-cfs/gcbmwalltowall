@@ -30,7 +30,7 @@ class GCBMConfigurer:
         
         for template in chain.from_iterable(
             iglob(os.path.join(self._template_path, ext))
-            for ext in ["*.cfg", "*.json"]
+            for ext in ["*.cfg", "*.json", "*.conf"]
         ):
             shutil.copy(template, self._output_path)
         
