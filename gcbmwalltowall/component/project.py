@@ -94,7 +94,9 @@ class Project:
                     logging.info(f"Finished preparing {disturbance.name or disturbance.pattern}")
 
             logging.info("Starting up tiler...")
-            tiler = GdalTiler2D(tiler_bbox, use_bounding_box_resolution=True, workers=cpu_count())
+            tiler = GdalTiler2D(tiler_bbox, use_bounding_box_resolution=True,
+                                workers=min(cpu_count(), len(tiler_layers)))
+
             tiler.tile(tiler_layers, str(self.tiler_output_path))
             rule_manager.write_rules(str(self.tiler_output_path.joinpath("transition_rules.csv")))
 
