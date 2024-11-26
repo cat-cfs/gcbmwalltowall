@@ -47,6 +47,11 @@ class PreparedProject:
         self.path = Path(path).absolute()
 
     @property
+    def resolution(self):
+        study_area = json.load(open(self.tiled_layer_path.joinpath("study_area.json")))
+        return study_area["pixel_size"]
+
+    @property
     def tiled_layer_path(self):
         return self.path.joinpath("layers/tiled")
 

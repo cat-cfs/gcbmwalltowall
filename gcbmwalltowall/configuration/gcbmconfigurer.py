@@ -77,7 +77,8 @@ class GCBMConfigurer:
             json_file.write(json.dumps(contents, indent=4, ensure_ascii=False))
     
     @staticmethod
-    def find_config_file(config_path, *search_path):
+    def find_config_file(config_path, *search_path, all_matches=False):
+        matching_files = []
         for config_file in (fn for fn in iglob(os.path.join(config_path, "*.json"))
                             if "internal" not in fn.lower()):
             # Drill down through the config file contents to see if the whole search path
@@ -89,8 +90,14 @@ class GCBMConfigurer:
                     break
             
             if config is not None:
-                return config_file
+                if all_matches:
+                    matching_files.append(config_file)
+                else:
+                    return config_file
         
+        if all_matches:
+            return matching_files
+
         return None
 
     def update_mask(self, study_area):

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import shutil
 import json
 import pandas as pd
@@ -8,6 +9,7 @@ from pathlib import Path
 from arrow_space.input.input_layer_collection import InputLayerCollection
 from arrow_space.flattened_coordinate_dataset import create as create_arrowspace_dataset
 from cbm_defaults.app import run as make_cbm_defaults
+from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.converter.layerconverter import DelegatingLayerConverter
 from gcbmwalltowall.converter.layerconverter import DefaultLayerConverter
 from gcbmwalltowall.converter.layerconverter import LandClassLayerConverter
@@ -62,6 +64,7 @@ class ProjectConverter:
         layer_converter = DelegatingLayerConverter(subconverters)
 
         self._convert_spatial_data(layer_converter, project, output_path)
+        self._create_cbm4_config(project, output_path)
 
     @contextmanager
     def _input_db_connection(self, project):
@@ -198,3 +201,47 @@ class ProjectConverter:
             })
 
         return output_cbm_defaults_path
+
+    def _create_cbm4_config(self, project, output_path):
+        default_inventory_values = {}
+
+        cset_config_file = GCBMConfigurer.find_config_file(
+            project.gcbm_config_path, "Variables", "initial_classifier_set")
+        
+        classifiers = (
+            json.load(open(cset_config_file, "rb"))
+                ["Variables"]["initial_classifier_set"]["transform"]["vars"]
+        )
+
+        classifiers.extend(["admin_boundary", "eco_boundary"])
+
+        for classifier in classifiers:
+            config_file = GCBMConfigurer.find_config_file(
+                project.gcbm_config_path, "Variables", classifier)
+        
+            classifier_value = json.load(open(config_file, "rb"))["Variables"][classifier]
+            if isinstance(classifier_value, dict):
+                continue
+
+            default_inventory_values[classifier] = classifier_value
+
+        if not GCBMConfigurer.find_config_file(project.gcbm_config_path, "Variables", "inventory_delay"):
+            default_inventory_values["delay"] = 0
+
+        config = {
+            "resolution": project.resolution,
+            "cbm4_spatial_dataset": {
+                name: {
+                    "dataset_name": name,
+                    "storage_type": "local_storage",
+                    "path_or_uri": name,
+                }
+                for name in ("inventory", "disturbance", "simulation")
+            },
+            "default_inventory_values": default_inventory_values,
+            "start_year": project.start_year,
+            "end_year": project.end_year,
+            "disturbance_event_sorter": None
+        }
+        
+        json.dump(config, open(output_path.joinpath("cbm4_config.json"), "w"), indent=4)

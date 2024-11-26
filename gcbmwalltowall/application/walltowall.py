@@ -99,12 +99,17 @@ def run(args: Namespace):
         )
 
         if args.host == "local":
-            logging.info(f"Using {config.resolve(config.gcbm_exe)}")
-            subprocess.run([
-                str(config.resolve(config.gcbm_exe)),
-                "--config_file", "gcbm_config.cfg",
-                "--config_provider", "provider_config.json"
-            ], cwd=project.gcbm_config_path)
+            cbm4_config_path = Path(args.project_path).joinpath("cbm4_config.json")
+            if cbm4_config_path.exists():
+                from gcbmwalltowall.runner import cbm4
+                cbm4.run(cbm4_config_path)
+            else:
+                logging.info(f"Using {config.resolve(config.gcbm_exe)}")
+                subprocess.run([
+                    str(config.resolve(config.gcbm_exe)),
+                    "--config_file", "gcbm_config.cfg",
+                    "--config_provider", "provider_config.json"
+                ], cwd=project.gcbm_config_path)
         elif args.host == "cluster":
             logging.info(f"Using {config.resolve(config.distributed_client)}")
             project_name = config.get("project_name", project.path.stem)
@@ -123,6 +128,10 @@ def run(args: Namespace):
             compile_results_config = getattr(args, "compile_results_config", None)
             if compile_results_config:
                 run_args.extend(["--compile-results-config", Path(compile_results_config).absolute()])
+
+            batch_limit = getattr(args, "batch_limit", None)
+            if batch_limit:
+                run_args.extend(["--batch-limit", batch_limit])
 
             subprocess.run(run_args, cwd=project.path)
 
@@ -190,6 +199,8 @@ def cli():
         "--title", help="explicitly specify a title for this run")
     run_parser.add_argument(
         "--compile_results_config", help="path to custom compile results config file")
+    run_parser.add_argument(
+        "--batch_limit", help="batch limit for cluster runs")
 
     convert_parser = subparsers.add_parser(
         "convert", help=("Convert a walltowall-prepared GCBM project to CBM4."))

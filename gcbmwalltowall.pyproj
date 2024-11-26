@@ -12,7 +12,7 @@
     <Name>gcbmwalltowall</Name>
     <RootNamespace>gcbmwalltowall</RootNamespace>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>convert "C:\Projects\GCBM software and training components\1_standalone_template" "C:\Projects\GCBM software and training components\1_standalone_template_cbm4"</CommandLineArguments>
+    <CommandLineArguments>run local "D:\Projects\43_SCANFI_GCBM\provinces\pei\cbm4"</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
     <IsWindowsApplication>False</IsWindowsApplication>
   </PropertyGroup>
@@ -35,6 +35,7 @@
     <Folder Include="gcbmwalltowall\configuration\" />
     <Folder Include="gcbmwalltowall\converter\" />
     <Folder Include="gcbmwalltowall\converter\disturbance\" />
+    <Folder Include="gcbmwalltowall\runner\" />
     <Folder Include="gcbmwalltowall\util\" />
     <Folder Include="gcbmwalltowall\validation\" />
   </ItemGroup>
@@ -95,6 +96,8 @@
     <Compile Include="gcbmwalltowall\converter\disturbance\eventmerger.py" />
     <Compile Include="gcbmwalltowall\converter\disturbance\mergingtransitionconverter.py" />
     <Compile Include="gcbmwalltowall\converter\disturbance\mergingdisturbancelayerconverter.py" />
+    <Compile Include="gcbmwalltowall\runner\cbm4.py" />
+    <Compile Include="gcbmwalltowall\runner\__init__.py" />
     <Compile Include="gcbmwalltowall\util\numba.py" />
     <Compile Include="gcbmwalltowall\util\rasterbound.py" />
     <Compile Include="gcbmwalltowall\converter\disturbance\__init__.py" />
