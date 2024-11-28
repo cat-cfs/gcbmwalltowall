@@ -167,9 +167,10 @@ def spinup(config: PreprocessModel):
 
 def step(config: PreprocessModel, timestep: int):
     spatial_dataset = CBM4SpatialDataset(config.cbm4_spatial_dataset)
+    ha_per_m2 = 0.0001
     area_calculator = (
-        WGS84AreaCalculator(0.0001) if config.resolution < 1
-        else EqualAreaCalculator(config.resolution)
+        WGS84AreaCalculator(ha_per_m2) if config.resolution < 1
+        else EqualAreaCalculator(config.resolution**2 * ha_per_m2)
     )
 
     cbm3_spatial_runner.step_all(
