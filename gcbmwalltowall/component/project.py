@@ -27,7 +27,7 @@ class Project:
     
     _disturbance_reserved_keywords = {
         "year", "disturbance_type", "age_after", "regen_delay", "lookup_table",
-        "pattern"
+        "pattern", "metadata_attributes"
     }
 
     def __init__(self, name, bounding_box, classifiers, layers, input_db, output_path,
@@ -239,7 +239,8 @@ class Project:
                     dist_config.get("age_after"), dist_config.get("regen_delay"),
                     {c.name: dist_config[c.name] for c in classifiers if c.name in dist_config},
                     config.resolve(dist_config.get("lookup_table", config.config_path)),
-                    name=pattern_or_name if "pattern" in dist_config else None, **{
+                    name=pattern_or_name if "pattern" in dist_config else None,
+                    metadata_attributes=dist_config.get("metadata_attributes"), **{
                         k: v for k, v in dist_config.items()
                         if k not in Project._disturbance_reserved_keywords
                         and k not in {c.name for c in classifiers if c.name in dist_config}}))

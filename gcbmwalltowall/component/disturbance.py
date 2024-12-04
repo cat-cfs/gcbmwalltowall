@@ -15,7 +15,7 @@ class Disturbance(Tileable):
     def __init__(
         self, pattern, input_db, year=None, disturbance_type=None, age_after=None,
         regen_delay=None, transition=None, lookup_table=None, filters=None,
-        split_on=None, name=None, layers=None, **layer_kwargs
+        split_on=None, name=None, layers=None, metadata_attributes=None, **layer_kwargs
     ):
         self.pattern = Path(pattern)
         self.input_db = input_db
@@ -29,6 +29,7 @@ class Disturbance(Tileable):
         self.split_on = [split_on] if isinstance(split_on, str) else split_on if split_on else ["year"]
         self.name = name
         self.layers = layers
+        self.metadata_attributes = metadata_attributes or []
         self.layer_kwargs = layer_kwargs or {}
 
     def to_tiler_layer(self, rule_manager, **kwargs):
@@ -84,7 +85,9 @@ class Disturbance(Tileable):
         year = self._get_disturbance_year_or_attribute(layer_path, attribute_table)
 
         tiler_attributes = {
-            attr: attr for attr in (year, disturbance_type, age_after, regen_delay)
+            attr: attr for attr in [
+                year, disturbance_type, age_after, regen_delay
+            ] + self.metadata_attributes
             if attr in attribute_table
         }
 

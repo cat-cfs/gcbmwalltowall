@@ -7,12 +7,12 @@
     <StartupFile>gcbmwalltowall\application\walltowall.py</StartupFile>
     <SearchPath>
     </SearchPath>
-    <WorkingDirectory>C:\Projects\39_wall_to_wall\05_working\02_qc</WorkingDirectory>
+    <WorkingDirectory>D:\Projects\43_SCANFI_GCBM\provinces\lb\cbm4</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <Name>gcbmwalltowall</Name>
     <RootNamespace>gcbmwalltowall</RootNamespace>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>run local "D:\Projects\43_SCANFI_GCBM\provinces\pei\cbm4"</CommandLineArguments>
+    <CommandLineArguments>run local .</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
     <IsWindowsApplication>False</IsWindowsApplication>
   </PropertyGroup>
