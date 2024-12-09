@@ -39,7 +39,7 @@ class ProjectConverter:
 
         transitions = self._get_transitions(project)
         if not self._merge_disturbance_matrices:
-            transitions.to_csv(output_path.joinpath("sit_transitions.csv"))
+            transitions.to_csv(output_path.joinpath("sit_transitions.csv"), index=False)
 
         subconverters = [
             LandClassLayerConverter(),

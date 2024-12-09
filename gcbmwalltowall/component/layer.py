@@ -19,7 +19,7 @@ class Layer(Tileable):
         self.attributes = [attributes] if isinstance(attributes, str) else attributes
         self.lookup_table = Path(lookup_table) if lookup_table else None
         self.filters = filters or {}
-        self.layer = layer
+        self.layer = layer or tiler_kwargs.pop("layer_name", None)
         self.strict_lookup_table = strict_lookup_table
         self.tiler_kwargs = tiler_kwargs
         self._cached_lookup_table = None
