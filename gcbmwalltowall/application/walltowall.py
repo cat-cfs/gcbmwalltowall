@@ -19,9 +19,11 @@ from gcbmwalltowall.configuration.configuration import Configuration
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.component.project import Project
 from gcbmwalltowall.component.preparedproject import PreparedProject
-from gcbmwalltowall.converter.projectconverter import ProjectConverter
 
 def convert(args: Namespace):
+    # Guard against importing CBM4 dependencies until needed.
+    from gcbmwalltowall.converter.projectconverter import ProjectConverter
+
     project = PreparedProject(args.project_path)
     logging.info(f"Converting {project.path} to CBM4")
     converter = ProjectConverter(args.creation_options, args.merge_disturbance_matrices)

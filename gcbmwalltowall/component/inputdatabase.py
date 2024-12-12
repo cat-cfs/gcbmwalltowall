@@ -63,12 +63,12 @@ class InputDatabase:
                 "reset_age_type_col": self._find_col_index(transition_rules_path, "age_reset_type"),
                 "regen_delay_col": self._find_col_index(transition_rules_path, "regen_delay"),
                 "classifier_transition_cols": {
-                    c.name: self._find_transition_col(transition_rules_path, classifier)
+                    c.name: self._find_transition_col(transition_rules_path, c)
                     for c in classifiers
                 },
                 "disturbance_type_col": self._find_col_index(transition_rules_path, "disturbance_type"),
                 "classifier_matching_cols": {
-                    c.name: self._find_col_index(transition_rules_path, f"{classifier.name}_match")
+                    c.name: self._find_col_index(transition_rules_path, f"{c.name}_match")
                     for c in classifiers
                 }
             }
