@@ -300,7 +300,7 @@ class GCBMConfigurer:
                 timeseries_start = layer_settings.get("start_year", 0)
                 timeseries_origin = layer_settings.get("origin", "start_sim")
                     
-                variables[layer_name] = {
+                layer_config = {
                     "transform": {
                         "library"      : "moja.modules.cbm",
                         "type"         : "TimeSeriesIdxFromFlintDataTransform",
@@ -321,6 +321,13 @@ class GCBMConfigurer:
                     }
                 }
                 
+                layer_config_file_path = self.find_config_file(self._output_path, "Variables", layer_name)
+                if layer_config_file_path:
+                    with self.update_json_file(layer_config_file_path) as layer_config_file:
+                        layer_config_file["Variables"][layer_name] = layer_config
+                else:
+                    variables[layer_name] = layer_config
+
             logging.info("Variable configuration updated: {}".format(config_file_path))
     
     def configure_initial_pool_values(self, study_area):
