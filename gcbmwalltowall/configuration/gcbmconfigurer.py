@@ -286,50 +286,53 @@ class GCBMConfigurer:
             classifier_layers = variables["initial_classifier_set"]["transform"]["vars"]
             reporting_classifier_layers = variables["reporting_classifiers"]["transform"]["vars"]
             
-        for layer in study_area["layers"]:
-            layer_name = layer["name"]
-            layer_type = layer["type"]
+            for layer in study_area["layers"]:
+                layer_name = layer["name"]
+                layer_type = layer["type"]
 
-            layer_tags = layer.get("tags") or []
-            if "classifier" in layer_tags:
-                classifier_layers.append(layer_name)
-            elif "reporting_classifier" in layer_tags:
-                reporting_classifier_layers.append(layer_name)
+                layer_tags = layer.get("tags") or []
+                if "classifier" in layer_tags:
+                    classifier_layers.append(layer_name)
+                elif "reporting_classifier" in layer_tags:
+                    reporting_classifier_layers.append(layer_name)
                     
-            layer_settings = next(filter(lambda tag: isinstance(tag, dict), layer_tags), {}).get("settings", {})
-            timeseries_start = layer_settings.get("start_year", 0)
-            timeseries_origin = layer_settings.get("origin", "start_sim")
+                layer_settings = next(filter(lambda tag: isinstance(tag, dict), layer_tags), {}).get("settings", {})
+                timeseries_start = layer_settings.get("start_year", 0)
+                timeseries_origin = layer_settings.get("origin", "start_sim")
                     
-            layer_config = {
-                "transform": {
-                    "library"      : "moja.modules.cbm",
-                    "type"         : "TimeSeriesIdxFromFlintDataTransform",
-                    "provider"     : "RasterTiled",
-                    "data_id"      : layer_name,
-                    "sub_same"     : "true",
-                    "origin"       : timeseries_origin,
-                    "start_year"   : timeseries_start,
-                    "data_per_year": layer["nStepsPerYear"],
-                    "n_years"      : layer["nLayers"]
+                layer_config = {
+                    "transform": {
+                        "library"      : "moja.modules.cbm",
+                        "type"         : "TimeSeriesIdxFromFlintDataTransform",
+                        "provider"     : "RasterTiled",
+                        "data_id"      : layer_name,
+                        "sub_same"     : "true",
+                        "origin"       : timeseries_origin,
+                        "start_year"   : timeseries_start,
+                        "data_per_year": layer["nStepsPerYear"],
+                        "n_years"      : layer["nLayers"]
+                    }
+                } if layer_type == "RegularStackLayer" else {
+                    "transform": {
+                        "library" : "internal.flint",
+                        "type"    : "LocationIdxFromFlintDataTransform",
+                        "provider": "RasterTiled",
+                        "data_id" : layer_name
+                    }
                 }
-            } if layer_type == "RegularStackLayer" else {
-                "transform": {
-                    "library" : "internal.flint",
-                    "type"    : "LocationIdxFromFlintDataTransform",
-                    "provider": "RasterTiled",
-                    "data_id" : layer_name
-                }
-            }
                 
-            layer_config_file_path = (
-                self.find_config_file(self._output_path, "Variables", layer_name)
-                or self.find_config_file(self._output_path, "Variables", "initial_classifier_set")
-            )
+                layer_config_file_path = (
+                    self.find_config_file(self._output_path, "Variables", layer_name)
+                    or self.find_config_file(self._output_path, "Variables", "initial_classifier_set")
+                )
 
-            with self.update_json_file(layer_config_file_path) as layer_config_file:
-                layer_config_file["Variables"][layer_name] = layer_config
+                if layer_config_file_path != config_file_path:
+                    with self.update_json_file(layer_config_file_path) as layer_config_file:
+                        layer_config_file["Variables"][layer_name] = layer_config
+                else:
+                    variables[layer_name] = layer_config
 
-            logging.info("Variable configuration updated: {}".format(config_file_path))
+        logging.info("Variable configuration updated: {}".format(config_file_path))
     
     def configure_initial_pool_values(self, study_area):
         config_file_path = self.find_config_file(self._output_path, "Pools")
