@@ -14,7 +14,7 @@ class GCBMConfigurer:
 
     def __init__(self, layer_paths, template_path, input_db_path, output_path=".",
                  start_year=None, end_year=None, disturbance_order=None,
-                 excluded_layers=None):
+                 excluded_layers=None, copy_data=False):
         self._layer_paths = layer_paths
         self._template_path = template_path
         self._input_db_path = input_db_path
@@ -23,10 +23,22 @@ class GCBMConfigurer:
         self._end_year = end_year
         self._user_disturbance_order = disturbance_order or []
         self._excluded_layers = excluded_layers or []
+        self._copy_data_dest = output_path
+
+        if isinstance(copy_data, bool):
+            # True/False: copy all input data to output path.
+            self._copy_data = copy_data
+        elif copy_data:
+            # str: copy all input data to specified path relative to output path.
+            self._copy_data = True
+            self._copy_data_dest = os.path.abspath(os.path.join(output_path, copy_data))
 
     def configure(self):
-        if not os.path.exists(self._output_path):
-            os.makedirs(self._output_path)
+        for out_path in (self._output_path, self._copy_data_dest):
+            if not out_path or os.path.exists(out_path):
+                continue
+
+            os.makedirs(out_path)
         
         for template in chain.from_iterable(
             iglob(os.path.join(self._template_path, ext))
@@ -144,9 +156,16 @@ class GCBMConfigurer:
                     spatial_provider_config = config
                 elif "path" in config:
                     aspatial_provider_config = config
+            
+            input_db_path = self._input_db_path
+            if self._copy_data:
+                input_db_path = os.path.join(
+                    self._copy_data_dest, os.path.basename(self._input_db_path))
+
+                shutil.copyfile(self._input_db_path, input_db_path)
 
             aspatial_provider_config["path"] = os.path.join(os.path.relpath(
-                self._input_db_path, self._output_path))
+                input_db_path, self._output_path))
 
             spatial_provider_config["tileLatSize"]  = study_area["tile_size"]
             spatial_provider_config["tileLonSize"]  = study_area["tile_size"]
@@ -158,9 +177,16 @@ class GCBMConfigurer:
             provider_layers = []
             for layer in study_area["layers"]:
                 logging.debug("Added {} to provider configuration".format(layer))
+                layer_path = layer["path"]
+                if self._copy_data:
+                    for fn in iglob("{}.*".format(os.path.splitext(layer_path)[0])):
+                        layer_path = os.path.join(self._copy_data_dest, os.path.basename(fn))
+                        if os.path.abspath(fn) != os.path.abspath(layer_path):
+                            shutil.copyfile(fn, layer_path)
+
                 provider_layers.append({
                     "name"        : layer["name"],
-                    "layer_path"  : os.path.join(os.path.relpath(layer["path"], self._output_path)),
+                    "layer_path"  : os.path.join(os.path.relpath(layer_path, self._output_path)),
                     "layer_prefix": layer["prefix"]
                 })
                 
