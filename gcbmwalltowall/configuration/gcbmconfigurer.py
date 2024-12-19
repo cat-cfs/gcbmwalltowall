@@ -23,22 +23,11 @@ class GCBMConfigurer:
         self._end_year = end_year
         self._user_disturbance_order = disturbance_order or []
         self._excluded_layers = excluded_layers or []
-        self._copy_data_dest = output_path
-
-        if isinstance(copy_data, bool):
-            # True/False: copy all input data to output path.
-            self._copy_data = copy_data
-        elif copy_data:
-            # str: copy all input data to specified path relative to output path.
-            self._copy_data = True
-            self._copy_data_dest = os.path.abspath(os.path.join(output_path, copy_data))
+        self._copy_data = copy_data
 
     def configure(self):
-        for out_path in (self._output_path, self._copy_data_dest):
-            if not out_path or os.path.exists(out_path):
-                continue
-
-            os.makedirs(out_path)
+        if not os.path.exists(self._output_path):
+            os.makedirs(self._output_path)
         
         for template in chain.from_iterable(
             iglob(os.path.join(self._template_path, ext))
@@ -65,6 +54,11 @@ class GCBMConfigurer:
             layer for layer in combined_study_area["layers"]
             if layer["name"] not in self._excluded_layers
         ]
+
+        output_study_area_path = os.path.join(self._output_path, "..", "layers", "tiled", "study_area.json")
+        if not os.path.exists(output_study_area_path):
+            os.makedirs(os.path.dirname(output_study_area_path), exist_ok=True)
+            GCBMConfigurer.write_json_file(output_study_area_path, combined_study_area)
         
         self.update_simulation_study_area(combined_study_area)
         self.update_simulation_disturbances(combined_study_area)
@@ -78,15 +72,19 @@ class GCBMConfigurer:
             self.update_simulation_years(self._start_year, self._end_year)
     
     @staticmethod
+    def write_json_file(path, contents):
+        with io.open(path, "w", encoding="utf8") as json_file:
+            json_file.write(json.dumps(contents, indent=4, ensure_ascii=False))
+
+    @staticmethod
     @contextmanager
     def update_json_file(path):
         with open(path, "rb") as json_file:
             contents = json.load(json_file)
             
         yield contents
-        
-        with io.open(path, "w", encoding="utf8") as json_file:
-            json_file.write(json.dumps(contents, indent=4, ensure_ascii=False))
+       
+        GCBMConfigurer.write_json_file(path, contents)
     
     @staticmethod
     def find_config_file(config_path, *search_path, all_matches=False):
@@ -160,8 +158,9 @@ class GCBMConfigurer:
             input_db_path = self._input_db_path
             if self._copy_data:
                 input_db_path = os.path.join(
-                    self._copy_data_dest, os.path.basename(self._input_db_path))
+                    self._output_path, "..", "input_database", os.path.basename(self._input_db_path))
 
+                os.makedirs(os.path.dirname(input_db_path), exist_ok=True)
                 shutil.copyfile(self._input_db_path, input_db_path)
 
             aspatial_provider_config["path"] = os.path.join(os.path.relpath(
@@ -179,8 +178,10 @@ class GCBMConfigurer:
                 logging.debug("Added {} to provider configuration".format(layer))
                 layer_path = layer["path"]
                 if self._copy_data:
+                    copied_layer_path = os.path.join(self._output_path, "..", "layers", "tiled")
+                    os.makedirs(copied_layer_path, exist_ok=True)
                     for fn in iglob("{}.*".format(os.path.splitext(layer_path)[0])):
-                        layer_path = os.path.join(self._copy_data_dest, os.path.basename(fn))
+                        layer_path = os.path.join(copied_layer_path, os.path.basename(fn))
                         if os.path.abspath(fn) != os.path.abspath(layer_path):
                             shutil.copyfile(fn, layer_path)
 

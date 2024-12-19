@@ -26,6 +26,10 @@ class Classifier(Tileable):
         
         return unique_values
 
+    @property
+    def is_default(self):
+        return False
+
     def to_tiler_layer(self, rule_manager, **kwargs):
         if self.layer.is_vector:
             kwargs["raw"] = False
@@ -95,9 +99,13 @@ class DefaultClassifier(Classifier):
     @property
     def values(self):
         if self._default_value is None:
-            return set()
+            return {"?"}
 
-        return {self._default_value}
+        return {"?", self._default_value}
+
+    @property
+    def is_default(self):
+        return True
 
     def to_tiler_layer(self, rule_manager, **kwargs):
         return DummyLayer(self._name, self._default_value, tags=["classifier"], **kwargs)

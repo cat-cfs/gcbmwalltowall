@@ -201,6 +201,11 @@ class InputDatabase:
             if yield_column_values.issubset(classifier_values):
                 return yield_table.columns.get_loc(col)
 
+        # Finally, if this is a default (non-spatial/dummy) classifier, allow it to
+        # have no column mapping.
+        if classifier.is_default:
+            return None
+
         raise RuntimeError(
             f"Unable to find matching column for classifier '{classifier.name}' "
             f"in {self.yield_path}")

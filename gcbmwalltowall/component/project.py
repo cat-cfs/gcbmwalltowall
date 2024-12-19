@@ -305,11 +305,20 @@ class Project:
                 all_transition_rules.extend((
                     row for row in csv.DictReader(open(transition_path, newline=""))))
 
+        non_classifier_cols = {"id", "regen_delay", "age_after", "disturbance_type", "age_reset_type"}
+        all_transition_classifiers = set()
+        for transition in all_transition_rules:
+            all_transition_classifiers.update(set(transition.keys()) - non_classifier_cols)
+            
         for transition in all_transition_rules:
             transition["id"] = transition.get("id", str(uuid4()))
             transition["disturbance_type"] = transition.get("disturbance_type", "")
             transition["age_reset_type"] = transition.get("age_reset_type", "absolute")
             transition["regen_delay"] = transition.get("regen_delay", 0)
+
+            for classifier in all_transition_classifiers:
+                transition[classifier] = transition.get(classifier, "?")
+
             for classifier in self.classifiers:
                 transition[classifier.name] = transition.get(classifier.name, "?")
                 transition[f"{classifier.name}_match"] = transition.get(f"{classifier.name}_match", "")
