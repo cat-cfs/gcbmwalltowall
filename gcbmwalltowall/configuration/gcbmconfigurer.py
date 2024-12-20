@@ -178,12 +178,14 @@ class GCBMConfigurer:
                 logging.debug("Added {} to provider configuration".format(layer))
                 layer_path = layer["path"]
                 if self._copy_data:
-                    copied_layer_path = os.path.join(self._output_path, "..", "layers", "tiled")
-                    os.makedirs(copied_layer_path, exist_ok=True)
-                    for fn in iglob("{}.*".format(os.path.splitext(layer_path)[0])):
-                        layer_path = os.path.join(copied_layer_path, os.path.basename(fn))
-                        if os.path.abspath(fn) != os.path.abspath(layer_path):
-                            shutil.copyfile(fn, layer_path)
+                    copied_layer_dir = os.path.join(self._output_path, "..", "layers", "tiled")
+                    original_layer_path = layer_path
+                    layer_path = os.path.join(copied_layer_dir, os.path.basename(layer_path))
+                    os.makedirs(copied_layer_dir, exist_ok=True)
+                    for fn in iglob("{}.*".format(os.path.splitext(original_layer_path)[0])):
+                        copied_layer_path = os.path.join(copied_layer_dir, os.path.basename(fn))
+                        if os.path.abspath(fn) != os.path.abspath(copied_layer_path):
+                            shutil.copyfile(fn, copied_layer_path)
 
                 provider_layers.append({
                     "name"        : layer["name"],
