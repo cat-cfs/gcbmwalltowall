@@ -4,7 +4,7 @@ from glob import glob
 
 setup(
     name="gcbmwalltowall",
-    version="1.9.21",
+    version="1.9.22",
     description="gcbmwalltowall",
     classifiers=[
         "Programming Language :: Python :: 3",

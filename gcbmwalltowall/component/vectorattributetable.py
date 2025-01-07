@@ -127,7 +127,7 @@ class VectorAttributeTable(AttributeTable):
     
     def _get_distinct_attribute_values(self, table: str, attribute: str) -> tuple[str, list[Any]]:
         ds = ogr.Open(str(self.layer_path))
-        query = ds.ExecuteSQL(f"SELECT DISTINCT {attribute} FROM {table} WHERE {attribute} IS NOT NULL")
+        query = ds.ExecuteSQL(f'SELECT DISTINCT "{attribute}" FROM {table} WHERE "{attribute}" IS NOT NULL')
         unique_values = [row.GetField(0) for row in query]
         ds.ReleaseResultSet(query)
         
