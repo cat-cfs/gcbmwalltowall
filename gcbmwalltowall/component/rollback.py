@@ -34,7 +34,8 @@ class Rollback:
 
         if not self.disturbance_order:
             self.disturbance_order = output_path.joinpath("disturbance_order.txt")
-            self._get_default_disturbance_order(input_db_path).to_csv(self.disturbance_order)
+            self._get_default_disturbance_order(input_db_path).to_csv(
+                self.disturbance_order, index=False, header=False)
 
         inventory_year = self.inventory_year
         if isinstance(inventory_year, str):
