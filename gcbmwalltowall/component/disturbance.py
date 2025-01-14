@@ -1,5 +1,6 @@
 import fnmatch
 import re
+import sys
 import logging
 from itertools import product
 from pathlib import Path
@@ -33,8 +34,17 @@ class Disturbance(Tileable):
         self.layer_kwargs = layer_kwargs or {}
 
     def to_tiler_layer(self, rule_manager, **kwargs):
+        pattern_root = self.pattern.absolute().parent
+        if not pattern_root.exists():
+            logging.fatal(
+                f"Error scanning for disturbance layer pattern {self.pattern}: "
+                f"parent directory {pattern_root} does not exist"
+            )
+
+            sys.exit("Fatal error preparing disturbance layers")
+
         disturbance_layers = []
-        for layer_path in self.pattern.absolute().parent.glob(self.pattern.name):
+        for layer_path in pattern_root.glob(self.pattern.name):
             if layer_path.suffix == ".gdb" and self.layers:
                 sublayers = self.layers
                 if isinstance(sublayers, str):
@@ -251,6 +261,9 @@ class Disturbance(Tileable):
 
         gcbm_disturbance_types = self.input_db.get_disturbance_types()
         for attribute, values in attribute_table.items():
+            if not values:
+                continue
+
             if all((v in gcbm_disturbance_types for v in values)):
                 logging.info(f"  using attribute: {attribute}")
                 return attribute

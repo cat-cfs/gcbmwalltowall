@@ -34,8 +34,7 @@ class Rollback:
 
         if not self.disturbance_order:
             self.disturbance_order = output_path.joinpath("disturbance_order.txt")
-            open(self.disturbance_order, "w").writelines(
-                "\n".join(self._get_default_disturbance_order(input_db_path)))
+            self._get_default_disturbance_order(input_db_path).to_csv(self.disturbance_order)
 
         inventory_year = self.inventory_year
         if isinstance(inventory_year, str):
@@ -96,12 +95,7 @@ class Rollback:
     def _get_default_disturbance_order(self, input_db_path):
         engine = create_engine(f"sqlite:///{input_db_path}")
         with engine.connect() as conn:
-            dist_types = [
-                row[0] for row in
-                conn.execute(text("SELECT name FROM disturbance_type ORDER BY code"))
-            ]
-
-            return dist_types
+            return pd.read_sql("SELECT name FROM disturbance_type ORDER BY code", conn)
 
 class _ClassifierSet(dict):
 

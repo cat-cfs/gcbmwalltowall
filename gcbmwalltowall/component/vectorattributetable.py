@@ -2,6 +2,7 @@ from __future__ import annotations
 import pandas as pd
 import json
 import logging
+import sys
 from ftfy import guess_bytes
 from ftfy import fix_encoding
 from pathlib import Path
@@ -134,8 +135,16 @@ class VectorAttributeTable(AttributeTable):
         return attribute, unique_values
 
     def _extract_attribute_table(self, attributes: list[str]) -> dict[str, list[Any]]:
-        ds = ogr.Open(str(self.layer_path))
-        lyr = ds.GetLayerByName(self.layer) if self.layer else ds.GetLayer(0)
+        try:
+            ogr.UseExceptions()
+            ds = ogr.Open(str(self.layer_path))
+            lyr = ds.GetLayerByName(self.layer) if self.layer else ds.GetLayer(0)
+        except Exception as e:
+            logging.fatal(e)
+            sys.exit(f"Fatal error loading {self.layer_path}")
+        finally:
+            ogr.DontUseExceptions()
+            
         ds_table = lyr.GetName()
         logging.info(f"  reading attribute table: {self.layer_path.stem} [{ds_table}]")
 
