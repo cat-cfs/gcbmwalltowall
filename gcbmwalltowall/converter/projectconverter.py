@@ -82,6 +82,9 @@ class ProjectConverter:
         aidb_keys = ["aidb", "AIDBPath"]
         for json_file in project.path.rglob("*.json"):
             json_data = json.load(open(json_file))
+            if not isinstance(json_data, dict):
+                continue
+
             for aidb_key in aidb_keys:
                 aidb_path = json_data.get(aidb_key)
                 if aidb_path:
