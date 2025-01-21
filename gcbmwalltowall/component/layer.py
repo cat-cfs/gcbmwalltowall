@@ -1,6 +1,7 @@
 from pathlib import Path
 from mojadata.layer.rasterlayer import RasterLayer
 from mojadata.layer.vectorlayer import VectorLayer
+from mojadata.layer.dummylayer import DummyLayer
 from gcbmwalltowall.component.tileable import Tileable
 from gcbmwalltowall.component.rasterattributetable import RasterAttributeTable
 from gcbmwalltowall.component.vectorattributetable import VectorAttributeTable
@@ -112,3 +113,13 @@ class Layer(Tileable):
                 strict_lookup_table=self.strict_lookup_table)
 
         return self._cached_lookup_table
+
+
+class DefaultLayer(Layer):
+
+    def __init__(self, name, default_value):
+        self._name = name
+        self._default_value = default_value
+
+    def to_tiler_layer(self, rule_manager, **kwargs):
+        return DummyLayer(self._name, self._default_value, **kwargs)

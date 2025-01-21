@@ -16,6 +16,7 @@ from gcbmwalltowall.component.classifier import DefaultClassifier
 from gcbmwalltowall.component.disturbance import Disturbance
 from gcbmwalltowall.component.inputdatabase import InputDatabase
 from gcbmwalltowall.component.rollback import Rollback
+from gcbmwalltowall.component.layer import DefaultLayer
 from gcbmwalltowall.component.layer import Layer
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.validation.string import require_not_null
@@ -207,9 +208,13 @@ class Project:
         for layer_name, layer_details in config.get("layers", {}).items():
             if isinstance(layer_details, str):
                 layer_path = config.resolve(layer_details)
-                layers.append(Layer(
-                    layer_name, layer_path,
-                    lookup_table=config.find_lookup_table(layer_path)))
+                if layer_path.exists():
+                    layers.append(Layer(
+                        layer_name, layer_path,
+                        lookup_table=config.find_lookup_table(layer_path)))
+                else:
+                    # Maybe this is a fixed value, in which case we need a dummy layer.
+                    layers.append(DefaultLayer(layer_name, layer_details))
             else:
                 layer_path = config.resolve(require_not_null(layer_details.get("layer")))
                 layer_lookup_table = (
