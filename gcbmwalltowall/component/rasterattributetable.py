@@ -1,5 +1,6 @@
 from __future__ import annotations
 import pandas as pd
+import numpy as np
 from pathlib import Path
 from gcbmwalltowall.component.attributetable import AttributeTable
 
@@ -47,7 +48,7 @@ class RasterAttributeTable(AttributeTable):
     @property
     def _data(self) -> DataFrame:
         if self._cached_data is None:
-            self._cached_data = pd.read_csv(str(self.path))
+            self._cached_data = pd.read_csv(str(self.path)).replace(np.nan, None)
 
         return self._cached_data.copy()
 
