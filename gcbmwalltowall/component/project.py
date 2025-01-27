@@ -196,7 +196,10 @@ class Project:
             layer = Layer(
                 classifier_name, layer_path, attribute,
                 config.resolve(layer_lookup_table) if layer_lookup_table else None,
-                attribute_filter)
+                attribute_filter, **{
+                    k: v for k, v in classifier_details.items()
+                    if k not in Project._layer_reserved_keywords
+                })
             
             classifiers.append(Classifier(
                 layer,
