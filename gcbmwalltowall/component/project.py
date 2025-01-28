@@ -24,7 +24,9 @@ from gcbmwalltowall.validation.generic import require_instance_of
 
 class Project:
 
-    _layer_reserved_keywords = {"layer", "lookup_table", "attribute"}
+    _layer_reserved_keywords = {
+        "layer", "lookup_table", "attribute", "values_path", "values_col", "yield_col"
+    }
     
     _disturbance_reserved_keywords = {
         "year", "disturbance_type", "age_after", "regen_delay", "lookup_table",
