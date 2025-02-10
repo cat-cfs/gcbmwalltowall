@@ -12,7 +12,6 @@ from cbm4.app.spatial.spatial_cbm3.area_calculator import EqualAreaCalculator, W
 from cbm4.app.spatial.gcbm_input import gcbm_preprocessor
 from cbm4.app.spatial.gcbm_input.timestep_interpreter import YearOffsetTimestepInterpreter
 from cbm4.app.spatial.gcbm_input.timestep_interpreter import TimestepInterpreter
-from cbm4.app.spatial.gcbm_input.disturbance_event_sorter import DefaultDisturbanceTypeIdSorter
 from cbm4.app.spatial.gcbm_input.disturbance_event_sorter import DisturbanceEventSorter
 from gcbmwalltowall.component.preparedproject import PreparedProject
 from gcbmwalltowall.converter.projectconverter import ProjectConverter
@@ -41,7 +40,15 @@ class PreprocessModel(BaseModel):
     default_inventory_values: dict[str, Any]
     start_year: int
     end_year: int
-    disturbance_event_sorter: None
+    disturbance_order: list[int] | None
+
+
+class UserDisturbanceEventSorter(DisturbanceEventSorter):
+    def __init__(self, disturbance_order: list[int]):
+        self._disturbance_order = disturbance_order
+
+    def get_sort_value(self, default_disturbance_type_id: int) -> int:
+        return self._disturbance_order.index(default_disturbance_type_id)
 
 
 class CBM4SpatialDataset:
@@ -147,7 +154,7 @@ def preprocess(preprocess_arg: PreprocessModel):
         cbm4_spatial_dataset=preprocess_arg.cbm4_spatial_dataset,
         default_inventory_values=preprocess_arg.default_inventory_values,
         disturbance_timestep_interpreter=YearOffsetTimestepInterpreter(preprocess_arg.start_year - 1),
-        disturbance_event_sorter=DefaultDisturbanceTypeIdSorter(),
+        disturbance_event_sorter=UserDisturbanceEventSorter(preprocess_arg.disturbance_order),
     )
 
 

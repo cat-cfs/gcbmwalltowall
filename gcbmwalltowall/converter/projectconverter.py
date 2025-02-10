@@ -1,5 +1,4 @@
 from __future__ import annotations
-import os
 import shutil
 import json
 import pandas as pd
@@ -205,6 +204,51 @@ class ProjectConverter:
 
         return output_cbm_defaults_path
 
+    def _load_disturbance_order(self, project: PreparedProject) -> dict[str, int]:
+        ordered_db_dist_types = self._load_disturbance_types(project)
+        # ensure no duplicates in the user disturbance type order
+        unique_user_dist_types = set(project.disturbance_order)
+        if not len(unique_user_dist_types) == len(project.disturbance_order):
+            raise ValueError(f"duplicate values detected in user disturbance type order")
+            
+        # check that every disturbance type in the user order exists in the database
+        unknown_disturbance_types = unique_user_dist_types.difference(
+            set(ordered_db_dist_types.keys())
+        )
+            
+        if unknown_disturbance_types:
+            raise ValueError(
+                "entries in user disturbance type order not found in database: "
+                f"{unknown_disturbance_types}"
+            )
+        
+        output_order = [
+            ordered_db_dist_types[dist_type]
+            for dist_type in project.disturbance_order
+        ] + [
+            dist_code for dist_type, dist_code
+            in ordered_db_dist_types.items()
+            if dist_type not in unique_user_dist_types
+        ]
+
+        return output_order
+
+    def _load_disturbance_types(self, project) -> dict:
+        with self._input_db_connection(project) as conn:
+            dist_types = pd.read_sql_query(
+                """
+                SELECT code, name
+                FROM disturbance_type
+                ORDER BY code
+                """,
+                conn
+            )
+
+        return {
+            str(row["name"]): int(row["code"])
+            for _, row in dist_types.iterrows()
+        }
+
     def _create_cbm4_config(self, project, output_path):
         default_inventory_values = {}
 
@@ -244,7 +288,7 @@ class ProjectConverter:
             "default_inventory_values": default_inventory_values,
             "start_year": project.start_year,
             "end_year": project.end_year,
-            "disturbance_event_sorter": None
+            "disturbance_order": self._load_disturbance_order(project)
         }
-        
+
         json.dump(config, open(output_path.joinpath("cbm4_config.json"), "w"), indent=4)

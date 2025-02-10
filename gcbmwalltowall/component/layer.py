@@ -118,8 +118,8 @@ class Layer(Tileable):
 class DefaultLayer(Layer):
 
     def __init__(self, name, default_value):
-        self._name = name
+        self.name = name
         self._default_value = default_value
 
     def to_tiler_layer(self, rule_manager, **kwargs):
-        return DummyLayer(self._name, self._default_value, **kwargs)
+        return DummyLayer(self.name, self._default_value, **kwargs)

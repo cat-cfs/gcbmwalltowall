@@ -24,7 +24,7 @@ class Rollback:
         self.establishment_disturbance_type = establishment_disturbance_type
         self.disturbance_order = disturbance_order
     
-    def run(self, classifiers, tiled_layers_path, input_db_path):
+    def run(self, classifiers, tiled_layers_path, input_db_path, transition_rule_manager=None):
         tiled_layers_path = Path(tiled_layers_path).absolute()
         input_db_path = Path(input_db_path).absolute()
         
@@ -65,7 +65,8 @@ class Rollback:
             output_path=str(output_path),
             stand_replacing_lookup=None,
             disturbance_type_order=self.disturbance_order,
-            logging_level="INFO"))
+            logging_level="INFO",
+            transition_rule_manager=transition_rule_manager))
 
     def _convert_age_distribution(self, classifiers, output_path):
         age_distributions = []

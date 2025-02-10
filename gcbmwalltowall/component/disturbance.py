@@ -200,7 +200,7 @@ class Disturbance(Tileable):
 
     def _make_tiler_name(self, layer_path, *args):
         return (
-            "_".join([self.name, layer_path.stem, *(str(a) for a in args if a is not None)]) if self.name
+            "_".join([self.name, *(str(a) for a in args if a is not None)]) if self.name
             else "_".join([layer_path.stem, *(str(a) for a in args if a is not None)])
         )
 

@@ -88,6 +88,22 @@ class PreparedProject:
         return datetime.strptime(config["LocalDomain"]["end_date"], "%Y/%m/%d").year - 1
 
     @property
+    def cohorts(self):
+        cohorts = []
+        cohort_tiled_layer_path = self.tiled_layer_path.joinpath("cohorts")
+        if cohort_tiled_layer_path.exists():
+            for cohort in cohort_tiled_layer_path.iterdir():
+                if not cohort.is_dir():
+                    continue
+                
+                cohorts.append([
+                    PreparedLayer(fn.stem.split("_moja")[0], str(fn.absolute()))
+                    for fn in cohort.glob("*.tiff")
+                ])
+
+        return cohorts
+
+    @property
     def layers(self):
         config = json.load(open(self.gcbm_config_path.joinpath("provider_config.json")))
         provider_layers = config["Providers"]["RasterTiled"]["layers"]
