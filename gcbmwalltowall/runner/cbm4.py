@@ -6,13 +6,14 @@ import pandas as pd
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
+from typing import Optional
 from pydantic import BaseModel
 from cbm4.app.spatial.spatial_cbm3 import cbm3_spatial_runner
 from cbm4.app.spatial.spatial_cbm3.area_calculator import EqualAreaCalculator, WGS84AreaCalculator
 from cbm4.app.spatial.gcbm_input import gcbm_preprocessor
 from cbm4.app.spatial.gcbm_input.timestep_interpreter import YearOffsetTimestepInterpreter
 from cbm4.app.spatial.gcbm_input.timestep_interpreter import TimestepInterpreter
-from cbm4.app.spatial.gcbm_input.disturbance_event_sorter import DisturbanceEventSorter
+from cbm4.app.spatial.gcbm_input.disturbance_event_sorter import DefaultDisturbanceTypeIdSorter, DisturbanceEventSorter
 from gcbmwalltowall.component.preparedproject import PreparedProject
 from gcbmwalltowall.converter.projectconverter import ProjectConverter
 from arrow_space.storage.variable_storage_type import VariableStorageType
@@ -40,7 +41,7 @@ class PreprocessModel(BaseModel):
     default_inventory_values: dict[str, Any]
     start_year: int
     end_year: int
-    disturbance_order: list[int] | None
+    disturbance_order: Optional[list[int]] = None
 
 
 class UserDisturbanceEventSorter(DisturbanceEventSorter):
@@ -154,7 +155,11 @@ def preprocess(preprocess_arg: PreprocessModel):
         cbm4_spatial_dataset=preprocess_arg.cbm4_spatial_dataset,
         default_inventory_values=preprocess_arg.default_inventory_values,
         disturbance_timestep_interpreter=YearOffsetTimestepInterpreter(preprocess_arg.start_year - 1),
-        disturbance_event_sorter=UserDisturbanceEventSorter(preprocess_arg.disturbance_order),
+        disturbance_event_sorter=(
+            UserDisturbanceEventSorter(preprocess_arg.disturbance_order)
+            if preprocess_arg.disturbance_order
+            else DefaultDisturbanceTypeIdSorter()
+        ),
     )
 
 

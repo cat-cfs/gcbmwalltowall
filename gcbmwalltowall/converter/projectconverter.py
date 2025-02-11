@@ -239,6 +239,7 @@ class ProjectConverter:
                 """
                 SELECT code, name
                 FROM disturbance_type
+                WHERE code > 0
                 ORDER BY code
                 """,
                 conn
