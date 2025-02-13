@@ -103,21 +103,45 @@ class ProjectConverter:
         raise IOError("Failed to locate AIDB.")
 
     def _convert_spatial_data(self, layer_converter, project, output_path):
-        arrowspace_layers = InputLayerCollection(layer_converter.convert(project.layers))
+        base_arrowspace_layers = layer_converter.convert(project.layers)
+        base_arrowspace_collection = InputLayerCollection(base_arrowspace_layers)
+
         creation_options = self._creation_options.copy()
         mask_layers = ["age"]
         for optional_mask_layer in ["admin_boundary", "eco_boundary"]:
-            if optional_mask_layer in arrowspace_layers.layer_names:
+            if optional_mask_layer in base_arrowspace_collection.layer_names:
                 mask_layers.append(optional_mask_layer)
+
         creation_options.update({
             "mask_layers": mask_layers
         })
         
+        base_dataset_name = "inventory.arrowspace"
         create_arrowspace_dataset(
-            arrowspace_layers, "inventory", "local_storage",
-            str(output_path.joinpath("inventory.arrowspace")),
+            base_arrowspace_collection, "inventory", "local_storage",
+            str(output_path.joinpath(base_dataset_name + (".cohort0" if project.cohorts else ""))),
             creation_options
         )
+
+        for i, cohort in enumerate(project.cohorts, 1):
+            dataset_name = base_dataset_name + f".cohort{i}"
+            cohort_arrowspace_layers = layer_converter.convert(cohort)
+            cohort_layer_names = [l.name for l in cohort_arrowspace_layers]
+            for base_layer in base_arrowspace_layers:
+                if ("historic_disturbance" in base_layer.tags
+                    or "last_pass_disturbance" in base_layer.tags
+                    or base_layer.name in cohort_layer_names
+                ):
+                    continue
+
+                cohort_arrowspace_layers.append(base_layer)
+
+            cohort_arrowspace_collection = InputLayerCollection(cohort_arrowspace_layers)
+            create_arrowspace_dataset(
+                cohort_arrowspace_collection, "inventory", "local_storage",
+                str(output_path.joinpath(dataset_name)),
+                creation_options
+            )
 
     def _flatten_pivot_columns(self, pivot_data):
         pivot_data.columns = [

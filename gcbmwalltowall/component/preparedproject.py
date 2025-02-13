@@ -96,10 +96,21 @@ class PreparedProject:
                 if not cohort.is_dir():
                     continue
                 
-                cohorts.append([
+                cohort_id = cohort.name
+                cohort_layers = [
                     PreparedLayer(fn.stem.split("_moja")[0], str(fn.absolute()))
                     for fn in cohort.glob("*.tiff")
-                ])
+                ]
+
+                cohort_rollback = self.rollback_layer_path.joinpath("cohorts", cohort_id)
+                if cohort_rollback.exists():
+                    cohort_layers.extend([
+                        PreparedLayer(fn.stem.split("_moja")[0], str(fn.absolute()))
+                        for fn in cohort_rollback.glob("*.tiff")
+                        if fn.stem.split("_moja")[0] not in cohort_layers
+                    ])
+
+                cohorts.append(cohort_layers)
 
         return cohorts
 
