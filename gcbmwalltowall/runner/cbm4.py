@@ -9,7 +9,6 @@ from typing import Any
 from typing import Optional
 from pydantic import BaseModel
 from cbm4.app.spatial.spatial_cbm3 import cbm3_spatial_runner
-from cbm4.app.spatial.spatial_cbm3.area_calculator import EqualAreaCalculator, WGS84AreaCalculator
 from cbm4.app.spatial.gcbm_input import gcbm_preprocessor
 from cbm4.app.spatial.gcbm_input.timestep_interpreter import YearOffsetTimestepInterpreter
 from cbm4.app.spatial.gcbm_input.timestep_interpreter import TimestepInterpreter
@@ -180,17 +179,12 @@ def spinup(config: PreprocessModel):
 def step(config: PreprocessModel, timestep: int):
     spatial_dataset = CBM4SpatialDataset(config.cbm4_spatial_dataset)
     ha_per_m2 = 0.0001
-    area_calculator = (
-        WGS84AreaCalculator(ha_per_m2) if config.resolution < 1
-        else EqualAreaCalculator(config.resolution**2 * ha_per_m2)
-    )
-
     cbm3_spatial_runner.step_all(
         timestep,
         spatial_dataset.simulation,
         spatial_dataset.disturbance,
         spatial_dataset.simulation,
-        area_calculator)
+        ha_per_m2)
 
 
 def load_config(cbm4_config_path: str | Path):
