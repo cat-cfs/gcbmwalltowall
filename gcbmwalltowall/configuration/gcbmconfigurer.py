@@ -5,6 +5,7 @@ import logging
 import shutil
 import sqlite3
 import csv
+import pandas as pd
 from itertools import chain
 from argparse import ArgumentParser
 from glob import iglob
@@ -503,7 +504,7 @@ if __name__ == "__main__":
 
     disturbance_order = None
     if args.disturbance_order:
-        disturbance_order = [line[0] for line in csv.reader(open(args.disturbance_order))]
+        disturbance_order = list(pd.read_csv(args.disturbance_order, sep="\0", header=None)[0])
 
     excluded_layers = [line[0] for line in csv.reader(open(args.exclude, "r"))] if args.exclude else None
 

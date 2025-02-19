@@ -129,7 +129,7 @@ class PreparedProject:
     @property
     def disturbance_order(self):
         config = json.load(open(self.gcbm_config_path.joinpath("variables.json"), "rb"))
-        return list(set(config["Variables"].get("user_disturbance_order", [])))
+        return list(dict.fromkeys(config["Variables"].get("user_disturbance_order", [])))
 
     @property
     def classifiers(self):
