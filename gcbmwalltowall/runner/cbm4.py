@@ -2,6 +2,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import shutil
 import pandas as pd
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -148,6 +149,14 @@ def _preprocess(
 
 
 def preprocess(preprocess_arg: PreprocessModel):
+    all_dataset_info = preprocess_arg.cbm4_spatial_dataset
+    for dataset_info in (
+        all_dataset_info.inventory,
+        all_dataset_info.disturbance,
+        all_dataset_info.simulation
+    ):
+        shutil.rmtree(dataset_info.path_or_uri, True)
+
     _preprocess(
         wall_to_wall_project_path=preprocess_arg.wall_to_wall_project_path,
         is_converted_project=preprocess_arg.is_converted_project,
