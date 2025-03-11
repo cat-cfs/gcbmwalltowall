@@ -19,6 +19,7 @@ from gcbmwalltowall.configuration.configuration import Configuration
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.component.project import Project
 from gcbmwalltowall.component.preparedproject import PreparedProject
+from gcbmwalltowall.project.projectfactory import ProjectFactory
 
 def convert(args: Namespace):
     # Guard against importing CBM4 dependencies until needed.
@@ -35,7 +36,7 @@ def build(args: Namespace):
 
 def prepare(args: Namespace):
     config = Configuration.load(args.config_path, args.output_path)
-    project = Project.from_configuration(config)
+    project = ProjectFactory().create(config)
     logging.info(f"Preparing {project.name}")
 
     project.tile()

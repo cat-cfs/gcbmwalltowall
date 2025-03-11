@@ -88,6 +88,33 @@ class PreparedProject:
         return datetime.strptime(config["LocalDomain"]["end_date"], "%Y/%m/%d").year - 1
 
     @property
+    def cohorts(self):
+        cohorts = []
+        cohort_tiled_layer_path = self.tiled_layer_path.joinpath("cohorts")
+        if cohort_tiled_layer_path.exists():
+            for cohort in cohort_tiled_layer_path.iterdir():
+                if not cohort.is_dir():
+                    continue
+                
+                cohort_id = cohort.name
+                cohort_layers = [
+                    PreparedLayer(fn.stem.split("_moja")[0], str(fn.absolute()))
+                    for fn in cohort.glob("*.tiff")
+                ]
+
+                cohort_rollback = self.rollback_layer_path.joinpath("cohorts", cohort_id)
+                if cohort_rollback.exists():
+                    cohort_layers.extend([
+                        PreparedLayer(fn.stem.split("_moja")[0], str(fn.absolute()))
+                        for fn in cohort_rollback.glob("*.tiff")
+                        if fn.stem.split("_moja")[0] not in cohort_layers
+                    ])
+
+                cohorts.append(cohort_layers)
+
+        return cohorts
+
+    @property
     def layers(self):
         config = json.load(open(self.gcbm_config_path.joinpath("provider_config.json")))
         provider_layers = config["Providers"]["RasterTiled"]["layers"]
@@ -102,7 +129,7 @@ class PreparedProject:
     @property
     def disturbance_order(self):
         config = json.load(open(self.gcbm_config_path.joinpath("variables.json"), "rb"))
-        return list(set(config["Variables"].get("user_disturbance_order", [])))
+        return list(dict.fromkeys(config["Variables"].get("user_disturbance_order", [])))
 
     @property
     def classifiers(self):

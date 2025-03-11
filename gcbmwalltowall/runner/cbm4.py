@@ -2,18 +2,18 @@ from __future__ import annotations
 import json
 import os
 import time
+import shutil
 import pandas as pd
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
+from typing import Optional
 from pydantic import BaseModel
 from cbm4.app.spatial.spatial_cbm3 import cbm3_spatial_runner
-from cbm4.app.spatial.spatial_cbm3.area_calculator import EqualAreaCalculator, WGS84AreaCalculator
 from cbm4.app.spatial.gcbm_input import gcbm_preprocessor
 from cbm4.app.spatial.gcbm_input.timestep_interpreter import YearOffsetTimestepInterpreter
 from cbm4.app.spatial.gcbm_input.timestep_interpreter import TimestepInterpreter
-from cbm4.app.spatial.gcbm_input.disturbance_event_sorter import DefaultDisturbanceTypeIdSorter
-from cbm4.app.spatial.gcbm_input.disturbance_event_sorter import DisturbanceEventSorter
+from cbm4.app.spatial.gcbm_input.disturbance_event_sorter import DefaultDisturbanceTypeIdSorter, DisturbanceEventSorter
 from gcbmwalltowall.component.preparedproject import PreparedProject
 from gcbmwalltowall.converter.projectconverter import ProjectConverter
 from arrow_space.storage.variable_storage_type import VariableStorageType
@@ -41,7 +41,15 @@ class PreprocessModel(BaseModel):
     default_inventory_values: dict[str, Any]
     start_year: int
     end_year: int
-    disturbance_event_sorter: None
+    disturbance_order: Optional[list[int]] = None
+
+
+class UserDisturbanceEventSorter(DisturbanceEventSorter):
+    def __init__(self, disturbance_order: list[int]):
+        self._disturbance_order = disturbance_order
+
+    def get_sort_value(self, default_disturbance_type_id: int) -> int:
+        return self._disturbance_order.index(default_disturbance_type_id)
 
 
 class CBM4SpatialDataset:
@@ -141,13 +149,25 @@ def _preprocess(
 
 
 def preprocess(preprocess_arg: PreprocessModel):
+    all_dataset_info = preprocess_arg.cbm4_spatial_dataset
+    for dataset_info in (
+        all_dataset_info.inventory,
+        all_dataset_info.disturbance,
+        all_dataset_info.simulation
+    ):
+        shutil.rmtree(dataset_info.path_or_uri, True)
+
     _preprocess(
         wall_to_wall_project_path=preprocess_arg.wall_to_wall_project_path,
         is_converted_project=preprocess_arg.is_converted_project,
         cbm4_spatial_dataset=preprocess_arg.cbm4_spatial_dataset,
         default_inventory_values=preprocess_arg.default_inventory_values,
         disturbance_timestep_interpreter=YearOffsetTimestepInterpreter(preprocess_arg.start_year - 1),
-        disturbance_event_sorter=DefaultDisturbanceTypeIdSorter(),
+        disturbance_event_sorter=(
+            UserDisturbanceEventSorter(preprocess_arg.disturbance_order)
+            if preprocess_arg.disturbance_order
+            else DefaultDisturbanceTypeIdSorter()
+        ),
     )
 
 
@@ -168,17 +188,12 @@ def spinup(config: PreprocessModel):
 def step(config: PreprocessModel, timestep: int):
     spatial_dataset = CBM4SpatialDataset(config.cbm4_spatial_dataset)
     ha_per_m2 = 0.0001
-    area_calculator = (
-        WGS84AreaCalculator(ha_per_m2) if config.resolution < 1
-        else EqualAreaCalculator(config.resolution**2 * ha_per_m2)
-    )
-
     cbm3_spatial_runner.step_all(
         timestep,
         spatial_dataset.simulation,
         spatial_dataset.disturbance,
         spatial_dataset.simulation,
-        area_calculator)
+        ha_per_m2)
 
 
 def load_config(cbm4_config_path: str | Path):

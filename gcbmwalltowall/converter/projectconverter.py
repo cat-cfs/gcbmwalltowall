@@ -1,5 +1,4 @@
 from __future__ import annotations
-import os
 import shutil
 import json
 import pandas as pd
@@ -104,21 +103,45 @@ class ProjectConverter:
         raise IOError("Failed to locate AIDB.")
 
     def _convert_spatial_data(self, layer_converter, project, output_path):
-        arrowspace_layers = InputLayerCollection(layer_converter.convert(project.layers))
+        base_arrowspace_layers = layer_converter.convert(project.layers)
+        base_arrowspace_collection = InputLayerCollection(base_arrowspace_layers)
+
         creation_options = self._creation_options.copy()
         mask_layers = ["age"]
         for optional_mask_layer in ["admin_boundary", "eco_boundary"]:
-            if optional_mask_layer in arrowspace_layers.layer_names:
+            if optional_mask_layer in base_arrowspace_collection.layer_names:
                 mask_layers.append(optional_mask_layer)
+
         creation_options.update({
             "mask_layers": mask_layers
         })
         
+        base_dataset_name = "inventory.arrowspace"
         create_arrowspace_dataset(
-            arrowspace_layers, "inventory", "local_storage",
-            str(output_path.joinpath("inventory.arrowspace")),
+            base_arrowspace_collection, "inventory", "local_storage",
+            str(output_path.joinpath(base_dataset_name + (".cohort0" if project.cohorts else ""))),
             creation_options
         )
+
+        for i, cohort in enumerate(project.cohorts, 1):
+            dataset_name = base_dataset_name + f".cohort{i}"
+            cohort_arrowspace_layers = layer_converter.convert(cohort)
+            cohort_layer_names = [l.name for l in cohort_arrowspace_layers]
+            for base_layer in base_arrowspace_layers:
+                if ("historic_disturbance" in base_layer.tags
+                    or "last_pass_disturbance" in base_layer.tags
+                    or base_layer.name in cohort_layer_names
+                ):
+                    continue
+
+                cohort_arrowspace_layers.append(base_layer)
+
+            cohort_arrowspace_collection = InputLayerCollection(cohort_arrowspace_layers)
+            create_arrowspace_dataset(
+                cohort_arrowspace_collection, "inventory", "local_storage",
+                str(output_path.joinpath(dataset_name)),
+                creation_options
+            )
 
     def _flatten_pivot_columns(self, pivot_data):
         pivot_data.columns = [
@@ -205,6 +228,52 @@ class ProjectConverter:
 
         return output_cbm_defaults_path
 
+    def _load_disturbance_order(self, project: PreparedProject) -> dict[str, int]:
+        ordered_db_dist_types = self._load_disturbance_types(project)
+        # ensure no duplicates in the user disturbance type order
+        unique_user_dist_types = set(project.disturbance_order)
+        if not len(unique_user_dist_types) == len(project.disturbance_order):
+            raise ValueError(f"duplicate values detected in user disturbance type order")
+            
+        # check that every disturbance type in the user order exists in the database
+        unknown_disturbance_types = unique_user_dist_types.difference(
+            set(ordered_db_dist_types.keys())
+        )
+            
+        if unknown_disturbance_types:
+            raise ValueError(
+                "entries in user disturbance type order not found in database: "
+                f"{unknown_disturbance_types}"
+            )
+        
+        output_order = [
+            ordered_db_dist_types[dist_type]
+            for dist_type in project.disturbance_order
+        ] + [
+            dist_code for dist_type, dist_code
+            in ordered_db_dist_types.items()
+            if dist_type not in unique_user_dist_types
+        ]
+
+        return output_order
+
+    def _load_disturbance_types(self, project) -> dict:
+        with self._input_db_connection(project) as conn:
+            dist_types = pd.read_sql_query(
+                """
+                SELECT code, name
+                FROM disturbance_type
+                WHERE code > 0
+                ORDER BY code
+                """,
+                conn
+            )
+
+        return {
+            str(row["name"]): int(row["code"])
+            for _, row in dist_types.iterrows()
+        }
+
     def _create_cbm4_config(self, project, output_path):
         default_inventory_values = {}
 
@@ -244,7 +313,7 @@ class ProjectConverter:
             "default_inventory_values": default_inventory_values,
             "start_year": project.start_year,
             "end_year": project.end_year,
-            "disturbance_event_sorter": None
+            "disturbance_order": self._load_disturbance_order(project)
         }
-        
+
         json.dump(config, open(output_path.joinpath("cbm4_config.json"), "w"), indent=4)

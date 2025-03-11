@@ -2,6 +2,7 @@ import csv
 import json
 import site
 import sys
+import pandas as pd
 from pathlib import Path
 
 class Configuration(dict):
@@ -27,9 +28,11 @@ class Configuration(dict):
     @property
     def gcbm_disturbance_order(self):
         disturbance_order_file = self.gcbm_disturbance_order_path
-        disturbance_order = [
-            line[0] for line in csv.reader(open(self.resolve(disturbance_order_file))) if line
-        ] if disturbance_order_file else None
+        disturbance_order = (
+            list(pd.read_csv(disturbance_order_file, sep="\0", header=None)[0])
+            if disturbance_order_file
+            else None
+        )
 
         return disturbance_order
 
