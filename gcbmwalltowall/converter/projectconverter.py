@@ -37,8 +37,10 @@ class ProjectConverter:
         cbm_defaults_path = self._build_input_database(project, output_path, aidb_path)
 
         transitions = self._get_transitions(project)
+        transition_rules = self._get_transition_rules(project)
         if not self._merge_disturbance_matrices:
-            transitions.to_csv(output_path.joinpath("sit_transitions.csv"), index=False)
+            transitions.to_csv(output_path.joinpath("transitions.csv"), index=False)
+            transition_rules.to_csv(output_path.joinpath("transition_rules.csv"), index=False)
 
         subconverters = [
             LandClassLayerConverter(),
@@ -211,7 +213,49 @@ class ProjectConverter:
             ).pivot(index=["id", "regen_delay", "age_after"], columns="classifier_name").reset_index()
             self._flatten_pivot_columns(transitions)
 
-            return transitions
+        return transitions
+
+    def _get_transition_rules(self, project):
+        transitions = self._get_transitions(project)
+        with self._input_db_connection(project) as conn:
+            transition_rules = pd.read_sql(
+                """
+                SELECT
+                    tr.id,
+                    tr.transition_id,
+                    dt.code AS disturbance_type_id,
+                    c.name || "_match" AS classifier_name,
+                    cv.value AS classifier_value
+                FROM transition_rule tr
+                INNER JOIN disturbance_type dt
+                    ON tr.disturbance_type_id = dt.id
+                INNER JOIN transition_rule_classifier_value tcv
+                    ON tr.id = tcv.transition_rule_id
+                INNER JOIN classifier_value cv
+                    ON tcv.classifier_value_id = cv.id
+                INNER JOIN classifier c
+                    ON cv.classifier_id = c.id
+                """, conn
+            ).pivot(
+                index=["id", "transition_id", "disturbance_type_id"],
+                columns="classifier_name"
+            ).reset_index()
+            self._flatten_pivot_columns(transition_rules)
+
+        transition_rule_data = transition_rules.merge(
+            transitions, left_on="transition_id", right_on="id",
+            suffixes=(None, "_")
+        )
+        
+        transition_rule_data.drop(
+            ["transition_id"] + [
+                c for c in transition_rule_data.columns if c.endswith("_")
+            ],
+            axis=1,
+            inplace=True
+        )
+
+        return transition_rule_data
 
     def _build_input_database(self, project, output_path, aidb_path=None):
         aidb_path = aidb_path or self._find_aidb_path(project)

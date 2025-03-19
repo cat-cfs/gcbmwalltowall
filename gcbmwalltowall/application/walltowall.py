@@ -25,9 +25,19 @@ def convert(args: Namespace):
     # Guard against importing CBM4 dependencies until needed.
     from gcbmwalltowall.converter.projectconverter import ProjectConverter
 
+    creation_options = args.creation_options
+    chunk_size = getattr(args, "chunk_size", None)
+    if chunk_size:
+        creation_options.update({
+            "chunk_options": {
+                "chunk_x_size_max": chunk_size,
+                "chunk_y_size_max": chunk_size,
+            }
+        })
+
     project = PreparedProject(args.project_path)
     logging.info(f"Converting {project.path} to CBM4")
-    converter = ProjectConverter(args.creation_options, args.merge_disturbance_matrices)
+    converter = ProjectConverter(creation_options, args.merge_disturbance_matrices)
     converter.convert(project, args.output_path, args.aidb_path)
     
 def build(args: Namespace):
@@ -105,7 +115,7 @@ def run(args: Namespace):
             cbm4_config_path = Path(args.project_path).joinpath("cbm4_config.json")
             if cbm4_config_path.exists():
                 from gcbmwalltowall.runner import cbm4
-                cbm4.run(cbm4_config_path)
+                cbm4.run(cbm4_config_path, getattr(args, "max_workers", None))
             else:
                 logging.info(f"Using {config.resolve(config.gcbm_exe)}")
                 subprocess.run([
@@ -204,6 +214,8 @@ def cli():
         "--compile_results_config", help="path to custom compile results config file")
     run_parser.add_argument(
         "--batch_limit", help="batch limit for cluster runs")
+    run_parser.add_argument(
+        "--max_workers", help="max workers for CBM4 runs")
 
     convert_parser = subparsers.add_parser(
         "convert", help=("Convert a walltowall-prepared GCBM project to CBM4."))
@@ -217,6 +229,8 @@ def cli():
     convert_parser.add_argument(
         "--merge_disturbance_matrices", action="store_true",
         help="merge disturbance layers/matrices")
+    convert_parser.add_argument(
+        "--chunk_size", help="maximum CBM4 chunk size")
 
     args = parser.parse_args()
 

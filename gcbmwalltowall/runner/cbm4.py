@@ -92,6 +92,7 @@ def _preprocess(
     disturbance_timestep_interpreter: TimestepInterpreter,
     disturbance_event_sorter: DisturbanceEventSorter,
     default_inventory_values: dict[str, Any] | None = None,
+    max_workers: int | None = None
 ):
     if isinstance(cbm4_spatial_dataset, dict):
         cbm4_spatial_dataset = CBM4SpatialDatasetInfo.model_validate(cbm4_spatial_dataset)
@@ -116,7 +117,8 @@ def _preprocess(
         out_storage_type=cbm4_spatial_dataset.inventory.storage_type,
         out_storage_path_or_uri=cbm4_spatial_dataset.inventory.path_or_uri,
         area_unit_conversion=0.0001,
-        override_values=default_inventory_values)
+        override_values=default_inventory_values,
+        max_workers=max_workers)
 
     time_profiling.append(["cbm4 preprocess_inventory", (time.time() - start)])
 
@@ -127,7 +129,8 @@ def _preprocess(
         out_storage_type=cbm4_spatial_dataset.disturbance.storage_type,
         out_storage_path_or_uri=cbm4_spatial_dataset.disturbance.path_or_uri,
         timestep_interpreter=disturbance_timestep_interpreter,
-        disturbance_event_sorter=disturbance_event_sorter)
+        disturbance_event_sorter=disturbance_event_sorter,
+        max_workers=max_workers)
 
     time_profiling.append(["cbm4 preprocess_disturbance", (time.time() - start)])
 
@@ -148,7 +151,7 @@ def _preprocess(
         str(log_path.joinpath("preprocess_profiling.csv")), index=False)
 
 
-def preprocess(preprocess_arg: PreprocessModel):
+def preprocess(preprocess_arg: PreprocessModel, max_workers: int | None = None):
     all_dataset_info = preprocess_arg.cbm4_spatial_dataset
     for dataset_info in (
         all_dataset_info.inventory,
@@ -171,21 +174,25 @@ def preprocess(preprocess_arg: PreprocessModel):
     )
 
 
-def spinup(config: PreprocessModel):
+def spinup(config: PreprocessModel, max_workers: int | None = None):
     start = time.time()
     spatial_dataset = CBM4SpatialDataset(config.cbm4_spatial_dataset)
     cbm3_spatial_runner.spinup_all(
         inventory_dataset=spatial_dataset.inventory,
-        simulation_dataset=spatial_dataset.simulation)
+        simulation_dataset=spatial_dataset.simulation,
+        max_workers=max_workers)
 
     time_profiling = pd.DataFrame(
         columns=["task", "time_elapsed"],
         data=[["spinup", (time.time() - start)]])
 
-    time_profiling.to_csv(str(Path(config.output_path).joinpath("spinup_time.csv")), index=False)
+    time_profiling.to_csv(
+        str(Path(config.output_path).joinpath("spinup_time.csv")),
+        index=False
+    )
 
 
-def step(config: PreprocessModel, timestep: int):
+def step(config: PreprocessModel, timestep: int, max_workers: int | None = None):
     spatial_dataset = CBM4SpatialDataset(config.cbm4_spatial_dataset)
     ha_per_m2 = 0.0001
     cbm3_spatial_runner.step_all(
@@ -193,7 +200,8 @@ def step(config: PreprocessModel, timestep: int):
         spatial_dataset.simulation,
         spatial_dataset.disturbance,
         spatial_dataset.simulation,
-        ha_per_m2)
+        ha_per_m2,
+        max_workers=max_workers)
 
 
 def load_config(cbm4_config_path: str | Path):
@@ -216,15 +224,15 @@ def load_config(cbm4_config_path: str | Path):
     return cbm4_config
 
 
-def run(cbm4_config_path: str | Path):
+def run(cbm4_config_path: str | Path, max_workers: int | None = None):
     cbm4_config = load_config(cbm4_config_path)
-    preprocess(cbm4_config)
-    spinup(cbm4_config)
+    preprocess(cbm4_config, max_workers)
+    spinup(cbm4_config, max_workers)
     step_times = []
     final_timestep = cbm4_config.end_year - cbm4_config.start_year + 1
     for timestep in range(1, final_timestep + 1):
         start = time.time()
-        step(cbm4_config, timestep)
+        step(cbm4_config, timestep, max_workers)
         step_times.append([f"timestep_{timestep}", (time.time() - start)])
 
     time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=step_times)
