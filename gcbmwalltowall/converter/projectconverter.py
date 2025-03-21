@@ -200,8 +200,8 @@ class ProjectConverter:
             transitions = pd.read_sql(
                 """
                 SELECT
-                    t.id, t.regen_delay, t.age AS age_after,
-                    c.name AS classifier_name, cv.value AS classifier_value
+                    t.id, t.regen_delay AS "state.regeneration_delay", t.age AS "state.age",
+                    'classifiers.' || c.name AS classifier_name, cv.value AS classifier_value
                 FROM transition t
                 INNER JOIN transition_classifier_value tcv
                     ON t.id = tcv.transition_id
@@ -210,7 +210,10 @@ class ProjectConverter:
                 INNER JOIN classifier c
                     ON cv.classifier_id = c.id
                 """, conn
-            ).pivot(index=["id", "regen_delay", "age_after"], columns="classifier_name").reset_index()
+            ).pivot(
+                index=["id", "state.regeneration_delay", "state.age"],
+                columns="classifier_name"
+            ).reset_index()
             self._flatten_pivot_columns(transitions)
 
         return transitions
@@ -224,7 +227,7 @@ class ProjectConverter:
                     tr.id,
                     tr.transition_id,
                     dt.code AS disturbance_type_id,
-                    c.name || "_match" AS classifier_name,
+                    'classifiers.' || c.name || '_match' AS classifier_name,
                     cv.value AS classifier_value
                 FROM transition_rule tr
                 INNER JOIN disturbance_type dt
