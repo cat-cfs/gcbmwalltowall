@@ -3,6 +3,7 @@ import functools
 import sqlite3
 import pandas as pd
 import numpy as np
+from contextlib import closing
 from typing import Sequence
 from scipy.sparse import coo_matrix
 
@@ -333,20 +334,14 @@ class CompositeDisturbanceTypeManager:
         return result
 
     def _read_sql(self, db_path: str, sql: str, params: Sequence[str] = None):
-        con = sqlite3.connect(db_path)
-        try:
+        with closing(sqlite3.connect(db_path)) as con:
             df = pd.read_sql(sql, con, params=params)
             return df
-        finally:
-            con.close()
 
     def _to_sql(self, db_path: str, table_name: str, df: pd.DataFrame, if_exists: str):
-        con = sqlite3.connect(db_path)
-        try:
+        with closing(sqlite3.connect(db_path)) as con:
             df = df.to_sql(table_name, con, index=False, if_exists=if_exists)
             return df
-        finally:
-            con.close()
 
     def _table_exists(self, db_path: str, table_name: str) -> bool:
         result = self._read_sql(

@@ -207,8 +207,11 @@ class ProjectConverter:
             transitions = pd.read_sql(
                 """
                 SELECT
-                    t.id, t.regen_delay AS "state.regeneration_delay", t.age AS "state.age",
-                    'classifiers.' || c.name AS classifier_name, cv.value AS classifier_value
+                    t.id,
+                    t.regen_delay AS "state.regeneration_delay",
+                    CASE WHEN t.age = -1 THEN '?' ELSE t.age END AS "state.age",
+                    'classifiers.' || c.name AS classifier_name,
+                    cv.value AS classifier_value
                 FROM transition t
                 INNER JOIN transition_classifier_value tcv
                     ON t.id = tcv.transition_id

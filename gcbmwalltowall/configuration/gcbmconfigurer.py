@@ -6,6 +6,7 @@ import shutil
 import sqlite3
 import csv
 import pandas as pd
+from contextlib import closing
 from itertools import chain
 from argparse import ArgumentParser
 from glob import iglob
@@ -131,8 +132,8 @@ class GCBMConfigurer:
                 build_land_unit_config["settings"] = module_settings
 
     def add_missing_pools(self):
-        conn = sqlite3.connect(self._input_db_path)
-        db_pool_names = [row[0] for row in conn.execute("SELECT name FROM pool")]
+        with closing(sqlite3.connect(self._input_db_path)) as conn:
+            db_pool_names = [row[0] for row in conn.execute("SELECT name FROM pool")]
         
         pool_config_path = self.find_config_file(self._output_path, "Pools")
         with self.update_json_file(pool_config_path) as pool_config:
@@ -412,8 +413,8 @@ class GCBMConfigurer:
         return "mask" in layer_tags
         
     def get_default_disturbance_order(self):
-        conn = sqlite3.connect(self._input_db_path)
-        return [row[0] for row in conn.execute("SELECT name FROM disturbance_type ORDER BY code")]
+        with closing(sqlite3.connect(self._input_db_path)) as conn:
+            return [row[0] for row in conn.execute("SELECT name FROM disturbance_type ORDER BY code")]
 
     def get_disturbance_order(self, layer):
         if "rollback" in layer["name"]:

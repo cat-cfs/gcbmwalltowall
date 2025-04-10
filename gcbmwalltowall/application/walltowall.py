@@ -17,7 +17,6 @@ from spatial_inventory_rollback.gcbm.merge.gcbm_merge_input_db import replace_di
 from gcbmwalltowall.builder.projectbuilder import ProjectBuilder
 from gcbmwalltowall.configuration.configuration import Configuration
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
-from gcbmwalltowall.component.project import Project
 from gcbmwalltowall.component.preparedproject import PreparedProject
 from gcbmwalltowall.project.projectfactory import ProjectFactory
 
@@ -215,7 +214,7 @@ def cli():
     run_parser.add_argument(
         "--batch_limit", help="batch limit for cluster runs")
     run_parser.add_argument(
-        "--max_workers", help="max workers for CBM4 runs")
+        "--max_workers", type=int, help="max workers for CBM4 runs")
 
     convert_parser = subparsers.add_parser(
         "convert", help=("Convert a walltowall-prepared GCBM project to CBM4."))
