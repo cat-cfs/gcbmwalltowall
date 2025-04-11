@@ -34,7 +34,6 @@
     <Folder Include="gcbmwalltowall\component\" />
     <Folder Include="gcbmwalltowall\configuration\" />
     <Folder Include="gcbmwalltowall\converter\" />
-    <Folder Include="gcbmwalltowall\converter\disturbance\" />
     <Folder Include="gcbmwalltowall\project\" />
     <Folder Include="gcbmwalltowall\runner\" />
     <Folder Include="gcbmwalltowall\util\" />
@@ -95,10 +94,6 @@
     <Compile Include="gcbmwalltowall\configuration\__init__.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="gcbmwalltowall\converter\disturbance\compositedisturbancetypemanager.py" />
-    <Compile Include="gcbmwalltowall\converter\disturbance\eventmerger.py" />
-    <Compile Include="gcbmwalltowall\converter\disturbance\mergingtransitionconverter.py" />
-    <Compile Include="gcbmwalltowall\converter\disturbance\mergingdisturbancelayerconverter.py" />
     <Compile Include="gcbmwalltowall\project\projectfactory.py" />
     <Compile Include="gcbmwalltowall\project\__init__.py">
       <SubType>Code</SubType>
@@ -107,7 +102,6 @@
     <Compile Include="gcbmwalltowall\runner\__init__.py" />
     <Compile Include="gcbmwalltowall\util\numba.py" />
     <Compile Include="gcbmwalltowall\util\rasterbound.py" />
-    <Compile Include="gcbmwalltowall\converter\disturbance\__init__.py" />
     <Compile Include="gcbmwalltowall\converter\layerconverter.py" />
     <Compile Include="gcbmwalltowall\converter\projectconverter.py" />
     <Compile Include="gcbmwalltowall\converter\__init__.py">
