@@ -8,6 +8,7 @@ from gcbmwalltowall.component.layer import DefaultLayer
 from gcbmwalltowall.component.layer import Layer
 from gcbmwalltowall.component.project import Project
 from gcbmwalltowall.component.rollback import Rollback
+from gcbmwalltowall.component.transition import Transition
 from gcbmwalltowall.validation.generic import require_instance_of
 from gcbmwalltowall.validation.string import require_not_null
 
@@ -19,7 +20,7 @@ class ProjectFactory:
     
     _disturbance_reserved_keywords = {
         "year", "disturbance_type", "age_after", "regen_delay", "lookup_table",
-        "pattern", "metadata_attributes"
+        "pattern", "metadata_attributes", "survivor", "proportion"
     }
 
     def create(self, config):
@@ -41,12 +42,16 @@ class ProjectFactory:
         if soft_transitions:
             soft_transitions = config.resolve(soft_transitions)
 
+        survivor_soft_transitions = config.get("survivor_transition_rules")
+        if survivor_soft_transitions:
+            survivor_soft_transitions = config.resolve(survivor_soft_transitions)
+
         cohorts = self._create_cohorts(config)
 
         return Project(
             project_name, bounding_box, classifiers, layers, input_db,
             str(config.working_path), disturbances, rollback, soft_transitions,
-            cohorts)
+            survivor_soft_transitions, cohorts)
 
     def _extract_attribute(self, config):
         attribute = config.get("attribute")
@@ -179,14 +184,31 @@ class ProjectFactory:
                 disturbances.append(Disturbance(
                     config.resolve(disturbance_pattern), input_db, name=pattern_or_name))
             else:
+                mortality_transition = None
+                if dist_config.get("age_after") is not None:
+                    mortality_transition = Transition(
+                        dist_config.get("age_after"), dist_config.get("regen_delay"),
+                        {c.name: dist_config[c.name] for c in classifiers if c.name in dist_config})
+
+                survivor_transition = None
+                survivor_transition_config = dist_config.get("survivor")
+                if survivor_transition_config:
+                    survivor_transition = Transition(
+                        survivor_transition_config.get("age_after"),
+                        survivor_transition_config.get("regen_delay"),
+                        {
+                            c.name: survivor_transition_config[c.name]
+                            for c in classifiers if c.name in survivor_transition_config
+                        })
+
                 disturbances.append(Disturbance(
                     config.resolve(dist_config.get("pattern", pattern_or_name)), input_db,
                     dist_config.get("year"), dist_config.get("disturbance_type"),
-                    dist_config.get("age_after"), dist_config.get("regen_delay"),
-                    {c.name: dist_config[c.name] for c in classifiers if c.name in dist_config},
+                    mortality_transition, survivor_transition,
                     config.resolve(dist_config.get("lookup_table", config.config_path)),
                     name=pattern_or_name if "pattern" in dist_config else None,
-                    metadata_attributes=dist_config.get("metadata_attributes"), **{
+                    metadata_attributes=dist_config.get("metadata_attributes"),
+                    proportion=dist_config.get("proportion"), **{
                         k: v for k, v in dist_config.items()
                         if k not in self._disturbance_reserved_keywords
                         and k not in {c.name for c in classifiers if c.name in dist_config}}))

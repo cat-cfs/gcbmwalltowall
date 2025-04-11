@@ -73,6 +73,7 @@
     </Compile>
     <Compile Include="gcbmwalltowall\component\attributetable.py" />
     <Compile Include="gcbmwalltowall\component\preparedproject.py" />
+    <Compile Include="gcbmwalltowall\component\transition.py" />
     <Compile Include="gcbmwalltowall\component\vectorattributetable.py" />
     <Compile Include="gcbmwalltowall\component\rasterattributetable.py" />
     <Compile Include="gcbmwalltowall\component\rollback.py">

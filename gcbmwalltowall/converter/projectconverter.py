@@ -12,20 +12,17 @@ from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.converter.layerconverter import DelegatingLayerConverter
 from gcbmwalltowall.converter.layerconverter import DefaultLayerConverter
 from gcbmwalltowall.converter.layerconverter import LandClassLayerConverter
-from gcbmwalltowall.converter.disturbance.mergingdisturbancelayerconverter import MergingDisturbanceLayerConverter
-from gcbmwalltowall.converter.disturbance.mergingtransitionconverter import MergingTransitionConverter
 
 class ProjectConverter:
     
-    def __init__(self, creation_options=None, merge_disturbance_matrices=False):
+    def __init__(self, creation_options=None, disturbance_cohorts=False):
+        self._disturbance_cohorts = disturbance_cohorts
         self._creation_options = creation_options or {
             "chunk_options": {
                 "chunk_x_size_max": 2500,
                 "chunk_y_size_max": 2500,
             }
         }
-        
-        self._merge_disturbance_matrices = merge_disturbance_matrices
 
     def convert(self, project, output_path, aidb_path=None):
         output_path = Path(output_path)
@@ -35,19 +32,36 @@ class ProjectConverter:
         
         self._convert_yields(project, output_path)
         cbm_defaults_path = self._build_input_database(project, output_path, aidb_path)
+        use_cohorts = self._cohorts_enabled(project)
+
+        mortality_transitions_path = output_path.joinpath(
+            "transitions.csv" if not use_cohorts
+            else "transition_mortality.csv"
+        )
+
+        mortality_transition_rules_path = output_path.joinpath(
+            "transition_rules.csv" if not use_cohorts
+            else "transition_rules_mortality.csv"
+        )
 
         transitions = self._get_transitions(project)
-        transition_rules = self._get_transition_rules(project)
-        if not self._merge_disturbance_matrices:
-            if not transitions.empty:
-                transitions.to_csv(
-                    output_path.joinpath("transitions.csv"), index=False
-                )
+        if not transitions.empty:
+            transitions.to_csv(mortality_transitions_path, index=False)
 
-            if not transition_rules.empty:
-                transition_rules.to_csv(
-                    output_path.joinpath("transition_rules.csv"), index=False
-                )
+        transition_rules = self._get_transition_rules(project)
+        if not transition_rules.empty:
+            transition_rules.to_csv(mortality_transition_rules_path, index=False)
+
+        if use_cohorts:
+            survivor_transitions = self._get_survivor_transitions(project)
+            if not survivor_transitions.empty:
+                survivor_transitions.to_csv(
+                    output_path.joinpath("transition_survivor.csv"), index=False)
+
+            survivor_transition_rules = self._get_survivor_transition_rules(project)
+            if not survivor_transition_rules.empty:
+                survivor_transition_rules.to_csv(
+                    output_path.joinpath("transition_rules_survivor.csv"), index=False)
 
         subconverters = [
             LandClassLayerConverter(),
@@ -55,19 +69,8 @@ class ProjectConverter:
                 "initial_age": "age",
                 "mean_annual_temperature": "mean_annual_temp",
                 "inventory_delay": "delay"
-            }, include_disturbances=not self._merge_disturbance_matrices)
+            })
         ]
-        
-        if self._merge_disturbance_matrices:
-            subconverters.extend([
-                MergingDisturbanceLayerConverter(
-                    cbm_defaults_path, project.start_year, disturbance_order=project.disturbance_order
-                ),
-                MergingTransitionConverter(
-                    cbm_defaults_path, project.start_year, project.classifiers,
-                    transitions, output_path, disturbance_order=project.disturbance_order
-                )
-            ])
         
         layer_converter = DelegatingLayerConverter(subconverters)
 
@@ -85,6 +88,16 @@ class ProjectConverter:
         engine = create_engine(connection_url)
         with engine.connect() as conn:
             yield conn
+
+    def _cohorts_enabled(self, project):
+        use_cohorts = (
+            self._disturbance_cohorts
+            or project.survivor_transitions_path.exists()
+            or project.survivor_soft_transitions_path.exists()
+            or project.cohorts
+        )
+
+        return use_cohorts
 
     def _find_aidb_path(self, project):
         aidb_keys = ["aidb", "AIDBPath"]
@@ -128,7 +141,10 @@ class ProjectConverter:
         base_dataset_name = "inventory.arrowspace"
         create_arrowspace_dataset(
             base_arrowspace_collection, "inventory", "local_storage",
-            str(output_path.joinpath(base_dataset_name + (".cohort0" if project.cohorts else ""))),
+            str(output_path.joinpath(base_dataset_name + (
+                ".cohort0" if self._cohorts_enabled(project)
+                else ""
+            ))),
             creation_options
         )
 
@@ -269,6 +285,47 @@ class ProjectConverter:
         )
 
         return transition_rule_data
+
+    def _get_survivor_transitions(self, project):
+        if not project.survivor_transitions_path.exists():
+            return pd.DataFrame()
+
+        return self._format_survivor_transitions(
+            project, pd.read_csv(str(project.survivor_transitions_path))
+        )
+
+    def _get_survivor_transition_rules(self, project):
+        if not project.survivor_soft_transitions_path.exists():
+            return pd.DataFrame()
+
+        return self._format_survivor_transitions(
+            project, pd.read_csv(str(project.survivor_soft_transitions_path))
+        )
+
+    def _format_survivor_transitions(self, project, transition_data):
+        if "disturbance_type" in transition_data.columns:
+            project_dist_types = self._load_disturbance_types(project)
+            dist_type_map = pd.DataFrame({
+                "disturbance_type": project_dist_types.keys(),
+                "disturbance_type_id": project_dist_types.values()
+            })
+
+            transition_data = transition_data.merge(dist_type_map, on="disturbance_type")
+            transition_data.drop("disturbance_type")
+
+        transition_data[transition_data.loc[transition_data["age_after"] == -1]] = "?"
+        transition_data.rename(columns={
+            "age_after": "state.age",
+            "regen_delay": "state.regeneration_delay"
+        }, inplace=True)
+
+        for classifier in project.classifiers:
+            transition_data.rename(columns={
+                classifier: f"classifiers.{classifier}",
+                f"{classifier}_match": f"classifiers.{classifier}_match"
+            }, inplace=True)
+
+        return transition_data
 
     def _build_input_database(self, project, output_path, aidb_path=None):
         aidb_path = aidb_path or self._find_aidb_path(project)

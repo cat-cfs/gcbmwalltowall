@@ -48,16 +48,12 @@ class DelegatingLayerConverter(LayerConverter):
 
 class DefaultLayerConverter(LayerConverter):
     
-    def __init__(self, name_remappings: dict[str, str] = None, include_disturbances: bool = False, *args, **kwargs):
+    def __init__(self, name_remappings: dict[str, str] = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._name_remappings = name_remappings or {}
-        self._include_disturbances = include_disturbances
     
     def handles(self, layer: PreparedLayer) -> bool:
         _handles = layer.name not in {"initial_current_land_class"}
-        if not self._include_disturbances:
-            _handles = _handles and "disturbance" not in layer.study_area_metadata.get("tags", [])
-
         return _handles
 
     def convert_internal(self, layers: list[PreparedLayer]) -> list[RasterInputLayer]:

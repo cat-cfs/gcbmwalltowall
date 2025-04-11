@@ -14,23 +14,23 @@ from gcbmwalltowall.component.tileable import Tileable
 class Disturbance(Tileable):
 
     def __init__(
-        self, pattern, input_db, year=None, disturbance_type=None, age_after=None,
-        regen_delay=None, transition=None, lookup_table=None, filters=None,
-        split_on=None, name=None, layers=None, metadata_attributes=None, **layer_kwargs
+        self, pattern, input_db, year=None, disturbance_type=None, transition=None,
+        survivor_transition=None, lookup_table=None, filters=None, split_on=None,
+        name=None, layers=None, metadata_attributes=None, proportion=None, **layer_kwargs
     ):
         self.pattern = Path(pattern)
         self.input_db = input_db
         self.year = year
         self.disturbance_type = disturbance_type
-        self.age_after = age_after
-        self.regen_delay = regen_delay
         self.transition = transition
+        self.survivor_transition = survivor_transition
         self.lookup_table = Path(lookup_table) if lookup_table else None
         self.filters = filters or {}
         self.split_on = [split_on] if isinstance(split_on, str) else split_on if split_on else ["year"]
         self.name = name
         self.layers = layers
         self.metadata_attributes = metadata_attributes or []
+        self.proportion = proportion
         self.layer_kwargs = layer_kwargs or {}
 
     def to_tiler_layer(self, rule_manager, **kwargs):
@@ -74,31 +74,27 @@ class Disturbance(Tileable):
 
         attribute_table = layer.attribute_table
 
-        transition_rule = None
-        spatial_classifier_transition = None
-        age_after = self.get_configured_or_default(attribute_table, "reset_age", self.age_after)
-        regen_delay = self.get_configured_or_default(attribute_table, "regen_delay", self.regen_delay)
-        if age_after is not None:
-            if regen_delay is None:
-                regen_delay = 0
-
-            if self.transition:
-                if all((v in attribute_table for v in self.transition.values())):
-                    spatial_classifier_transition = list(self.transition.keys())
-
-            transition_rule = TransitionRule(
-                Attribute(regen_delay) if regen_delay in attribute_table else regen_delay,
-                Attribute(age_after) if age_after in attribute_table else age_after,
-                spatial_classifier_transition or self.transition)
+        transition_rule, transition_rule_attributes = self._make_transition_rule(attribute_table, self.transition)
+        survivor_transition_rule, survivor_transition_rule_attributes = self._make_transition_rule(attribute_table, self.survivor_transition)
+        spatial_classifier_transition = {}
+        spatial_classifier_transition.update(transition_rule_attributes or {})
+        spatial_classifier_transition.update(survivor_transition_rule_attributes or {})
 
         disturbance_type = self._get_disturbance_type_or_attribute(layer_path, attribute_table)
         year = self._get_disturbance_year_or_attribute(layer_path, attribute_table)
+        proportion = self._get_configured_or_default(attribute_table, "proportion", self.proportion)
+
+        transition_tiler_attributes = (
+            [transition_rule.age_after, transition_rule.regen_delay] if transition_rule else []
+        ) + ([survivor_transition_rule.age_after, survivor_transition_rule.regen_delay]
+             if survivor_transition_rule else [])
 
         tiler_attributes = {
-            attr: attr for attr in [
-                year, disturbance_type, age_after, regen_delay
-            ] + self.metadata_attributes
-            if attr in attribute_table
+            attr: attr for attr in (
+                [year, disturbance_type, proportion]
+                + transition_tiler_attributes
+                + self.metadata_attributes
+            ) if attr in attribute_table
         }
 
         if spatial_classifier_transition:
@@ -141,7 +137,9 @@ class Disturbance(Tileable):
                 disturbance_layer.to_tiler_layer(rule_manager, **kwargs),
                 Attribute(year) if year in attribute_table else year,
                 Attribute(disturbance_type) if disturbance_type in attribute_table else disturbance_type,
-                transition_rule))
+                transition_rule,
+                survivor_transition=survivor_transition_rule,
+                proportion=Attribute(proportion) if proportion in attribute_table else proportion))
         else:
             # Vector disturbance layers sometimes need to be split on year and/or
             # disturbance type to handle overlapping polygons in rasterization.
@@ -163,7 +161,9 @@ class Disturbance(Tileable):
                     ).to_tiler_layer(rule_manager, **kwargs),
                     Attribute(year) if year in tiler_attributes else year,
                     Attribute(disturbance_type) if disturbance_type in tiler_attributes else disturbance_type,
-                    transition_rule))
+                    transition_rule,
+                    survivor_transition=survivor_transition_rule,
+                    proportion=Attribute(proportion) if proportion in tiler_attributes else proportion))
             else:
                 # Split vector into a raster per combination of split attribute values,
                 # while also obeying any configured filters.
@@ -194,9 +194,33 @@ class Disturbance(Tileable):
                         split_layer.to_tiler_layer(rule_manager, **kwargs),
                         Attribute(year) if year in tiler_attributes else year,
                         Attribute(disturbance_type) if disturbance_type in tiler_attributes else disturbance_type,
-                        transition_rule))
+                        transition_rule,
+                        survivor_transition=survivor_transition_rule,
+                        proportion=Attribute(proportion) if proportion in tiler_attributes else proportion))
 
         return disturbance_layers
+
+    def _make_transition_rule(self, attribute_table, transition_config):
+        if not transition_config:
+            return None
+
+        spatial_classifier_transition = None
+        age_after = self._get_configured_or_default(
+            attribute_table, "age_after", transition_config.age_after)
+
+        regen_delay = self._get_configured_or_default(
+            attribute_table, "regen_delay", transition_config.regen_delay)
+
+        if transition_config.classifiers:
+            if all((v in attribute_table for v in transition_config.classifiers.values())):
+                spatial_classifier_transition = list(transition_config.classifiers.keys())
+
+        transition_rule = TransitionRule(
+            Attribute(regen_delay) if regen_delay in attribute_table else regen_delay,
+            Attribute(age_after) if age_after in attribute_table else age_after,
+            spatial_classifier_transition or transition_config.classifiers)
+
+        return transition_rule, spatial_classifier_transition
 
     def _make_tiler_name(self, layer_path, *args):
         return (
@@ -270,7 +294,7 @@ class Disturbance(Tileable):
 
         raise RuntimeError(f"No disturbance type configured or found in {layer_path}.")
 
-    def get_configured_or_default(self, attribute_table, attribute, configured_value):
+    def _get_configured_or_default(self, attribute_table, attribute, configured_value):
         if configured_value is not None:
             return configured_value
 

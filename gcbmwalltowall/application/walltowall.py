@@ -36,7 +36,7 @@ def convert(args: Namespace):
 
     project = PreparedProject(args.project_path)
     logging.info(f"Converting {project.path} to CBM4")
-    converter = ProjectConverter(creation_options, args.merge_disturbance_matrices)
+    converter = ProjectConverter(creation_options, args.disturbance_cohorts)
     converter.convert(project, args.output_path, args.aidb_path)
     
 def build(args: Namespace):
@@ -226,8 +226,8 @@ def cli():
     convert_parser.add_argument(
         "--aidb_path", help="AIDB to use when building CBM4 input database")
     convert_parser.add_argument(
-        "--merge_disturbance_matrices", action="store_true",
-        help="merge disturbance layers/matrices")
+        "--disturbance_cohorts", action="store_true",
+        help="use disturbance cohorts")
     convert_parser.add_argument(
         "--chunk_size", help="maximum CBM4 chunk size")
 

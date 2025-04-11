@@ -136,6 +136,17 @@ class PreparedProject:
         config = json.load(open(self.gcbm_config_path.joinpath("variables.json"), "rb"))
         return config["Variables"]["initial_classifier_set"]["transform"]["vars"]
 
+    @property
+    def survivor_transitions_path(self):
+        if self.has_rollback:
+            return self.input_db_path.parent.joinpath("gcbmwalltowall_survivor_rollback_transitions.csv")
+
+        return self.input_db_path.parent.joinpath("gcbmwalltowall_survivor_transitions.csv")
+
+    @property
+    def survivor_soft_transitions_path(self):
+        return self.input_db_path.parent.joinpath("gcbmwalltowall_survivor_transition_rules.csv")
+
     @contextmanager
     def temporary_new_end_year(self, end_year=None):
         if end_year is None:
