@@ -242,7 +242,7 @@ class ProjectConverter:
             ).reset_index()
             self._flatten_pivot_columns(transitions)
 
-        return transitions
+        return self._sort_transition_data_cols(transitions)
 
     def _get_transition_rules(self, project):
         transitions = self._get_transitions(project)
@@ -284,7 +284,7 @@ class ProjectConverter:
             inplace=True
         )
 
-        return transition_rule_data
+        return self._sort_transition_data_cols(transition_rule_data)
 
     def _get_survivor_transitions(self, project):
         if not project.survivor_transitions_path.exists():
@@ -311,7 +311,7 @@ class ProjectConverter:
             })
 
             transition_data = transition_data.merge(dist_type_map, on="disturbance_type")
-            transition_data.drop("disturbance_type")
+            transition_data.drop("disturbance_type", axis=1, inplace=True)
 
         transition_data[transition_data.loc[transition_data["age_after"] == -1]] = "?"
         transition_data.rename(columns={
@@ -325,7 +325,20 @@ class ProjectConverter:
                 f"{classifier}_match": f"classifiers.{classifier}_match"
             }, inplace=True)
 
-        return transition_data
+        return self._sort_transition_data_cols(transition_data)
+
+    def _sort_transition_data_cols(self, transition_data):
+        cols = transition_data.columns.tolist()
+        sorted_cols = sorted(cols, key=lambda item: (
+            0 if item == "id"
+            else 1 if item == "disturbance_type_id"
+            else 2 if item.endswith("_match")
+            else 3 if item == "state.age"
+            else 4 if item == "state.regeneration_delay"
+            else 5
+        ))
+
+        return transition_data[sorted_cols]
 
     def _build_input_database(self, project, output_path, aidb_path=None):
         aidb_path = aidb_path or self._find_aidb_path(project)
