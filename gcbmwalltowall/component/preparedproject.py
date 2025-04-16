@@ -97,18 +97,21 @@ class PreparedProject:
                     continue
                 
                 cohort_id = cohort.name
-                cohort_layers = [
-                    PreparedLayer(fn.stem.split("_moja")[0], str(fn.absolute()))
-                    for fn in cohort.glob("*.tiff")
-                ]
+                cohort_layers = []
 
                 cohort_rollback = self.rollback_layer_path.joinpath("cohorts", cohort_id)
                 if cohort_rollback.exists():
                     cohort_layers.extend([
                         PreparedLayer(fn.stem.split("_moja")[0], str(fn.absolute()))
                         for fn in cohort_rollback.glob("*.tiff")
-                        if fn.stem.split("_moja")[0] not in cohort_layers
                     ])
+
+                cohort_layer_names = [l.name for l in cohort_layers]
+                cohort_layers.extend([
+                    PreparedLayer(fn.stem.split("_moja")[0], str(fn.absolute()))
+                    for fn in cohort.glob("*.tiff")
+                    if fn.stem.split("_moja")[0] not in cohort_layer_names
+                ])
 
                 cohorts.append(cohort_layers)
 

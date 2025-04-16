@@ -31,7 +31,7 @@ class ProjectConverter:
         output_path.mkdir(parents=True, exist_ok=True)
         
         self._convert_yields(project, output_path)
-        cbm_defaults_path = self._build_input_database(project, output_path, aidb_path)
+        self._build_input_database(project, output_path, aidb_path)
         use_cohorts = self._cohorts_enabled(project)
 
         mortality_transitions_path = output_path.joinpath(
@@ -94,7 +94,7 @@ class ProjectConverter:
             self._disturbance_cohorts
             or project.survivor_transitions_path.exists()
             or project.survivor_soft_transitions_path.exists()
-            or project.cohorts
+            or len(project.cohorts) > 0
         )
 
         return use_cohorts

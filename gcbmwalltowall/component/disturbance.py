@@ -74,8 +74,12 @@ class Disturbance(Tileable):
 
         attribute_table = layer.attribute_table
 
-        transition_rule, transition_rule_attributes = self._make_transition_rule(attribute_table, self.transition)
-        survivor_transition_rule, survivor_transition_rule_attributes = self._make_transition_rule(attribute_table, self.survivor_transition)
+        transition_rule, transition_rule_attributes = self._make_transition_rule(
+            attribute_table, self.transition)
+
+        survivor_transition_rule, survivor_transition_rule_attributes = self._make_transition_rule(
+            attribute_table, self.survivor_transition)
+
         spatial_classifier_transition = {}
         spatial_classifier_transition.update(transition_rule_attributes or {})
         spatial_classifier_transition.update(survivor_transition_rule_attributes or {})
@@ -202,7 +206,7 @@ class Disturbance(Tileable):
 
     def _make_transition_rule(self, attribute_table, transition_config):
         if not transition_config:
-            return None
+            return None, None
 
         spatial_classifier_transition = None
         age_after = self._get_configured_or_default(
