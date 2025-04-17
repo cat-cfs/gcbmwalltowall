@@ -252,7 +252,7 @@ class ProjectConverter:
                 SELECT
                     tr.id,
                     tr.transition_id,
-                    dt.code AS disturbance_type_id,
+                    dt.code AS "parameters.disturbance_type_match",
                     'classifiers.' || c.name || '_match' AS classifier_name,
                     cv.value AS classifier_value
                 FROM transition_rule tr
@@ -266,7 +266,7 @@ class ProjectConverter:
                     ON cv.classifier_id = c.id
                 """, conn
             ).pivot(
-                index=["id", "transition_id", "disturbance_type_id"],
+                index=["id", "transition_id", "parameters.disturbance_type_match"],
                 columns="classifier_name"
             ).reset_index()
             self._flatten_pivot_columns(transition_rules)
@@ -316,7 +316,8 @@ class ProjectConverter:
         transition_data[transition_data.loc[transition_data["age_after"] == -1]] = "?"
         transition_data.rename(columns={
             "age_after": "state.age",
-            "regen_delay": "state.regeneration_delay"
+            "regen_delay": "state.regeneration_delay",
+            "disturbance_type_id": "parameters.disturbance_type_match"
         }, inplace=True)
 
         for classifier in project.classifiers:
@@ -331,11 +332,10 @@ class ProjectConverter:
         cols = transition_data.columns.tolist()
         sorted_cols = sorted(cols, key=lambda item: (
             0 if item == "id"
-            else 1 if item == "disturbance_type_id"
-            else 2 if item.endswith("_match")
-            else 3 if item == "state.age"
-            else 4 if item == "state.regeneration_delay"
-            else 5
+            else 1 if item.endswith("_match")
+            else 2 if item == "state.age"
+            else 3 if item == "state.regeneration_delay"
+            else 4
         ))
 
         return transition_data[sorted_cols]
