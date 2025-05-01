@@ -171,6 +171,7 @@ def preprocess(preprocess_arg: PreprocessModel, max_workers: int | None = None):
             if preprocess_arg.disturbance_order
             else DefaultDisturbanceTypeIdSorter()
         ),
+        max_workers=max_workers
     )
 
 
