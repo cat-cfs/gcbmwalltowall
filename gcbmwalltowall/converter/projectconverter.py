@@ -332,10 +332,11 @@ class ProjectConverter:
         cols = transition_data.columns.tolist()
         sorted_cols = sorted(cols, key=lambda item: (
             0 if item == "id"
-            else 1 if item.endswith("_match")
-            else 2 if item == "state.age"
-            else 3 if item == "state.regeneration_delay"
-            else 4
+            else 1 if "disturbance_type" in item
+            else 2 if item.endswith("_match")
+            else 3 if item == "state.age"
+            else 4 if item == "state.regeneration_delay"
+            else 5
         ))
 
         return transition_data[sorted_cols]
