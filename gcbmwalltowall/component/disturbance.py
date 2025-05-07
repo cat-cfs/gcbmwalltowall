@@ -315,7 +315,9 @@ class Disturbance(Tileable):
             return False
 
         try:
-            int(value)
+            val = int(value)
+            if not (val > 1000 and val < 2500):
+                return False
         except:
             return False
 
