@@ -187,7 +187,7 @@ class ProjectFactory:
                 mortality_transition = None
                 if dist_config.get("age_after") is not None:
                     mortality_transition = Transition(
-                        dist_config.get("age_after"), dist_config.get("regen_delay"),
+                        dist_config["age_after"], dist_config.get("regen_delay", 0),
                         {c.name: dist_config[c.name] for c in classifiers if c.name in dist_config})
 
                 survivor_transition = None
@@ -195,7 +195,7 @@ class ProjectFactory:
                 if survivor_transition_config:
                     survivor_transition = Transition(
                         survivor_transition_config.get("age_after"),
-                        survivor_transition_config.get("regen_delay"),
+                        survivor_transition_config.get("regen_delay", 0),
                         {
                             c.name: survivor_transition_config[c.name]
                             for c in classifiers if c.name in survivor_transition_config
