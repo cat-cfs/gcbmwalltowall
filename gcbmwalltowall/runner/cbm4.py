@@ -42,6 +42,7 @@ class PreprocessModel(BaseModel):
     start_year: int
     end_year: int
     disturbance_order: Optional[list[int]] = None
+    apply_departial_dms: bool = False
 
 
 class UserDisturbanceEventSorter(DisturbanceEventSorter):
@@ -92,7 +93,8 @@ def _preprocess(
     disturbance_timestep_interpreter: TimestepInterpreter,
     disturbance_event_sorter: DisturbanceEventSorter,
     default_inventory_values: dict[str, Any] | None = None,
-    max_workers: int | None = None
+    max_workers: int | None = None,
+    apply_departial_dms: bool = False
 ):
     if isinstance(cbm4_spatial_dataset, dict):
         cbm4_spatial_dataset = CBM4SpatialDatasetInfo.model_validate(cbm4_spatial_dataset)
@@ -118,7 +120,8 @@ def _preprocess(
         out_storage_path_or_uri=cbm4_spatial_dataset.inventory.path_or_uri,
         area_unit_conversion=0.0001,
         override_values=default_inventory_values,
-        max_workers=max_workers)
+        max_workers=max_workers,
+        apply_departial_dms=apply_departial_dms)
 
     time_profiling.append(["cbm4 preprocess_inventory", (time.time() - start)])
 
@@ -130,7 +133,9 @@ def _preprocess(
         out_storage_path_or_uri=cbm4_spatial_dataset.disturbance.path_or_uri,
         timestep_interpreter=disturbance_timestep_interpreter,
         disturbance_event_sorter=disturbance_event_sorter,
-        max_workers=max_workers)
+        override_values=default_inventory_values,
+        max_workers=max_workers,
+        apply_departial_dms=apply_departial_dms)
 
     time_profiling.append(["cbm4 preprocess_disturbance", (time.time() - start)])
 
@@ -171,7 +176,8 @@ def preprocess(preprocess_arg: PreprocessModel, max_workers: int | None = None):
             if preprocess_arg.disturbance_order
             else DefaultDisturbanceTypeIdSorter()
         ),
-        max_workers=max_workers
+        max_workers=max_workers,
+        apply_departial_dms=preprocess_arg.apply_departial_dms
     )
 
 
