@@ -114,7 +114,9 @@ def run(args: Namespace):
             cbm4_config_path = Path(args.project_path).joinpath("cbm4_config.json")
             if cbm4_config_path.exists():
                 from gcbmwalltowall.runner import cbm4
-                cbm4.run(cbm4_config_path, getattr(args, "max_workers", None))
+                cbm4.run(cbm4_config_path,
+                         max_workers=getattr(args, "max_workers", None),
+                         apply_departial_dms=getattr(args, "apply_departial_dms", False))
             else:
                 logging.info(f"Using {config.resolve(config.gcbm_exe)}")
                 subprocess.run([
@@ -215,6 +217,8 @@ def cli():
         "--batch_limit", help="batch limit for cluster runs")
     run_parser.add_argument(
         "--max_workers", type=int, help="max workers for CBM4 runs")
+    run_parser.add_argument(
+        "--apply_departial_dms", action="store_true", help="apply departial DMs (cohorts)")
 
     convert_parser = subparsers.add_parser(
         "convert", help=("Convert a walltowall-prepared GCBM project to CBM4."))
