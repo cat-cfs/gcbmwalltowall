@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import numpy as np
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from arrow_space.input.attribute_table_reader import InMemoryAttributeTableReader
@@ -8,7 +9,7 @@ from arrow_space.input.raster_input_layer import RasterInputLayer
 from arrow_space.input.raster_input_layer import RasterInputSource
 from mojadata.config import GDAL_CREATION_OPTIONS
 from mojadata.util import gdal
-from mojadata.util.gdal_calc import Calc
+from mojadata.util.gdalhelper import GDALHelper
 
 class LayerConverter:
     
@@ -116,20 +117,23 @@ class LandClassLayerConverter(LayerConverter):
         
         original_ndv = layer.tiler_metadata["nodata"]
         new_ndv = 32767
-
-        px_calcs = (
-            f"((A == {original_px}) * {gcbm_cbm4_landclass_lookup.get(gcbm_landclass, new_ndv)})"
+        px_remappings = {original_ndv: new_ndv}
+        px_remappings.update({
+            original_px: gcbm_cbm4_landclass_lookup.get(gcbm_landclass, new_ndv)
             for original_px, gcbm_landclass in layer.tiler_metadata["attributes"].items()
+        })
+
+        old_px, new_px = list(zip(*px_remappings.items()))
+        output_path = self._temp_dir.joinpath(f"{layer.name}.tif")
+        GDALHelper.calc(
+            str(layer.path), str(output_path),
+            lambda d: np.select(
+                np.array(old_px)[:, None, None].astype(np.int16) == d.astype(np.int16),
+                new_px
+            ),
+            data_type=gdal.GDT_Int16,
+            nodata_value=new_ndv
         )
-
-        calc = "+".join((
-            f"((A == {original_ndv}) * {new_ndv})",
-            *px_calcs
-        ))
-
-        output_path = Path(self._temp_dir.name).joinpath(f"{layer.name}.tif")
-        Calc(calc, str(output_path), new_ndv, quiet=True, creation_options=GDAL_CREATION_OPTIONS,
-             overwrite=True, hideNoData=False, type=gdal.GDT_Int16, A=layer.path)
         
         return [
             RasterInputLayer(
