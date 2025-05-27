@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import shutil
 import json
 import pandas as pd
@@ -359,8 +360,9 @@ class ProjectConverter:
     def _load_disturbance_order(self, project: PreparedProject) -> dict[str, int]:
         ordered_db_dist_types = self._load_disturbance_types(project)
         # ensure no duplicates in the user disturbance type order
-        unique_user_dist_types = set(project.disturbance_order)
-        if not len(unique_user_dist_types) == len(project.disturbance_order):
+        user_disturbance_order = project.disturbance_order
+        unique_user_dist_types = set(user_disturbance_order)
+        if not len(unique_user_dist_types) == len(user_disturbance_order):
             raise ValueError(f"duplicate values detected in user disturbance type order")
             
         # check that every disturbance type in the user order exists in the database
@@ -369,14 +371,17 @@ class ProjectConverter:
         )
             
         if unknown_disturbance_types:
-            raise ValueError(
-                "entries in user disturbance type order not found in database: "
+            logging.warn(
+                "entries in user disturbance type order not found in database - ignoring: "
                 f"{unknown_disturbance_types}"
             )
+
+            for unknown_disturbance_type in unknown_disturbance_types:
+                user_disturbance_order.remove(unknown_disturbance_type)
         
         output_order = [
             ordered_db_dist_types[dist_type]
-            for dist_type in project.disturbance_order
+            for dist_type in user_disturbance_order
         ] + [
             dist_code for dist_type, dist_code
             in ordered_db_dist_types.items()
