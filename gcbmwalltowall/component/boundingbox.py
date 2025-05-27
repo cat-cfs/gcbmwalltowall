@@ -11,4 +11,5 @@ class BoundingBox(Tileable):
 
     def to_tiler_layer(self, rule_manager: TransitionRuleManager, **kwargs: Any) -> Any:
         return TilerBoundingBox(self.layer.to_tiler_layer(rule_manager, **kwargs),
-                                epsg=self.epsg, pixel_size=self.resolution)
+                                epsg=self.epsg, pixel_size=self.resolution,
+                                shrink_to_data=self.layer.is_raster)
