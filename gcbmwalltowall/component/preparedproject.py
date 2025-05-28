@@ -140,6 +140,11 @@ class PreparedProject:
         return config["Variables"]["initial_classifier_set"]["transform"]["vars"]
 
     @property
+    def use_smoother(self):
+        config = json.load(open(self.gcbm_config_path.joinpath("modules_cbm.json"), "rb"))
+        return config["Modules"]["CBMGrowthModule"].get("settings", {}).get("smoother_enabled", True)
+
+    @property
     def survivor_transitions_path(self):
         if self.has_rollback:
             return self.input_db_path.parent.joinpath("gcbmwalltowall_survivor_rollback_transitions.csv")

@@ -54,6 +54,7 @@ def load_config(
         "simulation_dataset": json_config["cbm4_spatial_dataset"]["simulation"],
         "max_workers": max_workers,
         "cbm_defaults_locale": json_config.get("cbm_defaults_locale", "en-CA"),
+        "use_smoother": json_config.get("use_smoother", True),
     }
 
     final_timestep = json_config["end_year"] - json_config["start_year"] + 1
@@ -71,6 +72,7 @@ def load_config(
                 "disturbance_output_reporting_cols"
             ),
             "max_workers": max_workers,
+            "use_smoother": json_config.get("use_smoother", True),
         }
         for timestep in range(1, final_timestep + 1)
     ]
