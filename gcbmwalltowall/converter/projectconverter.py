@@ -446,8 +446,9 @@ class ProjectConverter:
             "default_inventory_values": default_inventory_values,
             "start_year": project.start_year,
             "end_year": project.end_year,
+            "apply_departial_dms": self._disturbance_cohorts,
+            "use_smoother": project.use_smoother,
             "disturbance_order": self._load_disturbance_order(project),
-            "apply_departial_dms": self._disturbance_cohorts
         }
 
         json.dump(config, open(output_path.joinpath("cbm4_config.json"), "w"), indent=4)
