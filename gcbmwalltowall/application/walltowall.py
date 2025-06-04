@@ -24,7 +24,7 @@ def convert(args: Namespace):
     # Guard against importing CBM4 dependencies until needed.
     from gcbmwalltowall.converter.projectconverter import ProjectConverter
 
-    creation_options = args.creation_options
+    creation_options = args.creation_options or {}
     chunk_size = getattr(args, "chunk_size", None)
     if chunk_size:
         creation_options.update({
@@ -222,7 +222,7 @@ def cli():
 
     convert_parser = subparsers.add_parser(
         "convert", help=("Convert a walltowall-prepared GCBM project to CBM4."))
-    convert_parser.set_defaults(func=convert, creation_options={}, merge_disturbance_matrices=False)
+    convert_parser.set_defaults(func=convert, creation_options={})
     convert_parser.add_argument(
         "project_path", help="root directory of a walltowall-prepared GCBM project")
     convert_parser.add_argument(

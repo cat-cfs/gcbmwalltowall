@@ -18,12 +18,14 @@ class ProjectConverter:
     
     def __init__(self, creation_options=None, disturbance_cohorts=False):
         self._disturbance_cohorts = disturbance_cohorts
-        self._creation_options = creation_options or {
+        self._creation_options = {
             "chunk_options": {
                 "chunk_x_size_max": 2500,
                 "chunk_y_size_max": 2500,
             }
         }
+
+        self._creation_options.update(creation_options or {})
 
     def convert(self, project, output_path, aidb_path=None):
         output_path = Path(output_path)

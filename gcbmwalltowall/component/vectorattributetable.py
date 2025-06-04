@@ -134,6 +134,13 @@ class VectorAttributeTable(AttributeTable):
         
         return attribute, unique_values
 
+    def _get_attribute_names(self, table: str) -> tuple[str, list[Any]]:
+        ds = ogr.Open(str(self.layer_path))
+        layer = ds.GetLayer(table)
+        attributes = [field.GetName() for field in layer.schema]
+        
+        return attributes
+
     def _extract_attribute_table(self, attributes: list[str]) -> dict[str, list[Any]]:
         try:
             ogr.UseExceptions()
@@ -147,6 +154,17 @@ class VectorAttributeTable(AttributeTable):
             
         ds_table = lyr.GetName()
         logging.info(f"  reading attribute table: {self.layer_path.stem} [{ds_table}]")
+
+        layer_attributes = self._get_attribute_names(ds_table)
+        missing_attributes = set(attributes).difference(set(layer_attributes))
+        if missing_attributes:
+            error = (
+                f"Configuration specified attributes in {self.layer_path} that "
+                f"do not exist: {', '.join(missing_attributes)}"
+            )
+            
+            logging.fatal(error)
+            raise RuntimeError(error)
 
         attribute_table = {}
         tasks = []
