@@ -27,7 +27,7 @@ class ProjectConverter:
 
         self._creation_options.update(creation_options or {})
 
-    def convert(self, project, output_path, aidb_path=None):
+    def convert(self, project, output_path, aidb_path=None, spinup_disturbance_type=None):
         output_path = Path(output_path)
         aidb_path = Path(aidb_path) if aidb_path else None
         shutil.rmtree(output_path, ignore_errors=True)
@@ -78,7 +78,7 @@ class ProjectConverter:
         layer_converter = DelegatingLayerConverter(subconverters)
 
         self._convert_spatial_data(layer_converter, project, output_path)
-        self._create_cbm4_config(project, output_path)
+        self._create_cbm4_config(project, output_path, spinup_disturbance_type)
 
     @contextmanager
     def _input_db_connection(self, project):
@@ -409,7 +409,7 @@ class ProjectConverter:
             for _, row in dist_types.iterrows()
         }
 
-    def _create_cbm4_config(self, project, output_path):
+    def _create_cbm4_config(self, project, output_path, spinup_disturbance_type=None):
         default_inventory_values = {}
 
         cset_config_file = GCBMConfigurer.find_config_file(
@@ -431,6 +431,10 @@ class ProjectConverter:
                 continue
 
             default_inventory_values[classifier] = classifier_value
+
+        if spinup_disturbance_type:
+            default_inventory_values["historic_disturbance_type"] = spinup_disturbance_type
+            default_inventory_values["last_pass_disturbance_type"] = spinup_disturbance_type
 
         if not GCBMConfigurer.find_config_file(project.gcbm_config_path, "Variables", "inventory_delay"):
             default_inventory_values["delay"] = 0

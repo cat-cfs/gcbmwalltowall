@@ -37,7 +37,7 @@ def convert(args: Namespace):
     project = PreparedProject(args.project_path)
     logging.info(f"Converting {project.path} to CBM4")
     converter = ProjectConverter(creation_options, args.disturbance_cohorts)
-    converter.convert(project, args.output_path, args.aidb_path)
+    converter.convert(project, args.output_path, args.aidb_path, args.spinup_disturbance_type)
     
 def build(args: Namespace):
     logging.info(f"Building {args.config_path}")
@@ -234,6 +234,8 @@ def cli():
         help="use disturbance cohorts")
     convert_parser.add_argument(
         "--chunk_size", help="maximum CBM4 chunk size")
+    convert_parser.add_argument(
+        "--spinup_disturbance_type", help="override default spinup disturbance type")
 
     args = parser.parse_args()
 
