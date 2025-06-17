@@ -113,7 +113,11 @@ def run(args: Namespace):
         if args.host == "local":
             cbm4_config_path = Path(args.project_path).joinpath("cbm4_config.json")
             if cbm4_config_path.exists():
-                from gcbmwalltowall.runner import cbm4
+                if args.deprecated:
+                    from gcbmwalltowall.runner import cbm4
+                else:
+                    from gcbmwalltowall.runner import cbmspec as cbm4
+
                 cbm4.run(cbm4_config_path,
                          max_workers=getattr(args, "max_workers", None),
                          apply_departial_dms=getattr(args, "apply_departial_dms", False))
@@ -214,11 +218,13 @@ def cli():
     run_parser.add_argument(
         "--compile_results_config", help="path to custom compile results config file")
     run_parser.add_argument(
-        "--batch_limit", help="batch limit for cluster runs")
+        "--batch_limit", help="[cluster only] batch limit for cluster runs")
     run_parser.add_argument(
-        "--max_workers", type=int, help="max workers for CBM4 runs")
+        "--max_workers", type=int, help="[cbm4 only] max workers for CBM4 runs")
     run_parser.add_argument(
-        "--apply_departial_dms", action="store_true", help="apply departial DMs (cohorts)")
+        "--apply_departial_dms", action="store_true", help="[cbm4 only] apply departial DMs (cohorts)")
+    run_parser.add_argument(
+        "--deprecated", action="store_true", help="[cbm4 only] use old spatial runner")
 
     convert_parser = subparsers.add_parser(
         "convert", help=("Convert a walltowall-prepared GCBM project to CBM4."))

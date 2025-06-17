@@ -5,7 +5,6 @@ import time
 import shutil
 import pandas as pd
 from pathlib import Path
-from cbm4.app.spatial.spatial_cbm3 import cbm3_spatial_runner
 from cbm4.app.spatial.gcbm_input.gcbm_preprocessor_app import preprocess
 from cbm4.app.spatial.spatial_cbm3.spatial_cbm3_app import create_simulation_dataset
 from cbm4.app.spatial.spatial_cbm3.spatial_cbm3_app import spinup_all
