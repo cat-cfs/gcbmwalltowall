@@ -113,10 +113,12 @@ def run(args: Namespace):
         if args.host == "local":
             cbm4_config_path = Path(args.project_path).joinpath("cbm4_config.json")
             if cbm4_config_path.exists():
-                if args.deprecated:
+                if args.engine == "libcbm":
                     from gcbmwalltowall.runner import cbm4
-                else:
+                elif args.engine == "cbmspec":
                     from gcbmwalltowall.runner import cbmspec as cbm4
+                else:
+                    raise RuntimeError(f"Unrecognized CBM4 engine: {args.engine}")
 
                 cbm4.run(cbm4_config_path,
                          max_workers=getattr(args, "max_workers", None),
@@ -224,7 +226,7 @@ def cli():
     run_parser.add_argument(
         "--apply_departial_dms", action="store_true", help="[cbm4 only] apply departial DMs (cohorts)")
     run_parser.add_argument(
-        "--deprecated", action="store_true", help="[cbm4 only] use old spatial runner")
+        "--engine", help="[cbm4 only] (libcbm/cbmspec) specify the CBM4 engine to use; default: libcbm", default="libcbm")
 
     convert_parser = subparsers.add_parser(
         "convert", help=("Convert a walltowall-prepared GCBM project to CBM4."))
