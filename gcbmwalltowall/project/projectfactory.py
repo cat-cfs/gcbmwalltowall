@@ -71,24 +71,7 @@ class ProjectFactory:
             or config.get("layers", {}).get("initial_age")
             or next(iter(config.get("layers", {}).values())))
 
-        if isinstance(bounding_box_config, str):
-            bbox_path = config.resolve(bounding_box_config)
-            bounding_box_layer = Layer(
-                "bounding_box", bbox_path,
-                lookup_table=config.find_lookup_table(bbox_path))
-        else:
-            bbox_path = config.resolve(require_not_null(bounding_box_config.get("layer")))
-            bounding_box_lookup_table = (
-                bounding_box_config.get("lookup_table")
-                or config.find_lookup_table(bbox_path))
-
-            attribute, attribute_filter = self._extract_attribute(bounding_box_config)
-
-            bounding_box_layer = Layer(
-                "bounding_box", bbox_path, attribute,
-                config.resolve(bounding_box_lookup_table) if bounding_box_lookup_table else None,
-                attribute_filter)
-
+        bounding_box_layer = self._create_layer(config, "bounding_box", bounding_box_config)
         resolution = config.get("resolution")
         epsg = config.get("epsg")
         bounding_box = BoundingBox(bounding_box_layer, epsg, resolution)

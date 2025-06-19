@@ -159,8 +159,8 @@ class VectorAttributeTable(AttributeTable):
         missing_attributes = set(attributes).difference(set(layer_attributes))
         if missing_attributes:
             error = (
-                f"Configuration specified attributes in {self.layer_path} that "
-                f"do not exist: {', '.join(missing_attributes)}"
+                f"Configuration specified attributes in {self.layer_path} ({self.layer or ''})"
+                f" that do not exist: {', '.join(missing_attributes)}"
             )
             
             logging.fatal(error)
