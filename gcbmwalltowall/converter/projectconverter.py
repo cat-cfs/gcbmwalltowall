@@ -132,7 +132,11 @@ class ProjectConverter:
         base_arrowspace_collection = InputLayerCollection(base_arrowspace_layers)
 
         creation_options = self._creation_options.copy()
-        mask_layers = ["age"]
+        mask_layers = ["age"] + [
+            mask for mask in project.masks
+            if mask in base_arrowspace_collection.layer_names
+        ]
+
         for optional_mask_layer in ["admin_boundary", "eco_boundary"]:
             if optional_mask_layer in base_arrowspace_collection.layer_names:
                 mask_layers.append(optional_mask_layer)

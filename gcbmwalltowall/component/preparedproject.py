@@ -155,6 +155,11 @@ class PreparedProject:
     def survivor_soft_transitions_path(self):
         return self.input_db_path.parent.joinpath("gcbmwalltowall_survivor_transition_rules.csv")
 
+    @property
+    def masks(self):
+        config = json.load(open(self.gcbm_config_path.joinpath("modules_cbm.json"), "rb"))
+        return config["Modules"]["CBMBuildLandUnitModule"].get("settings", {}).get("mask_vars", [])
+
     @contextmanager
     def temporary_new_end_year(self, end_year=None):
         if end_year is None:
