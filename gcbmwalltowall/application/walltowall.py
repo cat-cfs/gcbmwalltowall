@@ -156,7 +156,10 @@ def run(args: Namespace):
             subprocess.run(run_args, cwd=project.path)
 
 def cli():
-    mp.set_start_method("spawn")
+    try:
+        mp.set_start_method("spawn")
+    except:
+        pass
 
     parser = ArgumentParser(description="Manage GCBM wall-to-wall projects")
     parser.set_defaults(func=lambda _: parser.print_help())
