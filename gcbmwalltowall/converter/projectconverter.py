@@ -3,6 +3,7 @@ import logging
 import shutil
 import json
 import pandas as pd
+from tempfile import TemporaryDirectory
 from contextlib import contextmanager
 from sqlalchemy import create_engine
 from pathlib import Path
@@ -13,6 +14,7 @@ from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.converter.layerconverter import DelegatingLayerConverter
 from gcbmwalltowall.converter.layerconverter import DefaultLayerConverter
 from gcbmwalltowall.converter.layerconverter import LandClassLayerConverter
+from cbm4.app.spatial.gcbm_input.gcbm_preprocessor_app import preprocess
 
 class ProjectConverter:
     
@@ -27,58 +29,91 @@ class ProjectConverter:
 
         self._creation_options.update(creation_options or {})
 
-    def convert(self, project, output_path, aidb_path=None, spinup_disturbance_type=None):
-        output_path = Path(output_path)
-        aidb_path = Path(aidb_path) if aidb_path else None
-        shutil.rmtree(output_path, ignore_errors=True)
-        output_path.mkdir(parents=True, exist_ok=True)
+    def convert(
+        self, project, output_path, aidb_path=None, spinup_disturbance_type=None,
+        apply_departial_dms=False
+    ):
+        with TemporaryDirectory() as temp_path:
+            temp_dir = Path(temp_path)
+            output_path = Path(output_path)
+            aidb_path = Path(aidb_path) if aidb_path else None
+            shutil.rmtree(output_path, ignore_errors=True)
+            output_path.mkdir(parents=True, exist_ok=True)
         
-        self._convert_yields(project, output_path)
-        self._build_input_database(project, output_path, aidb_path)
-        use_cohorts = self._cohorts_enabled(project)
+            self._convert_yields(project, temp_dir)
+            self._build_input_database(project, temp_dir, aidb_path)
+            use_cohorts = self._cohorts_enabled(project)
 
-        mortality_transitions_path = output_path.joinpath(
-            "transitions.csv" if not use_cohorts
-            else "transition_mortality.csv"
-        )
+            mortality_transitions_path = temp_dir.joinpath(
+                "transitions.csv" if not use_cohorts
+                else "transition_mortality.csv"
+            )
 
-        mortality_transition_rules_path = output_path.joinpath(
-            "transition_rules.csv" if not use_cohorts
-            else "transition_rules_mortality.csv"
-        )
+            mortality_transition_rules_path = temp_dir.joinpath(
+                "transition_rules.csv" if not use_cohorts
+                else "transition_rules_mortality.csv"
+            )
 
-        transitions = self._get_transitions(project)
-        if not transitions.empty:
-            transitions.to_csv(mortality_transitions_path, index=False)
+            transitions = self._get_transitions(project)
+            if not transitions.empty:
+                transitions.to_csv(mortality_transitions_path, index=False)
 
-        transition_rules = self._get_transition_rules(project)
-        if not transition_rules.empty:
-            transition_rules.to_csv(mortality_transition_rules_path, index=False)
+            transition_rules = self._get_transition_rules(project)
+            if not transition_rules.empty:
+                transition_rules.to_csv(mortality_transition_rules_path, index=False)
 
-        if use_cohorts:
-            survivor_transitions = self._get_survivor_transitions(project)
-            if not survivor_transitions.empty:
-                survivor_transitions.to_csv(
-                    output_path.joinpath("transition_survivor.csv"), index=False)
+            if use_cohorts:
+                survivor_transitions = self._get_survivor_transitions(project)
+                if not survivor_transitions.empty:
+                    survivor_transitions.to_csv(
+                        temp_dir.joinpath("transition_survivor.csv"), index=False)
 
-            survivor_transition_rules = self._get_survivor_transition_rules(project)
-            if not survivor_transition_rules.empty:
-                survivor_transition_rules.to_csv(
-                    output_path.joinpath("transition_rules_survivor.csv"), index=False)
+                survivor_transition_rules = self._get_survivor_transition_rules(project)
+                if not survivor_transition_rules.empty:
+                    survivor_transition_rules.to_csv(
+                        temp_dir.joinpath("transition_rules_survivor.csv"), index=False)
 
-        subconverters = [
-            LandClassLayerConverter(),
-            DefaultLayerConverter({
-                "initial_age": "age",
-                "mean_annual_temperature": "mean_annual_temp",
-                "inventory_delay": "delay"
-            })
-        ]
+            subconverters = [
+                LandClassLayerConverter(),
+                DefaultLayerConverter({
+                    "initial_age": "age",
+                    "mean_annual_temperature": "mean_annual_temp",
+                    "inventory_delay": "delay"
+                })
+            ]
         
-        layer_converter = DelegatingLayerConverter(subconverters)
+            cbm4_config = self._create_cbm4_config(project, output_path, spinup_disturbance_type)
+            layer_converter = DelegatingLayerConverter(subconverters)
+            self._convert_spatial_data(layer_converter, project, temp_dir)
+            preprocess_config = {
+                "data_dir": str(temp_dir),
+                "inventory_dataset": {
+                    "dataset_name": "inventory",
+                    "storage_type": "local_storage",
+                    "path_or_uri": str(output_path.joinpath("inventory")),
+                },
+                "disturbance_dataset": {
+                    "dataset_name": "disturbance",
+                    "storage_type": "local_storage",
+                    "path_or_uri": str(output_path.joinpath("disturbance")),
+                },
+                "timestep_interpreter": {
+                    "type": "year_offset",
+                    "year_offset": cbm4_config["start_year"] - 1,
+                },
+                "disturbance_event_sorter": {
+                    "type": "list",
+                    "sort_order": cbm4_config["disturbance_order"],
+                },
+                "area_unit_conversion": 0.0001,  # ha/m^2
+                "cbm_defaults_locale": cbm4_config.get("cbm_defaults_locale", "en-CA"),
+                "inventory_override_values": cbm4_config.get("default_inventory_values"),
+                "max_workers": self._creation_options.get("max_workers"),
+                "apply_departial_dms": apply_departial_dms,
+            }
 
-        self._convert_spatial_data(layer_converter, project, output_path)
-        self._create_cbm4_config(project, output_path, spinup_disturbance_type)
+            preprocess(preprocess_config)
+
 
     @contextmanager
     def _input_db_connection(self, project):
@@ -128,6 +163,7 @@ class ProjectConverter:
         raise IOError("Failed to locate AIDB.")
 
     def _convert_spatial_data(self, layer_converter, project, output_path):
+        output_path = Path(output_path)
         base_arrowspace_layers = layer_converter.convert(project.layers)
         base_arrowspace_collection = InputLayerCollection(base_arrowspace_layers)
 
@@ -462,3 +498,5 @@ class ProjectConverter:
         }
 
         json.dump(config, open(output_path.joinpath("cbm4_config.json"), "w"), indent=4)
+
+        return config

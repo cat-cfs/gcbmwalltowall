@@ -25,6 +25,7 @@ def convert(args: Namespace):
     from gcbmwalltowall.converter.projectconverter import ProjectConverter
 
     creation_options = args.creation_options or {}
+    creation_options["max_workers"] = getattr(args, "max_workers", None)
     chunk_size = getattr(args, "chunk_size", None)
     if chunk_size:
         creation_options.update({
@@ -33,11 +34,14 @@ def convert(args: Namespace):
                 "chunk_y_size_max": chunk_size,
             }
         })
-
+    
     project = PreparedProject(args.project_path)
     logging.info(f"Converting {project.path} to CBM4")
     converter = ProjectConverter(creation_options, args.disturbance_cohorts)
-    converter.convert(project, args.output_path, args.aidb_path, args.spinup_disturbance_type)
+    converter.convert(
+        project, args.output_path, args.aidb_path, args.spinup_disturbance_type,
+        args.apply_departial_dms
+    )
     
 def build(args: Namespace):
     logging.info(f"Building {args.config_path}")
@@ -227,8 +231,6 @@ def cli():
     run_parser.add_argument(
         "--max_workers", type=int, help="[cbm4 only] max workers for CBM4 runs")
     run_parser.add_argument(
-        "--apply_departial_dms", action="store_true", help="[cbm4 only] apply departial DMs (cohorts)")
-    run_parser.add_argument(
         "--engine", help="[cbm4 only] (libcbm/cbmspec) specify the CBM4 engine to use; default: libcbm", default="libcbm")
 
     convert_parser = subparsers.add_parser(
@@ -247,6 +249,10 @@ def cli():
         "--chunk_size", help="maximum CBM4 chunk size")
     convert_parser.add_argument(
         "--spinup_disturbance_type", help="override default spinup disturbance type")
+    convert_parser.add_argument(
+        "--apply_departial_dms", action="store_true", help="apply departial DMs (cohorts)")
+    convert_parser.add_argument(
+        "--max_workers", type=int, help="max workers for CBM4 conversion")
 
     args = parser.parse_args()
 
