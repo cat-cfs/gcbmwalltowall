@@ -135,29 +135,40 @@ def run(args: Namespace):
                     "--config_provider", "provider_config.json"
                 ], cwd=project.gcbm_config_path)
         elif args.host == "cluster":
-            logging.info(f"Using {config.resolve(config.distributed_client)}")
-            project_name = config.get("project_name", project.path.stem)
+            cbm4_config_path = Path(args.project_path).joinpath("cbm4_config.json")
+            if cbm4_config_path.exists():
+                logging.info(f"Using {config.resolve(config.cbm4_distributed_client)}")
+                project_name = config.get("project_name", project.path.parent.stem)
+                run_args = [
+                    sys.executable, str(config.resolve(config.cbm4_distributed_client)),
+                    datetime.now().strftime(f"cbm4_{getattr(args, 'title', project_name)}_%Y%m%d_%H%M%S"),
+                    args.project_path
+                ]
             
-            run_args = [
-                sys.executable, str(config.resolve(config.distributed_client)),
-                "--title", datetime.now().strftime(f"gcbm_{getattr(args, 'title', project_name)}_%Y%m%d_%H%M%S"),
-                "--gcbm-config", str(project.gcbm_config_path.joinpath("gcbm_config.cfg")),
-                "--provider-config", str(project.gcbm_config_path.joinpath("provider_config.json")),
-                "--study-area", str(
-                    (project.rollback_layer_path or project.tiled_layer_path)
-                    .joinpath("study_area.json")),
-                "--no-wait"
-            ]
+                subprocess.run(run_args, cwd=project.path)
+            else:
+                logging.info(f"Using {config.resolve(config.distributed_client)}")
+                project_name = config.get("project_name", project.path.stem)
+                run_args = [
+                    sys.executable, str(config.resolve(config.distributed_client)),
+                    "--title", datetime.now().strftime(f"gcbm_{getattr(args, 'title', project_name)}_%Y%m%d_%H%M%S"),
+                    "--gcbm-config", str(project.gcbm_config_path.joinpath("gcbm_config.cfg")),
+                    "--provider-config", str(project.gcbm_config_path.joinpath("provider_config.json")),
+                    "--study-area", str(
+                        (project.rollback_layer_path or project.tiled_layer_path)
+                        .joinpath("study_area.json")),
+                    "--no-wait"
+                ]
             
-            compile_results_config = getattr(args, "compile_results_config", None)
-            if compile_results_config:
-                run_args.extend(["--compile-results-config", Path(compile_results_config).absolute()])
+                compile_results_config = getattr(args, "compile_results_config", None)
+                if compile_results_config:
+                    run_args.extend(["--compile-results-config", Path(compile_results_config).absolute()])
 
-            batch_limit = getattr(args, "batch_limit", None)
-            if batch_limit:
-                run_args.extend(["--batch-limit", batch_limit])
+                batch_limit = getattr(args, "batch_limit", None)
+                if batch_limit:
+                    run_args.extend(["--batch-limit", batch_limit])
 
-            subprocess.run(run_args, cwd=project.path)
+                subprocess.run(run_args, cwd=project.path)
 
 def cli():
     try:

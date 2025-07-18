@@ -1,4 +1,3 @@
-import csv
 import json
 import site
 import sys
@@ -24,6 +23,10 @@ class Configuration(dict):
     @property
     def distributed_client(self):
         return self._find_file("distributed_client", "gcbm_client.py")
+
+    @property
+    def cbm4_distributed_client(self):
+        return self._find_file("cbm4_distributed_client", "cbm4_client.py")
 
     @property
     def gcbm_disturbance_order(self):
