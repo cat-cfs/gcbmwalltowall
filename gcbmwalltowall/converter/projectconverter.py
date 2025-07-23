@@ -31,7 +31,7 @@ class ProjectConverter:
 
     def convert(
         self, project, output_path, aidb_path=None, spinup_disturbance_type=None,
-        apply_departial_dms=False
+        apply_departial_dms=False, preserve_temp_files=False
     ):
         with TemporaryDirectory() as temp_path:
             temp_dir = Path(temp_path)
@@ -113,7 +113,8 @@ class ProjectConverter:
             }
 
             preprocess(preprocess_config)
-
+            if preserve_temp_files:
+                shutil.copytree(temp_dir, output_path.joinpath("temp"))
 
     @contextmanager
     def _input_db_connection(self, project):

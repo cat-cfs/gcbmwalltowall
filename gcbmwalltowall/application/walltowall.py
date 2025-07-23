@@ -40,7 +40,7 @@ def convert(args: Namespace):
     converter = ProjectConverter(creation_options, args.disturbance_cohorts)
     converter.convert(
         project, args.output_path, args.aidb_path, args.spinup_disturbance_type,
-        args.apply_departial_dms
+        args.apply_departial_dms, args.preserve_temp_files
     )
     
 def build(args: Namespace):
@@ -253,6 +253,8 @@ def cli():
         "--apply_departial_dms", action="store_true", help="apply departial DMs (cohorts)")
     convert_parser.add_argument(
         "--max_workers", type=int, help="max workers for CBM4 conversion")
+    convert_parser.add_argument(
+        "--preserve_temp_files", action="store_true", help="preserve temporary files generated during conversion")
 
     args = parser.parse_args()
 
