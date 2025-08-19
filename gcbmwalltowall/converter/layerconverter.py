@@ -52,6 +52,18 @@ class DefaultLayerConverter(LayerConverter):
     def __init__(self, name_remappings: dict[str, str] = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._name_remappings = name_remappings or {}
+        self._non_parameter_layers = [
+            "admin_boundary",
+            "eco_boundary",
+            "cohort_proportion",
+            "age",
+            "delay",
+            "land_class",
+            "afforestation_pre_type",
+            "historic_disturbance_type",
+            "last_pass_disturbance_type",
+            "mean_annual_temp",
+        ]
     
     def handles(self, layer: PreparedLayer) -> bool:
         _handles = layer.name not in {"initial_current_land_class"}
@@ -68,7 +80,7 @@ class DefaultLayerConverter(LayerConverter):
                 self._name_remappings.get(layer.name, layer.name),
                 [RasterInputSource(path=str(layer.path))],
                 self._build_attribute_table(layer),
-                layer.study_area_metadata.get("tags")
+                self._get_tags(layer),
             ) for layer in layers
         ]
 
@@ -88,6 +100,14 @@ class DefaultLayerConverter(LayerConverter):
             rows.append(row)
 
         return InMemoryAttributeTableReader(DataFrame(rows))
+
+    def _get_tags(self, layer: PreparedLayer) -> list[str]:
+        layer_name = self._name_remappings.get(layer.name, layer.name)
+        has_tags = len(layer.study_area_metadata.get("tags", [])) > 0
+        if has_tags or layer_name in self._non_parameter_layers:
+            return layer.study_area_metadata.get("tags")
+
+        return ["parameter"]
 
 
 class LandClassLayerConverter(LayerConverter):
