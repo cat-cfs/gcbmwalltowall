@@ -1,15 +1,17 @@
 from __future__ import annotations
+
 import logging
-import numpy as np
-from gcbmwalltowall.util.path import Path
 from tempfile import TemporaryDirectory
+
+import numpy as np
 from arrow_space.input.attribute_table_reader import InMemoryAttributeTableReader
-from pandas import DataFrame
-from arrow_space.input.raster_input_layer import RasterInputLayer
-from arrow_space.input.raster_input_layer import RasterInputSource
+from arrow_space.input.raster_input_layer import RasterInputLayer, RasterInputSource
 from mojadata.config import GDAL_CREATION_OPTIONS
 from mojadata.util import gdal
 from mojadata.util.gdalhelper import GDALHelper
+from pandas import DataFrame
+
+from gcbmwalltowall.util.path import Path
 
 
 class LayerConverter:
