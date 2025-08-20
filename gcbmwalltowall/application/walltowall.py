@@ -12,7 +12,6 @@ from logging import FileHandler, StreamHandler
 from tempfile import TemporaryDirectory
 from typing import Any
 
-from cbmspec_cbm3.models import cbmspec_cbm3_single_matrix
 from psutil import virtual_memory
 from spatial_inventory_rollback.gcbm.merge import gcbm_merge, gcbm_merge_tile
 from spatial_inventory_rollback.gcbm.merge.gcbm_merge_input_db import (
@@ -294,10 +293,7 @@ def run(args: RunArgs | dict):
         if args.host == "local":
             cbm4_config_path = Path(args.project_path).joinpath("cbm4_config.json")
             if cbm4_config_path.exists():
-                config: dict[str, Any] = dict(
-                    max_workers=args.max_workers,
-                    apply_departial_dms=args.apply_departial_dms,
-                )
+                extra_kwargs: dict[str, Any] = dict()
 
                 match args.engine:
                     case "libcbm":
@@ -308,7 +304,7 @@ def run(args: RunArgs | dict):
                         from gcbmwalltowall.runner import canfire as cbm4
 
                         model = cbm4.get_single_matrix_cbmspec(cbm4_config_path)
-                        config["wrapped_cbmspec_model"] = model
+                        extra_kwargs["wrapped_cbmspec_model"] = model
 
                     case _:
                         raise RuntimeError(f"Unrecognized CBM4 engine: {args.engine}")
@@ -318,7 +314,7 @@ def run(args: RunArgs | dict):
                     max_workers=args.max_workers,
                     apply_departial_dms=args.apply_departial_dms,
                     write_parameters=args.write_parameters,
-                    **config,
+                    **extra_kwargs,
                 )
             else:
                 logging.info(f"Using {config.resolve(config.gcbm_exe)}")
