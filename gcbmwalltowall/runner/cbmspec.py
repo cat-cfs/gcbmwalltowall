@@ -23,7 +23,7 @@ def load_config(cbm4_config_path: str | Path, **kwargs) -> dict[str, Any]:
     return json_config
 
 
-def run(cbm4_config_path: str | Path, max_workers: int = None, **kwargs):
+def run(cbm4_config_path: str | Path, max_workers: int = None, write_parameters: bool = False, **kwargs):
     json_config = load_config(cbm4_config_path, **kwargs)
     shutil.rmtree(json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"], True)
 
@@ -71,7 +71,7 @@ def run(cbm4_config_path: str | Path, max_workers: int = None, **kwargs):
             "spinup_parameters",
             "local_storage",
             str(out_path.joinpath("spinup_parameters")),
-            use_smoother=json_config.get("use_smoother", True)
+            enable_cbm_cfs3_smoother=json_config.get("use_smoother", True)
         )
     )
 
@@ -81,7 +81,7 @@ def run(cbm4_config_path: str | Path, max_workers: int = None, **kwargs):
             "step_parameters",
             "local_storage",
             str(out_path.joinpath("step_parameters")),
-            use_smoother=json_config.get("use_smoother", True)
+            enable_cbm_cfs3_smoother=json_config.get("use_smoother", True)
         )
     )
 
@@ -92,6 +92,7 @@ def run(cbm4_config_path: str | Path, max_workers: int = None, **kwargs):
         simulation_dataset=simulation_ds,
         parameter_dataset=spinup_spatial_parameter_ds,
         max_workers=max_workers,
+        write_parameters=write_parameters,
     )
     step_times.append(["spinup", (time.time() - start)])
 
@@ -107,6 +108,7 @@ def run(cbm4_config_path: str | Path, max_workers: int = None, **kwargs):
             parameter_dataset=step_spatial_parameter_ds,
             area_unit_conversion=0.0001,
             max_workers=max_workers,
+            write_parameters=write_parameters,
         ) 
         step_times.append(
             [f"timestep_{timestep}", (time.time() - start)]
