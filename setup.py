@@ -11,7 +11,7 @@ setup(
     ],
     packages=find_packages(exclude=["contrib", "docs", "tests"]),
     install_requires=[
-        "mojadata>=4.0.3", "sqlalchemy", "sqlalchemy-access", "pandas", "openpyxl", "spatial_inventory_rollback>=1.1.0"
+        "mojadata", "sqlalchemy", "sqlalchemy-access", "pandas", "openpyxl", "spatial_inventory_rollback"
     ],
     extras_require={},
     package_data={},
