@@ -12,9 +12,8 @@ setup(
     packages=find_packages(exclude=["contrib", "docs", "tests"]),
     install_requires=[
         "mojadata", "sqlalchemy", "pandas", "openpyxl", "spatial_inventory_rollback",
-        'sqlalchemy-access; platform_system == "Windows"'
     ],
-    extras_require={},
+    extras_require={"access": ["sqlalchemy-access"]},
     package_data={},
     data_files=[
         ("Tools/gcbmwalltowall",                   ["files/settings.json"]),
