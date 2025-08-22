@@ -11,7 +11,8 @@ setup(
     ],
     packages=find_packages(exclude=["contrib", "docs", "tests"]),
     install_requires=[
-        "mojadata", "sqlalchemy", "sqlalchemy-access", "pandas", "openpyxl", "spatial_inventory_rollback"
+        "mojadata", "sqlalchemy", "pandas", "openpyxl", "spatial_inventory_rollback",
+        'sqlalchemy-access; sys.platform == "win32"'
     ],
     extras_require={},
     package_data={},
