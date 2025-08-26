@@ -4,6 +4,7 @@ import subprocess
 import sys
 import shutil
 import multiprocessing as mp
+from dataclasses import dataclass
 from datetime import datetime
 from logging import FileHandler
 from logging import StreamHandler
@@ -20,13 +21,107 @@ from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.component.preparedproject import PreparedProject
 from gcbmwalltowall.project.projectfactory import ProjectFactory
 
-def convert(args: Namespace):
+@dataclass
+class ConvertArgs:
+    project_path: str
+    output_path: str
+    aidb_path: str = None
+    spinup_disturbance_type: str = "Wildfire"
+    apply_departial_dms: bool = False
+    preserve_temp_files: bool = False
+    creation_options: dict = None
+    disturbance_cohorts: bool = False
+    max_workers: int = None
+    chunk_size: int = None
+
+    @classmethod
+    def from_namespace(cls, ns: Namespace):
+        return cls(
+            project_path=ns.project_path,
+            output_path=ns.output_path,
+            aidb_path=getattr(ns, "aidb_path", None),
+            spinup_disturbance_type=getattr(ns, "spinup_disturbance_type", "Wildfire"),
+            apply_departial_dms=getattr(ns, "apply_departial_dms", False),
+            preserve_temp_files=getattr(ns, "preserve_temp_files", False),
+            creation_options=getattr(ns, "creation_options", {}),
+            disturbance_cohorts=getattr(ns, "disturbance_cohorts", False),
+            max_workers=getattr(ns, "max_workers", None),
+            chunk_size=getattr(ns, "chunk_size", None),
+        )
+
+@dataclass
+class BuildArgs:
+    config_path: str
+    output_path: str
+
+    @classmethod
+    def from_namespace(cls, ns: Namespace):
+        return cls(
+            config_path=ns.config_path,
+            output_path=ns.output_path,
+        )
+
+@dataclass
+class PrepareArgs:
+    config_path: str
+    output_path: str
+
+    @classmethod
+    def from_namespace(cls, ns: Namespace):
+        return cls(
+            config_path=ns.config_path,
+            output_path=ns.output_path,
+        )
+
+@dataclass
+class MergeArgs:
+    config_path: str
+    project_paths: list[str]
+    output_path: str
+    include_index_layer: bool = False
+
+    @classmethod
+    def from_namespace(cls, ns: Namespace):
+        return cls(
+            config_path=ns.config_path,
+            project_paths=ns.project_paths,
+            output_path=ns.output_path,
+            include_index_layer=ns.include_index_layer,
+        )
+
+@dataclass
+class RunArgs:
+    host: str
+    project_path: str
+    config_path: str = None
+    end_year: int = None
+    title: str = None
+    compile_results_config: str = None
+    batch_limit: int = None
+    max_workers: int = None
+    engine: str = "libcbm"
+
+    @classmethod
+    def from_namespace(cls, ns: Namespace):
+        return cls(
+            host=ns.host,
+            project_path=ns.project_path,
+            config_path=getattr(ns, "config_path", None),
+            end_year=getattr(ns, "end_year", None),
+            title=getattr(ns, "title", None),
+            compile_results_config=getattr(ns, "compile_results_config", None),
+            batch_limit=getattr(ns, "batch_limit", None),
+            max_workers=getattr(ns, "max_workers", None),
+            engine=getattr(ns, "engine", "libcbm"),
+        )
+
+def convert(args: ConvertArgs):
     # Guard against importing CBM4 dependencies until needed.
     from gcbmwalltowall.converter.projectconverter import ProjectConverter
 
     creation_options = args.creation_options or {}
-    creation_options["max_workers"] = getattr(args, "max_workers", None)
-    chunk_size = getattr(args, "chunk_size", None)
+    creation_options["max_workers"] = args.max_workers
+    chunk_size = args.chunk_size
     if chunk_size:
         creation_options.update({
             "chunk_options": {
@@ -43,11 +138,17 @@ def convert(args: Namespace):
         args.apply_departial_dms, args.preserve_temp_files
     )
     
-def build(args: Namespace):
+def _convert(args: Namespace):
+    convert(ConvertArgs.from_namespace(args))
+
+def build(args: BuildArgs):
     logging.info(f"Building {args.config_path}")
     ProjectBuilder.build_from_file(args.config_path, args.output_path)
 
-def prepare(args: Namespace):
+def _build(args: Namespace):
+    build(BuildArgs.from_namespace(args))
+
+def prepare(args: PrepareArgs):
     config = Configuration.load(args.config_path, args.output_path)
     project = ProjectFactory().create(config)
     logging.info(f"Preparing {project.name}")
@@ -65,7 +166,10 @@ def prepare(args: Namespace):
                            config.gcbm_disturbance_order,
                            **extra_args)
 
-def merge(args: Namespace):
+def _prepare(args: Namespace):
+    prepare(PrepareArgs.from_namespace(args))
+
+def merge(args: MergeArgs):
     with TemporaryDirectory() as tmp:
         projects = [PreparedProject(path) for path in args.project_paths]
         logging.info("Merging projects:\n{}".format("\n".join((str(p.path) for p in projects))))
@@ -102,6 +206,9 @@ def merge(args: Namespace):
             config.gcbm_disturbance_order)
     
         configurer.configure()
+
+def _merge(args: Namespace):
+    merge(MergeArgs.from_namespace(args))
 
 def run(args: Namespace):
     project = PreparedProject(args.project_path)
@@ -159,6 +266,9 @@ def run(args: Namespace):
 
             subprocess.run(run_args, cwd=project.path)
 
+def _run(args: RunArgs):
+    run(RunArgs.from_namespace(args))
+
 def cli():
     try:
         mp.set_start_method("spawn")
@@ -174,7 +284,7 @@ def cli():
         help=("Use the builder configuration contained in the config file to fill in and "
               "configure the rest of the project; overwrites the existing json config file "
               "unless output config file path is specified."))
-    build_parser.set_defaults(func=build)
+    build_parser.set_defaults(func=_build)
     build_parser.add_argument(
         "config_path",
         help="path to config file containing shortcut 'builder' section")
@@ -186,7 +296,7 @@ def cli():
         help=("Using the project configuration in the config file, tile the spatial "
               "layers, generate the input database, run the spatial rollback if "
               "specified, and configure the GCBM run."))
-    prepare_parser.set_defaults(func=prepare)
+    prepare_parser.set_defaults(func=_prepare)
     prepare_parser.add_argument(
         "config_path",
         help="path to config file containing fully-specified project configuration")
@@ -196,7 +306,7 @@ def cli():
     merge_parser = subparsers.add_parser(
         "merge",
         help="Merge two or more walltowall-prepared inventories together.")
-    merge_parser.set_defaults(func=merge, include_index_layer=False)
+    merge_parser.set_defaults(func=_merge, include_index_layer=False)
     merge_parser.add_argument(
         "config_path",
         help="path to walltowall config file for disturbance order and GCBM config templates")
@@ -212,7 +322,7 @@ def cli():
 
     run_parser = subparsers.add_parser(
         "run", help="Run the specified project either locally or on the cluster.")
-    run_parser.set_defaults(func=run)
+    run_parser.set_defaults(func=_run)
     run_parser.add_argument(
         "host", choices=["local", "cluster"], help="run either locally or on the cluster")
     run_parser.add_argument(
@@ -235,7 +345,7 @@ def cli():
 
     convert_parser = subparsers.add_parser(
         "convert", help=("Convert a walltowall-prepared GCBM project to CBM4."))
-    convert_parser.set_defaults(func=convert, creation_options={})
+    convert_parser.set_defaults(func=_convert, creation_options={})
     convert_parser.add_argument(
         "project_path", help="root directory of a walltowall-prepared GCBM project")
     convert_parser.add_argument(
