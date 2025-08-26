@@ -64,13 +64,13 @@ class BuildArgs:
 @dataclass
 class PrepareArgs:
     config_path: str
-    output_path: str
+    output_path: str = None
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
         return cls(
             config_path=ns.config_path,
-            output_path=ns.output_path,
+            output_path=getattr(ns, "output_path", None),
         )
 
 @dataclass
