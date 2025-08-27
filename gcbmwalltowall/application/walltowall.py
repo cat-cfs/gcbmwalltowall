@@ -112,8 +112,8 @@ class RunArgs(ArgBase):
     @classmethod
     def from_namespace(cls, ns: Namespace):
         return cls(
-            host=ns.host,
             project_path=ns.project_path,
+            host=getattr(ns, "host", "local"),
             config_path=getattr(ns, "config_path", None),
             end_year=getattr(ns, "end_year", None),
             title=getattr(ns, "title", None),
