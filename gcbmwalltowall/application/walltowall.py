@@ -21,8 +21,16 @@ from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.component.preparedproject import PreparedProject
 from gcbmwalltowall.project.projectfactory import ProjectFactory
 
+class ArgBase(dict):
+
+    def __getattr__(self, key):
+        return self[key]
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
 @dataclass
-class ConvertArgs:
+class ConvertArgs(ArgBase):
     project_path: str
     output_path: str
     aidb_path: str = None
@@ -50,7 +58,7 @@ class ConvertArgs:
         )
 
 @dataclass
-class BuildArgs:
+class BuildArgs(ArgBase):
     config_path: str
     output_path: str
 
@@ -62,7 +70,7 @@ class BuildArgs:
         )
 
 @dataclass
-class PrepareArgs:
+class PrepareArgs(ArgBase):
     config_path: str
     output_path: str = None
 
@@ -74,7 +82,7 @@ class PrepareArgs:
         )
 
 @dataclass
-class MergeArgs:
+class MergeArgs(ArgBase):
     config_path: str
     project_paths: list[str]
     output_path: str
@@ -90,7 +98,7 @@ class MergeArgs:
         )
 
 @dataclass
-class RunArgs:
+class RunArgs(ArgBase):
     host: str
     project_path: str
     config_path: str = None
