@@ -33,14 +33,14 @@ class ArgBase(dict):
 class ConvertArgs(ArgBase):
     project_path: str
     output_path: str
-    aidb_path: str = None
-    spinup_disturbance_type: str = "Wildfire"
-    apply_departial_dms: bool = False
-    preserve_temp_files: bool = False
-    creation_options: dict = None
-    disturbance_cohorts: bool = False
-    max_workers: int = None
-    chunk_size: int = None
+    aidb_path: str
+    spinup_disturbance_type: str
+    apply_departial_dms: bool
+    preserve_temp_files: bool
+    creation_options: dict
+    disturbance_cohorts: bool
+    max_workers: int
+    chunk_size: int
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
@@ -72,7 +72,7 @@ class BuildArgs(ArgBase):
 @dataclass
 class PrepareArgs(ArgBase):
     config_path: str
-    output_path: str = None
+    output_path: str
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
@@ -86,7 +86,7 @@ class MergeArgs(ArgBase):
     config_path: str
     project_paths: list[str]
     output_path: str
-    include_index_layer: bool = False
+    include_index_layer: bool
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
@@ -101,13 +101,13 @@ class MergeArgs(ArgBase):
 class RunArgs(ArgBase):
     host: str
     project_path: str
-    config_path: str = None
-    end_year: int = None
-    title: str = None
-    compile_results_config: str = None
-    batch_limit: int = None
-    max_workers: int = None
-    engine: str = "libcbm"
+    config_path: str
+    end_year: int
+    title: str
+    compile_results_config: str
+    batch_limit: int
+    max_workers: int
+    engine: str
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
