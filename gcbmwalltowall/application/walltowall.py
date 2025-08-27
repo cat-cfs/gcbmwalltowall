@@ -123,10 +123,11 @@ class RunArgs(ArgBase):
             engine=getattr(ns, "engine", "libcbm"),
         )
 
-def convert(args: ConvertArgs):
+def convert(args: ConvertArgs | dict):
     # Guard against importing CBM4 dependencies until needed.
     from gcbmwalltowall.converter.projectconverter import ProjectConverter
 
+    args = ConvertArgs(**args)
     creation_options = args.creation_options or {}
     creation_options["max_workers"] = args.max_workers
     chunk_size = args.chunk_size
@@ -149,14 +150,16 @@ def convert(args: ConvertArgs):
 def _convert(args: Namespace):
     convert(ConvertArgs.from_namespace(args))
 
-def build(args: BuildArgs):
+def build(args: BuildArgs | dict):
+    args = BuildArgs(**args)
     logging.info(f"Building {args.config_path}")
     ProjectBuilder.build_from_file(args.config_path, args.output_path)
 
 def _build(args: Namespace):
     build(BuildArgs.from_namespace(args))
 
-def prepare(args: PrepareArgs):
+def prepare(args: PrepareArgs | dict):
+    args = PrepareArgs(**args)
     config = Configuration.load(args.config_path, args.output_path)
     project = ProjectFactory().create(config)
     logging.info(f"Preparing {project.name}")
@@ -177,7 +180,8 @@ def prepare(args: PrepareArgs):
 def _prepare(args: Namespace):
     prepare(PrepareArgs.from_namespace(args))
 
-def merge(args: MergeArgs):
+def merge(args: MergeArgs | dict):
+    args = MergeArgs(**args)
     with TemporaryDirectory() as tmp:
         projects = [PreparedProject(path) for path in args.project_paths]
         logging.info("Merging projects:\n{}".format("\n".join((str(p.path) for p in projects))))
@@ -218,7 +222,8 @@ def merge(args: MergeArgs):
 def _merge(args: Namespace):
     merge(MergeArgs.from_namespace(args))
 
-def run(args: Namespace):
+def run(args: RunArgs | dict):
+    args = RunArgs(**args)
     project = PreparedProject(args.project_path)
     logging.info(f"Running project ({args.host}):\n{project.path}")
 
