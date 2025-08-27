@@ -108,6 +108,7 @@ class RunArgs(ArgBase):
     batch_limit: int
     max_workers: int
     engine: str
+    apply_departial_dms: bool
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
@@ -121,6 +122,7 @@ class RunArgs(ArgBase):
             batch_limit=getattr(ns, "batch_limit", None),
             max_workers=getattr(ns, "max_workers", None),
             engine=getattr(ns, "engine", "libcbm"),
+            apply_departial_dms=getattr(ns, "apply_departial_dms", False),
         )
 
 def convert(args: ConvertArgs | dict):
@@ -245,8 +247,8 @@ def run(args: RunArgs | dict):
                     raise RuntimeError(f"Unrecognized CBM4 engine: {args.engine}")
 
                 cbm4.run(cbm4_config_path,
-                         max_workers=getattr(args, "max_workers", None),
-                         apply_departial_dms=getattr(args, "apply_departial_dms", False))
+                         max_workers=args.max_workers,
+                         apply_departial_dms=args.apply_departial_dms)
             else:
                 logging.info(f"Using {config.resolve(config.gcbm_exe)}")
                 subprocess.run([
@@ -260,7 +262,7 @@ def run(args: RunArgs | dict):
             
             run_args = [
                 sys.executable, str(config.resolve(config.distributed_client)),
-                "--title", datetime.now().strftime(f"gcbm_{getattr(args, 'title', project_name)}_%Y%m%d_%H%M%S"),
+                "--title", datetime.now().strftime(f"gcbm_{args.title or project_name}_%Y%m%d_%H%M%S"),
                 "--gcbm-config", str(project.gcbm_config_path.joinpath("gcbm_config.cfg")),
                 "--provider-config", str(project.gcbm_config_path.joinpath("provider_config.json")),
                 "--study-area", str(
@@ -269,11 +271,11 @@ def run(args: RunArgs | dict):
                 "--no-wait"
             ]
             
-            compile_results_config = getattr(args, "compile_results_config", None)
+            compile_results_config = args.compile_results_config
             if compile_results_config:
                 run_args.extend(["--compile-results-config", Path(compile_results_config).absolute()])
 
-            batch_limit = getattr(args, "batch_limit", None)
+            batch_limit = args.batch_limit
             if batch_limit:
                 run_args.extend(["--batch-limit", batch_limit])
 
