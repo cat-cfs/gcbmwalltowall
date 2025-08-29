@@ -1,8 +1,8 @@
-import csv
 import json
 import site
 import sys
 import pandas as pd
+from gcbmwalltowall.util.encoding import load_json
 from pathlib import Path
 
 class Configuration(dict):
@@ -129,6 +129,6 @@ class Configuration(dict):
         config_path = Path(config_path).absolute()
 
         return cls(
-            json.load(open(config_path, "r")),
+            load_json(config_path),
             config_path.parent,
             Path(working_path or config_path.parent))
