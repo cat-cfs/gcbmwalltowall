@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 import numpy as np
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 from tempfile import TemporaryDirectory
 from arrow_space.input.attribute_table_reader import InMemoryAttributeTableReader
 from pandas import DataFrame

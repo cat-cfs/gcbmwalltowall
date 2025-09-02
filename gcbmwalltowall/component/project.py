@@ -4,7 +4,7 @@ import shutil
 from uuid import uuid4
 from multiprocessing import cpu_count
 from datetime import date
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 from itertools import chain
 from tempfile import TemporaryDirectory
 from mojadata.util import gdal

@@ -9,7 +9,7 @@ from datetime import datetime
 from logging import FileHandler
 from logging import StreamHandler
 from psutil import virtual_memory
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 from argparse import ArgumentParser
 from tempfile import TemporaryDirectory
 from spatial_inventory_rollback.gcbm.merge import gcbm_merge

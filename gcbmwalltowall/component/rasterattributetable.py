@@ -1,7 +1,7 @@
 from __future__ import annotations
 import pandas as pd
 import numpy as np
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 from gcbmwalltowall.component.attributetable import AttributeTable
 
 class RasterAttributeTable(AttributeTable):

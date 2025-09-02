@@ -3,7 +3,7 @@ import shutil
 import pandas as pd
 import numpy as np
 from collections import defaultdict
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 from sqlalchemy import create_engine
 from sqlalchemy import text
 from spatial_inventory_rollback.application.rollback_app_parameters import RollbackAppParameters

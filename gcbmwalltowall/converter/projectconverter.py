@@ -6,7 +6,7 @@ import pandas as pd
 from tempfile import TemporaryDirectory
 from contextlib import contextmanager
 from sqlalchemy import create_engine
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 from arrow_space.input.input_layer_collection import InputLayerCollection
 from arrow_space.flattened_coordinate_dataset import create as create_arrowspace_dataset
 from cbm_defaults.app import run as make_cbm_defaults

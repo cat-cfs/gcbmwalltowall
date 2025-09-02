@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
 from os.path import relpath
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 from gcbmwalltowall.configuration.configuration import Configuration
 
 class ProjectBuilder:

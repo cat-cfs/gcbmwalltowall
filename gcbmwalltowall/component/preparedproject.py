@@ -2,7 +2,7 @@ import json
 import shutil
 from contextlib import contextmanager
 from datetime import datetime
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 from spatial_inventory_rollback.gcbm.merge.gcbm_merge_layer_input import MergeInputLayers
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 

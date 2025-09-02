@@ -1,4 +1,4 @@
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 from mojadata.layer.rasterlayer import RasterLayer
 from mojadata.layer.vectorlayer import VectorLayer
 from mojadata.layer.dummylayer import DummyLayer
