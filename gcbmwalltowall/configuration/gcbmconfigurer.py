@@ -12,6 +12,7 @@ from argparse import ArgumentParser
 from glob import iglob
 from contextlib import contextmanager
 from gcbmwalltowall.util.path import Path
+from gcbmwalltowall.util.path import relpath
 
 class GCBMConfigurer:
 
@@ -166,7 +167,7 @@ class GCBMConfigurer:
                 os.makedirs(os.path.dirname(input_db_path), exist_ok=True)
                 shutil.copyfile(self._input_db_path, input_db_path)
 
-            aspatial_provider_config["path"] = os.path.join(os.path.relpath(
+            aspatial_provider_config["path"] = os.path.join(relpath(
                 input_db_path, self._output_path))
 
             spatial_provider_config["tileLatSize"]  = study_area["tile_size"]
@@ -192,7 +193,7 @@ class GCBMConfigurer:
 
                 provider_layers.append({
                     "name"        : layer["name"],
-                    "layer_path"  : os.path.join(os.path.relpath(layer_path, self._output_path)),
+                    "layer_path"  : os.path.join(relpath(layer_path, self._output_path)),
                     "layer_prefix": layer["prefix"]
                 })
                 
