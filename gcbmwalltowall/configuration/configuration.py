@@ -3,7 +3,7 @@ import site
 import sys
 import pandas as pd
 from gcbmwalltowall.util.encoding import load_json
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 
 class Configuration(dict):
 
@@ -81,9 +81,15 @@ class Configuration(dict):
         return settings_keys
 
     def resolve(self, path=None):
+        if path is not None:
+            path = Path(path)
+
         return self.config_path.joinpath(path).resolve()
 
     def resolve_working(self, path=None):
+        if path is not None:
+            path = Path(path)
+
         return self.working_path.joinpath(path).resolve()
 
     def find_lookup_table(self, layer_path):
