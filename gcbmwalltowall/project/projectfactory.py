@@ -51,7 +51,7 @@ class ProjectFactory:
         return Project(
             project_name, bounding_box, classifiers, layers, input_db,
             str(config.working_path), disturbances, rollback, soft_transitions,
-            survivor_soft_transitions, cohorts)
+            survivor_soft_transitions, cohorts, config.get("max_workers"))
 
     def _extract_attribute(self, config):
         attribute = config.get("attribute")

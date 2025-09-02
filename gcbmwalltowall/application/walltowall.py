@@ -73,12 +73,14 @@ class BuildArgs(ArgBase):
 class PrepareArgs(ArgBase):
     config_path: str
     output_path: str
+    max_workers: int
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
         return cls(
             config_path=ns.config_path,
             output_path=getattr(ns, "output_path", None),
+            max_workers=getattr(ns, "max_workers", None),
         )
 
 @dataclass
@@ -163,6 +165,7 @@ def _build(args: Namespace):
 def prepare(args: PrepareArgs | dict):
     args = PrepareArgs(**args)
     config = Configuration.load(args.config_path, args.output_path)
+    config["max_workers"] = args.max_workers
     project = ProjectFactory().create(config)
     logging.info(f"Preparing {project.name}")
 
@@ -317,6 +320,8 @@ def cli():
         help="path to config file containing fully-specified project configuration")
     prepare_parser.add_argument(
         "output_path", nargs="?", help="destination directory for project files")
+    prepare_parser.add_argument(
+        "--max_workers", type=int, help="max workers")
 
     merge_parser = subparsers.add_parser(
         "merge",

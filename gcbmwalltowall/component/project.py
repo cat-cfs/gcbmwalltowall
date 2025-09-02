@@ -21,7 +21,7 @@ class Project:
 
     def __init__(self, name, bounding_box, classifiers, layers, input_db, output_path,
                  disturbances=None, rollback=None, soft_transition_rules_path=None,
-                 survivor_soft_transition_rules_path=None, cohorts=None):
+                 survivor_soft_transition_rules_path=None, cohorts=None, max_workers=None):
         self.name = require_not_null(name)
         self.bounding_box = require_instance_of(bounding_box, BoundingBox)
         self.classifiers = require_instance_of(classifiers, list)
@@ -43,6 +43,7 @@ class Project:
         )
         
         self.cohorts = cohorts
+        self.max_workers = max_workers
 
     @property
     def tiler_output_path(self):
@@ -90,7 +91,7 @@ class Project:
 
             logging.info("Starting up tiler...")
             tiler = GdalTiler2D(tiler_bbox, use_bounding_box_resolution=True,
-                                workers=min(cpu_count(), len(tiler_layers)))
+                                workers=min((self.max_workers or cpu_count()), len(tiler_layers)))
 
             tiler.tile(tiler_layers, str(self.tiler_output_path))
             if self.cohorts:
