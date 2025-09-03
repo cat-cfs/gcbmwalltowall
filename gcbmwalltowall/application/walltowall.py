@@ -74,6 +74,7 @@ class PrepareArgs(ArgBase):
     config_path: str
     output_path: str
     max_workers: int
+    max_mem_gb: int
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
@@ -81,6 +82,7 @@ class PrepareArgs(ArgBase):
             config_path=ns.config_path,
             output_path=getattr(ns, "output_path", None),
             max_workers=getattr(ns, "max_workers", None),
+            max_mem_gb=getattr(ns, "max_mem_gb", None),
         )
 
 @dataclass
@@ -166,6 +168,7 @@ def prepare(args: PrepareArgs | dict):
     args = PrepareArgs(**args)
     config = Configuration.load(args.config_path, args.output_path)
     config["max_workers"] = args.max_workers
+    config["max_mem_gb"] = args.max_mem_gb
     project = ProjectFactory().create(config)
     logging.info(f"Preparing {project.name}")
 
@@ -322,6 +325,8 @@ def cli():
         "output_path", nargs="?", help="destination directory for project files")
     prepare_parser.add_argument(
         "--max_workers", type=int, help="max workers")
+    prepare_parser.add_argument(
+        "--max_mem_gb", type=int, help="max memory (GB)")
 
     merge_parser = subparsers.add_parser(
         "merge",
