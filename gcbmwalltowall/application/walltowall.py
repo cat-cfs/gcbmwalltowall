@@ -91,6 +91,7 @@ class MergeArgs(ArgBase):
     project_paths: list[str]
     output_path: str
     include_index_layer: bool
+    max_mem_gb: int
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
@@ -99,6 +100,7 @@ class MergeArgs(ArgBase):
             project_paths=ns.project_paths,
             output_path=ns.output_path,
             include_index_layer=ns.include_index_layer,
+            max_mem_gb=getattr(ns, "max_mem_gb", None),
         )
 
 @dataclass
@@ -205,7 +207,8 @@ def merge(args: MergeArgs | dict):
         start_year = min((project.start_year for project in projects))
         end_year = max((project.end_year for project in projects))
 
-        memory_limit = virtual_memory().available * 0.75 // 1024**2
+        max_mem_gb = args.max_mem_gb or (virtual_memory().available * 0.75 // 1024**3)
+        memory_limit = int(max_mem_gb * 1024)
         merged_data = gcbm_merge.merge(
             inventories, str(merged_output_path), str(db_output_path),
             start_year, memory_limit_MB=memory_limit)
@@ -344,6 +347,8 @@ def cli():
     merge_parser.add_argument(
         "--include_index_layer", action="store_true",
         help="include merged index as reporting classifier")
+    merge_parser.add_argument(
+        "--max_mem_gb", type=int, help="max memory (GB)")
 
     run_parser = subparsers.add_parser(
         "run", help="Run the specified project either locally or on the cluster.")
