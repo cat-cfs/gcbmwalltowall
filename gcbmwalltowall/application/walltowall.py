@@ -41,6 +41,7 @@ class ConvertArgs(ArgBase):
     disturbance_cohorts: bool
     max_workers: int
     chunk_size: int
+    tempdir: str
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
@@ -55,6 +56,7 @@ class ConvertArgs(ArgBase):
             disturbance_cohorts=getattr(ns, "disturbance_cohorts", False),
             max_workers=getattr(ns, "max_workers", None),
             chunk_size=getattr(ns, "chunk_size", None),
+            tempdir=getattr(ns, "tempdir", None),
         )
 
 @dataclass
@@ -92,6 +94,7 @@ class MergeArgs(ArgBase):
     output_path: str
     include_index_layer: bool
     max_mem_gb: int
+    tempdir: str
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
@@ -101,6 +104,7 @@ class MergeArgs(ArgBase):
             output_path=ns.output_path,
             include_index_layer=ns.include_index_layer,
             max_mem_gb=getattr(ns, "max_mem_gb", None),
+            tempdir=getattr(ns, "tempdir", None),
         )
 
 @dataclass
