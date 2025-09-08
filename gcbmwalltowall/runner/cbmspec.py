@@ -71,7 +71,7 @@ def run(cbm4_config_path: str | Path, max_workers: int = None, **kwargs):
             "spinup_parameters",
             "local_storage",
             str(out_path.joinpath("spinup_parameters")),
-            use_smoother=json_config.get("use_smoother", True)
+            enable_cbm_cfs3_smoother=json_config.get("use_smoother", True)
         )
     )
 
@@ -81,7 +81,7 @@ def run(cbm4_config_path: str | Path, max_workers: int = None, **kwargs):
             "step_parameters",
             "local_storage",
             str(out_path.joinpath("step_parameters")),
-            use_smoother=json_config.get("use_smoother", True)
+            enable_cbm_cfs3_smoother=json_config.get("use_smoother", True)
         )
     )
 
