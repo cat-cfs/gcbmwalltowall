@@ -6,6 +6,7 @@ description = "gcbmwalltowall"
 classifiers = ["Programming Language :: Python :: 3"]
 requires-python = ">=3.9"
 dependencies = [
+    "cbm4-canfire",
     "gcbminputloader",
     "mojadata",
     "openpyxl",
