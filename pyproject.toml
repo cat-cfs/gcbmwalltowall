@@ -6,6 +6,7 @@ description = "gcbmwalltowall"
 classifiers = ["Programming Language :: Python :: 3"]
 requires-python = ">=3.9"
 dependencies = [
+    "cbm4-canfire",
     "gcbminputloader",
     "mojadata",
     "openpyxl",
@@ -38,3 +39,4 @@ spatial-inventory-rollback = { git = "https://github.com/cat-cfs/spatial_invento
 mojadata = { git = "https://github.com/moja-global/GCBM.Data" }
 gcbminputloader = { git = "https://github.com/moja-global/GCBM.InputLoader" }
 cbm_defaults = { git = "https://github.com/cat-cfs/cbm_defaults/" }
+cbm4-canfire = { git = "https://github.com/cat-cfs/cbm4_canfire.git" }

@@ -1,15 +1,18 @@
 from __future__ import annotations
+
 import json
 import os
-import time
 import shutil
-import pandas as pd
+import time
 from tempfile import TemporaryDirectory
-from gcbmwalltowall.util.path import Path
+
+import pandas as pd
 from arrow_space.raster_indexed_dataset import RasterIndexedDataset
 from cbm4.app.spatial.spatial_cbm4 import cbm4_spatial_runner
 from cbmspec_cbm3.models import cbmspec_cbm3_single_matrix
 from cbmspec_cbm3.parameters.cbm_defaults import cbm4_parameter_dataset_factory
+
+from gcbmwalltowall.util.path import Path
 
 
 def load_config(cbm4_config_path: str | Path, **kwargs) -> dict[str, Any]:
@@ -23,20 +26,27 @@ def load_config(cbm4_config_path: str | Path, **kwargs) -> dict[str, Any]:
     return json_config
 
 
-def run(cbm4_config_path: str | Path, max_workers: int = None, write_parameters: bool = False, **kwargs):
+def run(
+    cbm4_config_path: str | Path,
+    max_workers: int = None,
+    write_parameters: bool = False,
+    **kwargs,
+):
     json_config = load_config(cbm4_config_path, **kwargs)
-    shutil.rmtree(json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"], True)
+    shutil.rmtree(
+        json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"], True
+    )
 
     inventory_ds = RasterIndexedDataset(
         json_config["cbm4_spatial_dataset"]["inventory"]["dataset_name"],
         json_config["cbm4_spatial_dataset"]["inventory"]["storage_type"],
-        json_config["cbm4_spatial_dataset"]["inventory"]["path_or_uri"]
+        json_config["cbm4_spatial_dataset"]["inventory"]["path_or_uri"],
     )
 
     disturbance_ds = RasterIndexedDataset(
         json_config["cbm4_spatial_dataset"]["disturbance"]["dataset_name"],
         json_config["cbm4_spatial_dataset"]["disturbance"]["storage_type"],
-        json_config["cbm4_spatial_dataset"]["disturbance"]["path_or_uri"]
+        json_config["cbm4_spatial_dataset"]["disturbance"]["path_or_uri"],
     )
 
     with TemporaryDirectory() as tmp:
@@ -46,7 +56,9 @@ def run(cbm4_config_path: str | Path, max_workers: int = None, write_parameters:
         except:
             pass
 
-        cbmspec_cbm3_single_matrix_model = cbmspec_cbm3_single_matrix.model_create(
+        cbmspec_cbm3_single_matrix_model = kwargs.get(
+            "cbmspec_model"
+        ) or cbmspec_cbm3_single_matrix.model_create(
             str(cbm_defaults_path) if cbm_defaults_path.exists() else None
         )
 
@@ -57,7 +69,7 @@ def run(cbm4_config_path: str | Path, max_workers: int = None, write_parameters:
         inventory_ds,
         json_config["cbm4_spatial_dataset"]["simulation"]["dataset_name"],
         json_config["cbm4_spatial_dataset"]["simulation"]["storage_type"],
-        json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"]
+        json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"],
     )
     step_times.append(["create simulation dataset", (time.time() - start)])
 
@@ -71,7 +83,7 @@ def run(cbm4_config_path: str | Path, max_workers: int = None, write_parameters:
             "spinup_parameters",
             "local_storage",
             str(out_path.joinpath("spinup_parameters")),
-            enable_cbm_cfs3_smoother=json_config.get("use_smoother", True)
+            enable_cbm_cfs3_smoother=json_config.get("use_smoother", True),
         )
     )
 
@@ -81,7 +93,7 @@ def run(cbm4_config_path: str | Path, max_workers: int = None, write_parameters:
             "step_parameters",
             "local_storage",
             str(out_path.joinpath("step_parameters")),
-            enable_cbm_cfs3_smoother=json_config.get("use_smoother", True)
+            enable_cbm_cfs3_smoother=json_config.get("use_smoother", True),
         )
     )
 
@@ -109,10 +121,8 @@ def run(cbm4_config_path: str | Path, max_workers: int = None, write_parameters:
             area_unit_conversion=0.0001,
             max_workers=max_workers,
             write_parameters=write_parameters,
-        ) 
-        step_times.append(
-            [f"timestep_{timestep}", (time.time() - start)]
         )
+        step_times.append([f"timestep_{timestep}", (time.time() - start)])
 
     time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=step_times)
     time_profiling.to_csv(out_path.joinpath("profiling.csv"), index=False)

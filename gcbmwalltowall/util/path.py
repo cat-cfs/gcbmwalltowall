@@ -1,8 +1,10 @@
 import os
-import pathlib
+from pathlib import Path, PureWindowsPath
 
-def Path(*p):
-    return pathlib.Path(pathlib.PureWindowsPath(*p).as_posix())
+
+def Path(*p) -> Path:
+    return Path(PureWindowsPath(*p).as_posix())
+
 
 def relpath(path, start):
     return Path(os.path.relpath(path, start)).as_posix()
