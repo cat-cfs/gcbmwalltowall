@@ -6,6 +6,7 @@ description = "gcbmwalltowall"
 classifiers = ["Programming Language :: Python :: 3"]
 requires-python = ">=3.10"
 dependencies = [
+    "gcbminputloader",
     "mojadata",
     "openpyxl",
     "pandas",
@@ -13,6 +14,9 @@ dependencies = [
     "sqlalchemy",
     "sqlalchemy-access; platform_system == \"Windows\"",
 ]
+
+[dependency-groups]
+cbm4 = ["cbm4", "arrow-space", "cbmspec-cbm3", "numexpr<2.12.0", "cbm_defaults"]
 
 
 [project.scripts]
@@ -32,3 +36,6 @@ cbm4 = { git = "https://github.com/cat-cfs/cbm4" }
 arrow-space = { git = "https://github.com/cat-cfs/arrow_space" }
 cbmspec-cbm3 = { git = "https://github.com/cat-cfs/cbmspec.cbm3.python" }
 spatial-inventory-rollback = { git = "https://github.com/cat-cfs/spatial_inventory_rollback" }
+mojadata = { git = "https://github.com/moja-global/GCBM.Data" }
+gcbminputloader = { git = "https://github.com/moja-global/GCBM.InputLoader" }
+cbm_defaults = { git = "https://github.com/cat-cfs/cbm_defaults/" }
