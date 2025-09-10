@@ -15,12 +15,11 @@ dependencies = [
     "sqlalchemy-access; platform_system == \"Windows\"",
 ]
 
-[dependency-groups]
-cbm4 = ["cbm4", "arrow-space", "cbmspec-cbm3", "numexpr<2.12.0", "cbm_defaults"]
+[project.optional-dependencies]
+cbm4 = ["cbm4", "arrow-space", "cbmspec-cbm3", "cbm_defaults"]
 
 
 [project.scripts]
-
 walltowall = "gcbmwalltowall.application.walltowall:cli"
 
 [build-system]
