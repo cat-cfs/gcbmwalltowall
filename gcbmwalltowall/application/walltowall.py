@@ -12,6 +12,7 @@ from logging import FileHandler, StreamHandler
 from tempfile import TemporaryDirectory
 from typing import Any
 
+from cbmspec_cbm3.models import cbmspec_cbm3_single_matrix
 from psutil import virtual_memory
 from spatial_inventory_rollback.gcbm.merge import gcbm_merge, gcbm_merge_tile
 from spatial_inventory_rollback.gcbm.merge.gcbm_merge_input_db import (
@@ -476,11 +477,6 @@ def cli():
         "--engine",
         help="[cbm4 only] (libcbm/cbmspec) specify the CBM4 engine to use; default: libcbm",
         default="libcbm",
-    )
-    run_parser.add_argument(
-        "--write_parameters",
-        action="store_true",
-        help="[cbm4 only] write parameters datasets; default: false",
     )
 
     convert_parser = subparsers.add_parser(
