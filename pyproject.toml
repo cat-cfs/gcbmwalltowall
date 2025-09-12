@@ -6,7 +6,6 @@ description = "gcbmwalltowall"
 classifiers = ["Programming Language :: Python :: 3"]
 requires-python = ">=3.9"
 dependencies = [
-    "cbm4-canfire",
     "gcbminputloader",
     "mojadata",
     "openpyxl",
@@ -17,7 +16,29 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+<<<<<<< HEAD
 cbm4 = ["cbm4", "arrow-space", "cbmspec-cbm3", "cbm_defaults"]
+<<<<<<< HEAD
+=======
+=======
+[dependency-groups]
+cbm4 = ["cbm4", "arrow-space", "cbmspec-cbm3", "numexpr<2.12.0", "cbm_defaults"]
+>>>>>>> 6ca5e2a (adding dependency paths)
+=======
+[project.optional-dependencies]
+cbm4 = ["cbm4", "arrow-space", "cbmspec-cbm3", "cbm_defaults"]
+>>>>>>> bbabf34 (added opttional dependency group)
+=======
+cbm4 = [
+    "cbm4",
+    "cbm4-canfire",
+    "arrow-space",
+    "cbmspec-cbm3",
+    "cbm_defaults",
+    "gdal<=3.11.3",
+]
+>>>>>>> 544f283 (added canfire runner test and example)
+>>>>>>> b9644f7 (added canfire runner test and example)
 
 
 [project.scripts]
@@ -42,6 +63,4 @@ cbm_defaults = { git = "https://github.com/cat-cfs/cbm_defaults/" }
 cbm4-canfire = { git = "https://github.com/cat-cfs/cbm4_canfire.git" }
 
 [dependency-groups]
-dev = [
-    "pytest>=8.4.2",
-]
+dev = ["pytest>=8.4.2"]

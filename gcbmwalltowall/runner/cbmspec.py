@@ -57,7 +57,7 @@ def run(
         except:
             pass
 
-        cbmspec_cbm3_single_matrix_model = kwargs.get(
+        cbmspec_cbm3_single_matrix_model = json_config.get(
             "cbmspec_model"
         ) or cbmspec_cbm3_single_matrix.model_create(
             str(cbm_defaults_path) if cbm_defaults_path.exists() else None
