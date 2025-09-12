@@ -40,3 +40,8 @@ mojadata = { git = "https://github.com/moja-global/GCBM.Data" }
 gcbminputloader = { git = "https://github.com/moja-global/GCBM.InputLoader" }
 cbm_defaults = { git = "https://github.com/cat-cfs/cbm_defaults/" }
 cbm4-canfire = { git = "https://github.com/cat-cfs/cbm4_canfire.git" }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
