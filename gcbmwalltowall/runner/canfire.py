@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from typing import Any
 
@@ -11,25 +10,28 @@ from . import cbmspec
 
 def load_config(
     cbm4_config_path: str,
+    wrapped_cbmspec_model: CBMSpecModel,
     **kwargs: Any,
 ) -> dict[str, Any]:
+    # This line could change to something else if the cbm4_config changes
+    # currently assuming that it would be in a flat shape
     canfire_config = CanfireConfig.model_validate_json(
-        json.load(Path(cbm4_config_path).open())
+        Path(cbm4_config_path).open("rb").read()
     )
 
-    wrapped_model = kwargs.get("cbmspec_model")
-
-    if not isinstance(wrapped_model, CBMSpecModel):
-        raise ValueError("needs cbmspec model")
-
     model = CanfireCbmSpecModel(
-        wrapped_model,
+        wrapped_cbmspec_model,
         canfire_config,
     )
 
-    return cbmspec.load_config(cbm4_config_path, **kwargs).update({"cbmspec_model": model})  # type: ignore
+    json_config = cbmspec.load_config(cbm4_config_path, **kwargs)  # type: ignore
+    json_config.update({"cbmspec_model": model})
+
+    return json_config
 
 
-def run(cbm4_config_path: str, **kwargs: Any):
-    kwargs["json_config"] = load_config(cbm4_config_path, **kwargs)
+def run(cbm4_config_path: str, wrapped_cbmspec_model: CBMSpecModel, **kwargs: Any):
+    kwargs["json_config"] = load_config(
+        cbm4_config_path, wrapped_cbmspec_model, **kwargs
+    )
     return cbmspec.run(cbm4_config_path, **kwargs)  # type: ignore
