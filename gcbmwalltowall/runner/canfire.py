@@ -13,7 +13,7 @@ def load_config(
     cbm4_config_path: str,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    canfire_config = CanfireConfig().model_validate_json(
+    canfire_config = CanfireConfig.model_validate_json(
         json.load(Path(cbm4_config_path).open())
     )
 
@@ -27,16 +27,9 @@ def load_config(
         canfire_config,
     )
 
-    kwargs["update_fields"]["cbmspec_model"] = model
-
-    return cbmspec.load_config(cbm4_config_path, **kwargs)  # type: ignore
+    return cbmspec.load_config(cbm4_config_path, **kwargs).update({"cbmspec_model": model})  # type: ignore
 
 
 def run(cbm4_config_path: str, **kwargs: Any):
-    update_fields_dict: dict[str, Any] = dict()
-    json_config = load_config(
-        cbm4_config_path, update_fields=update_fields_dict, **kwargs
-    )
-    kwargs.update(update_fields_dict)
-    kwargs["json_config"] = json_config
+    kwargs["json_config"] = load_config(cbm4_config_path, **kwargs)
     return cbmspec.run(cbm4_config_path, **kwargs)  # type: ignore
