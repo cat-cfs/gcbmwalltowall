@@ -174,7 +174,7 @@ class ProjectConverter:
             if mask in base_arrowspace_collection.layer_names
         ]
 
-        for optional_mask_layer in ["admin_boundary", "eco_boundary"]:
+        for optional_mask_layer in ["admin_boundary", "eco_boundary", "mean_annual_temp"]:
             if optional_mask_layer in base_arrowspace_collection.layer_names:
                 mask_layers.append(optional_mask_layer)
 

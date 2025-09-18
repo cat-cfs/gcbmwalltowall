@@ -119,6 +119,7 @@ class RunArgs(ArgBase):
     max_workers: int
     engine: str
     apply_departial_dms: bool
+    write_parameters: bool
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
@@ -133,6 +134,7 @@ class RunArgs(ArgBase):
             max_workers=getattr(ns, "max_workers", None),
             engine=getattr(ns, "engine", "libcbm"),
             apply_departial_dms=getattr(ns, "apply_departial_dms", False),
+            write_parameters=getattr(ns, "write_parameters", False),
         )
 
 def convert(args: ConvertArgs | dict):
@@ -261,8 +263,8 @@ def run(args: RunArgs | dict):
 
                 cbm4.run(cbm4_config_path,
                          max_workers=args.max_workers,
-                         apply_departial_dms=args.apply_departial_dms)
-                         write_parameters=getattr(args, "write_parameters", False))
+                         apply_departial_dms=args.apply_departial_dms,
+                         write_parameters=args.write_parameters)
             else:
                 logging.info(f"Using {config.resolve(config.gcbm_exe)}")
                 subprocess.run([
