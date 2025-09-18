@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
-from os.path import relpath
-from pathlib import Path
+from gcbmwalltowall.util.path import relpath
+from gcbmwalltowall.util.path import Path
 from gcbmwalltowall.configuration.configuration import Configuration
 
 class ProjectBuilder:
@@ -67,7 +67,7 @@ class ProjectBuilder:
             if isinstance(v, dict):
                 if k == "disturbances":
                     for dist_pattern, dist_config in v.copy().items():
-                        if "*" in dist_config or original_path.joinpath(f"{dist_config}").exists():
+                        if "*" in dist_config or original_path.joinpath(Path(f"{dist_config}")).exists():
                             v[dist_pattern] = relpath(original_path.joinpath(dist_config), output_path)
                         elif "pattern" in dist_config:
                             dist_config = ProjectBuilder._update_relative_paths(
@@ -88,7 +88,7 @@ class ProjectBuilder:
                     config[k] = ProjectBuilder._update_relative_paths(
                         v, original_path, output_path)
             else:
-                if isinstance(v, str) and original_path.joinpath(v).exists():
+                if isinstance(v, str) and original_path.joinpath(Path(v)).exists():
                     config[k] = relpath(original_path.joinpath(v), output_path)
 
         return config

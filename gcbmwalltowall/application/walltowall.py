@@ -4,11 +4,12 @@ import subprocess
 import sys
 import shutil
 import multiprocessing as mp
+from dataclasses import dataclass
 from datetime import datetime
 from logging import FileHandler
 from logging import StreamHandler
 from psutil import virtual_memory
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 from argparse import ArgumentParser
 from tempfile import TemporaryDirectory
 from spatial_inventory_rollback.gcbm.merge import gcbm_merge
@@ -20,13 +21,128 @@ from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.component.preparedproject import PreparedProject
 from gcbmwalltowall.project.projectfactory import ProjectFactory
 
-def convert(args: Namespace):
+class ArgBase(dict):
+
+    def __getattr__(self, key):
+        return self[key]
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
+@dataclass
+class ConvertArgs(ArgBase):
+    project_path: str
+    output_path: str
+    aidb_path: str
+    spinup_disturbance_type: str
+    apply_departial_dms: bool
+    preserve_temp_files: bool
+    creation_options: dict
+    disturbance_cohorts: bool
+    max_workers: int
+    chunk_size: int
+    tempdir: str
+
+    @classmethod
+    def from_namespace(cls, ns: Namespace):
+        return cls(
+            project_path=ns.project_path,
+            output_path=ns.output_path,
+            aidb_path=getattr(ns, "aidb_path", None),
+            spinup_disturbance_type=getattr(ns, "spinup_disturbance_type", "Wildfire"),
+            apply_departial_dms=getattr(ns, "apply_departial_dms", False),
+            preserve_temp_files=getattr(ns, "preserve_temp_files", False),
+            creation_options=getattr(ns, "creation_options", {}),
+            disturbance_cohorts=getattr(ns, "disturbance_cohorts", False),
+            max_workers=getattr(ns, "max_workers", None),
+            chunk_size=getattr(ns, "chunk_size", None),
+            tempdir=getattr(ns, "tempdir", None),
+        )
+
+@dataclass
+class BuildArgs(ArgBase):
+    config_path: str
+    output_path: str
+
+    @classmethod
+    def from_namespace(cls, ns: Namespace):
+        return cls(
+            config_path=ns.config_path,
+            output_path=ns.output_path,
+        )
+
+@dataclass
+class PrepareArgs(ArgBase):
+    config_path: str
+    output_path: str
+    max_workers: int
+    max_mem_gb: int
+
+    @classmethod
+    def from_namespace(cls, ns: Namespace):
+        return cls(
+            config_path=ns.config_path,
+            output_path=getattr(ns, "output_path", None),
+            max_workers=getattr(ns, "max_workers", None),
+            max_mem_gb=getattr(ns, "max_mem_gb", None),
+        )
+
+@dataclass
+class MergeArgs(ArgBase):
+    config_path: str
+    project_paths: list[str]
+    output_path: str
+    include_index_layer: bool
+    max_mem_gb: int
+    tempdir: str
+
+    @classmethod
+    def from_namespace(cls, ns: Namespace):
+        return cls(
+            config_path=ns.config_path,
+            project_paths=ns.project_paths,
+            output_path=ns.output_path,
+            include_index_layer=ns.include_index_layer,
+            max_mem_gb=getattr(ns, "max_mem_gb", None),
+            tempdir=getattr(ns, "tempdir", None),
+        )
+
+@dataclass
+class RunArgs(ArgBase):
+    host: str
+    project_path: str
+    config_path: str
+    end_year: int
+    title: str
+    compile_results_config: str
+    batch_limit: int
+    max_workers: int
+    engine: str
+    apply_departial_dms: bool
+
+    @classmethod
+    def from_namespace(cls, ns: Namespace):
+        return cls(
+            project_path=ns.project_path,
+            host=getattr(ns, "host", "local"),
+            config_path=getattr(ns, "config_path", None),
+            end_year=getattr(ns, "end_year", None),
+            title=getattr(ns, "title", None),
+            compile_results_config=getattr(ns, "compile_results_config", None),
+            batch_limit=getattr(ns, "batch_limit", None),
+            max_workers=getattr(ns, "max_workers", None),
+            engine=getattr(ns, "engine", "libcbm"),
+            apply_departial_dms=getattr(ns, "apply_departial_dms", False),
+        )
+
+def convert(args: ConvertArgs | dict):
     # Guard against importing CBM4 dependencies until needed.
     from gcbmwalltowall.converter.projectconverter import ProjectConverter
 
+    args = ConvertArgs(**args)
     creation_options = args.creation_options or {}
-    creation_options["max_workers"] = getattr(args, "max_workers", None)
-    chunk_size = getattr(args, "chunk_size", None)
+    creation_options["max_workers"] = args.max_workers
+    chunk_size = args.chunk_size
     if chunk_size:
         creation_options.update({
             "chunk_options": {
@@ -43,12 +159,22 @@ def convert(args: Namespace):
         args.apply_departial_dms, args.preserve_temp_files
     )
     
-def build(args: Namespace):
+def _convert(args: Namespace):
+    convert(ConvertArgs.from_namespace(args))
+
+def build(args: BuildArgs | dict):
+    args = BuildArgs(**args)
     logging.info(f"Building {args.config_path}")
     ProjectBuilder.build_from_file(args.config_path, args.output_path)
 
-def prepare(args: Namespace):
+def _build(args: Namespace):
+    build(BuildArgs.from_namespace(args))
+
+def prepare(args: PrepareArgs | dict):
+    args = PrepareArgs(**args)
     config = Configuration.load(args.config_path, args.output_path)
+    config["max_workers"] = args.max_workers
+    config["max_mem_gb"] = args.max_mem_gb
     project = ProjectFactory().create(config)
     logging.info(f"Preparing {project.name}")
 
@@ -65,7 +191,11 @@ def prepare(args: Namespace):
                            config.gcbm_disturbance_order,
                            **extra_args)
 
-def merge(args: Namespace):
+def _prepare(args: Namespace):
+    prepare(PrepareArgs.from_namespace(args))
+
+def merge(args: MergeArgs | dict):
+    args = MergeArgs(**args)
     with TemporaryDirectory() as tmp:
         projects = [PreparedProject(path) for path in args.project_paths]
         logging.info("Merging projects:\n{}".format("\n".join((str(p.path) for p in projects))))
@@ -81,7 +211,8 @@ def merge(args: Namespace):
         start_year = min((project.start_year for project in projects))
         end_year = max((project.end_year for project in projects))
 
-        memory_limit = virtual_memory().available * 0.75 // 1024**2
+        max_mem_gb = args.max_mem_gb or (virtual_memory().available * 0.75 // 1024**3)
+        memory_limit = int(max_mem_gb * 1024)
         merged_data = gcbm_merge.merge(
             inventories, str(merged_output_path), str(db_output_path),
             start_year, memory_limit_MB=memory_limit)
@@ -103,7 +234,11 @@ def merge(args: Namespace):
     
         configurer.configure()
 
-def run(args: Namespace):
+def _merge(args: Namespace):
+    merge(MergeArgs.from_namespace(args))
+
+def run(args: RunArgs | dict):
+    args = RunArgs(**args)
     project = PreparedProject(args.project_path)
     logging.info(f"Running project ({args.host}):\n{project.path}")
 
@@ -125,8 +260,8 @@ def run(args: Namespace):
                     raise RuntimeError(f"Unrecognized CBM4 engine: {args.engine}")
 
                 cbm4.run(cbm4_config_path,
-                         max_workers=getattr(args, "max_workers", None),
-                         apply_departial_dms=getattr(args, "apply_departial_dms", False),
+                         max_workers=args.max_workers,
+                         apply_departial_dms=args.apply_departial_dms)
                          write_parameters=getattr(args, "write_parameters", False))
             else:
                 logging.info(f"Using {config.resolve(config.gcbm_exe)}")
@@ -141,7 +276,7 @@ def run(args: Namespace):
             
             run_args = [
                 sys.executable, str(config.resolve(config.distributed_client)),
-                "--title", datetime.now().strftime(f"gcbm_{getattr(args, 'title', project_name)}_%Y%m%d_%H%M%S"),
+                "--title", datetime.now().strftime(f"gcbm_{args.title or project_name}_%Y%m%d_%H%M%S"),
                 "--gcbm-config", str(project.gcbm_config_path.joinpath("gcbm_config.cfg")),
                 "--provider-config", str(project.gcbm_config_path.joinpath("provider_config.json")),
                 "--study-area", str(
@@ -150,15 +285,18 @@ def run(args: Namespace):
                 "--no-wait"
             ]
             
-            compile_results_config = getattr(args, "compile_results_config", None)
+            compile_results_config = args.compile_results_config
             if compile_results_config:
                 run_args.extend(["--compile-results-config", Path(compile_results_config).absolute()])
 
-            batch_limit = getattr(args, "batch_limit", None)
+            batch_limit = args.batch_limit
             if batch_limit:
                 run_args.extend(["--batch-limit", batch_limit])
 
             subprocess.run(run_args, cwd=project.path)
+
+def _run(args: RunArgs):
+    run(RunArgs.from_namespace(args))
 
 def cli():
     try:
@@ -175,7 +313,7 @@ def cli():
         help=("Use the builder configuration contained in the config file to fill in and "
               "configure the rest of the project; overwrites the existing json config file "
               "unless output config file path is specified."))
-    build_parser.set_defaults(func=build)
+    build_parser.set_defaults(func=_build)
     build_parser.add_argument(
         "config_path",
         help="path to config file containing shortcut 'builder' section")
@@ -187,17 +325,21 @@ def cli():
         help=("Using the project configuration in the config file, tile the spatial "
               "layers, generate the input database, run the spatial rollback if "
               "specified, and configure the GCBM run."))
-    prepare_parser.set_defaults(func=prepare)
+    prepare_parser.set_defaults(func=_prepare)
     prepare_parser.add_argument(
         "config_path",
         help="path to config file containing fully-specified project configuration")
     prepare_parser.add_argument(
         "output_path", nargs="?", help="destination directory for project files")
+    prepare_parser.add_argument(
+        "--max_workers", type=int, help="max workers")
+    prepare_parser.add_argument(
+        "--max_mem_gb", type=int, help="max memory (GB)")
 
     merge_parser = subparsers.add_parser(
         "merge",
         help="Merge two or more walltowall-prepared inventories together.")
-    merge_parser.set_defaults(func=merge, include_index_layer=False)
+    merge_parser.set_defaults(func=_merge, include_index_layer=False)
     merge_parser.add_argument(
         "config_path",
         help="path to walltowall config file for disturbance order and GCBM config templates")
@@ -210,10 +352,12 @@ def cli():
     merge_parser.add_argument(
         "--include_index_layer", action="store_true",
         help="include merged index as reporting classifier")
+    merge_parser.add_argument(
+        "--max_mem_gb", type=int, help="max memory (GB)")
 
     run_parser = subparsers.add_parser(
         "run", help="Run the specified project either locally or on the cluster.")
-    run_parser.set_defaults(func=run)
+    run_parser.set_defaults(func=_run)
     run_parser.add_argument(
         "host", choices=["local", "cluster"], help="run either locally or on the cluster")
     run_parser.add_argument(
@@ -239,7 +383,7 @@ def cli():
 
     convert_parser = subparsers.add_parser(
         "convert", help=("Convert a walltowall-prepared GCBM project to CBM4."))
-    convert_parser.set_defaults(func=convert, creation_options={})
+    convert_parser.set_defaults(func=_convert, creation_options={})
     convert_parser.add_argument(
         "project_path", help="root directory of a walltowall-prepared GCBM project")
     convert_parser.add_argument(

@@ -5,7 +5,7 @@ import logging
 import sys
 from ftfy import guess_bytes
 from ftfy import fix_encoding
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 from tempfile import TemporaryDirectory
 from mojadata.util import ogr
 from mojadata.layer.attribute import Attribute

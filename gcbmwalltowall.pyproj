@@ -7,12 +7,12 @@
     <StartupFile>gcbmwalltowall\application\walltowall.py</StartupFile>
     <SearchPath>
     </SearchPath>
-    <WorkingDirectory>D:\Projects\Parks\ON_CBM4</WorkingDirectory>
+    <WorkingDirectory>D:\Projects\3a_Standalone_Template_JSON_Workflow</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <Name>gcbmwalltowall</Name>
     <RootNamespace>gcbmwalltowall</RootNamespace>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>run local . --max_workers 1</CommandLineArguments>
+    <CommandLineArguments>run local cbm4 --max_workers 1</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
     <IsWindowsApplication>False</IsWindowsApplication>
   </PropertyGroup>
@@ -101,7 +101,9 @@
     <Compile Include="gcbmwalltowall\runner\cbmspec.py" />
     <Compile Include="gcbmwalltowall\runner\cbm4.py" />
     <Compile Include="gcbmwalltowall\runner\__init__.py" />
+    <Compile Include="gcbmwalltowall\util\encoding.py" />
     <Compile Include="gcbmwalltowall\util\numba.py" />
+    <Compile Include="gcbmwalltowall\util\path.py" />
     <Compile Include="gcbmwalltowall\util\rasterbound.py" />
     <Compile Include="gcbmwalltowall\converter\layerconverter.py" />
     <Compile Include="gcbmwalltowall\converter\projectconverter.py" />

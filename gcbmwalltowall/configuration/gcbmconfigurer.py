@@ -11,16 +11,18 @@ from itertools import chain
 from argparse import ArgumentParser
 from glob import iglob
 from contextlib import contextmanager
+from gcbmwalltowall.util.path import Path
+from gcbmwalltowall.util.path import relpath
 
 class GCBMConfigurer:
 
     def __init__(self, layer_paths, template_path, input_db_path, output_path=".",
                  start_year=None, end_year=None, disturbance_order=None,
                  excluded_layers=None, copy_data=False):
-        self._layer_paths = layer_paths
-        self._template_path = template_path
-        self._input_db_path = input_db_path
-        self._output_path = output_path
+        self._layer_paths = [Path(p).as_posix() for p in layer_paths]
+        self._template_path = Path(template_path).as_posix()
+        self._input_db_path = Path(input_db_path).as_posix()
+        self._output_path = Path(output_path).as_posix()
         self._start_year = start_year
         self._end_year = end_year
         self._user_disturbance_order = disturbance_order or []
@@ -165,7 +167,7 @@ class GCBMConfigurer:
                 os.makedirs(os.path.dirname(input_db_path), exist_ok=True)
                 shutil.copyfile(self._input_db_path, input_db_path)
 
-            aspatial_provider_config["path"] = os.path.join(os.path.relpath(
+            aspatial_provider_config["path"] = os.path.join(relpath(
                 input_db_path, self._output_path))
 
             spatial_provider_config["tileLatSize"]  = study_area["tile_size"]
@@ -191,7 +193,7 @@ class GCBMConfigurer:
 
                 provider_layers.append({
                     "name"        : layer["name"],
-                    "layer_path"  : os.path.join(os.path.relpath(layer_path, self._output_path)),
+                    "layer_path"  : os.path.join(relpath(layer_path, self._output_path)),
                     "layer_prefix": layer["prefix"]
                 })
                 

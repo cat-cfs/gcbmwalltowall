@@ -5,7 +5,7 @@ import time
 import shutil
 import pandas as pd
 from tempfile import TemporaryDirectory
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 from arrow_space.raster_indexed_dataset import RasterIndexedDataset
 from cbm4.app.spatial.spatial_cbm4 import cbm4_spatial_runner
 from cbmspec_cbm3.models import cbmspec_cbm3_single_matrix

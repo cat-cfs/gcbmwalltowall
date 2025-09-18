@@ -3,7 +3,7 @@ import re
 import sys
 import logging
 from itertools import product
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 from mojadata.util import ogr
 from mojadata.layer.attribute import Attribute
 from mojadata.layer.gcbm.disturbancelayer import DisturbanceLayer

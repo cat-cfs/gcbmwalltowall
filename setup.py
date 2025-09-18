@@ -4,14 +4,15 @@ from glob import glob
 
 setup(
     name="gcbmwalltowall",
-    version="2.2.0",
+    version="2.2.2",
     description="gcbmwalltowall",
     classifiers=[
         "Programming Language :: Python :: 3",
     ],
     packages=find_packages(exclude=["contrib", "docs", "tests"]),
     install_requires=[
-        "mojadata>=4.0.3", "sqlalchemy", "sqlalchemy-access", "pandas", "openpyxl", "spatial_inventory_rollback>=1.1.0"
+        "mojadata", "sqlalchemy", "pandas", "openpyxl", "spatial_inventory_rollback",
+        'sqlalchemy-access; platform_system == "Windows"'
     ],
     extras_require={},
     package_data={},

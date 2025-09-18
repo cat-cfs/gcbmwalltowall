@@ -5,8 +5,8 @@ import string
 import pandas as pd
 import numpy as np
 from collections import defaultdict
-from os.path import relpath
-from pathlib import Path
+from gcbmwalltowall.util.path import relpath
+from gcbmwalltowall.util.path import Path
 from gcbmwalltowall.builder.projectbuilder import ProjectBuilder
 
 class CasfriProjectBuilder(ProjectBuilder):

@@ -1,6 +1,6 @@
 import pandas as pd
 from numbers import Number
-from pathlib import Path
+from gcbmwalltowall.util.path import Path
 from gcbmwalltowall.component.tileable import Tileable
 from mojadata.layer.dummylayer import DummyLayer
 
