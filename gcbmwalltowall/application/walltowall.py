@@ -262,6 +262,7 @@ def run(args: RunArgs | dict):
                 cbm4.run(cbm4_config_path,
                          max_workers=args.max_workers,
                          apply_departial_dms=args.apply_departial_dms)
+                         write_parameters=getattr(args, "write_parameters", False))
             else:
                 logging.info(f"Using {config.resolve(config.gcbm_exe)}")
                 subprocess.run([
@@ -376,6 +377,9 @@ def cli():
         "--max_workers", type=int, help="[cbm4 only] max workers for CBM4 runs")
     run_parser.add_argument(
         "--engine", help="[cbm4 only] (libcbm/cbmspec) specify the CBM4 engine to use; default: libcbm", default="libcbm")
+    run_parser.add_argument(
+        "--write_parameters", action="store_true",
+        help="[cbm4 only] write parameters datasets; default: false")
 
     convert_parser = subparsers.add_parser(
         "convert", help=("Convert a walltowall-prepared GCBM project to CBM4."))
