@@ -312,10 +312,15 @@ def run(args: RunArgs | dict):
 
                 cbm4.run(
                     str(cbm4_config_path),
+<<<<<<< HEAD
                     max_workers=args.max_workers,
                     apply_departial_dms=args.apply_departial_dms,
                     write_parameters=args.write_parameters,
                     **extra_kwargs,
+=======
+                    write_parameters=True,
+                    **config,
+>>>>>>> 3dc6ffd (fix tests)
                 )
             else:
                 logging.info(f"Using {config.resolve(config.gcbm_exe)}")
@@ -477,6 +482,11 @@ def cli():
         "--engine",
         help="[cbm4 only] (libcbm/cbmspec) specify the CBM4 engine to use; default: libcbm",
         default="libcbm",
+    )
+    run_parser.add_argument(
+        "--write_parameters",
+        action="store_true",
+        help="[cbm4 only] write parameters datasets; default: false",
     )
 
     convert_parser = subparsers.add_parser(

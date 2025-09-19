@@ -16,8 +16,7 @@ def test_load_config():
 
 
 def test_run_cbmspec():
-
-    dst = results_dir.joinpath("test_run_canfire")
+    dst = results_dir.joinpath("test_run_cbmspec")
     if dst.exists():
         shutil.rmtree(dst)
 
