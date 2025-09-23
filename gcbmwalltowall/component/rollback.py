@@ -1,5 +1,6 @@
 import json
 import shutil
+import psutil
 import pandas as pd
 import numpy as np
 from collections import defaultdict
@@ -24,7 +25,10 @@ class Rollback:
         self.establishment_disturbance_type = establishment_disturbance_type
         self.disturbance_order = disturbance_order
     
-    def run(self, classifiers, tiled_layers_path, input_db_path, transition_rule_manager=None):
+    def run(
+        self, classifiers, tiled_layers_path, input_db_path,
+        transition_rule_manager=None, max_mem_gb=None
+    ):
         tiled_layers_path = Path(tiled_layers_path).absolute()
         input_db_path = Path(input_db_path).absolute()
         
@@ -66,7 +70,11 @@ class Rollback:
             stand_replacing_lookup=None,
             disturbance_type_order=self.disturbance_order,
             logging_level="INFO",
-            transition_rule_manager=transition_rule_manager))
+            transition_rule_manager=transition_rule_manager,
+            memory_limit_MB=int(
+                max_mem_gb or (psutil.virtual_memory().available / 1024**3 / 4)
+            ) * 1024
+        ))
 
     def _convert_age_distribution(self, classifiers, output_path):
         age_distributions = []

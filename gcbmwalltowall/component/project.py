@@ -128,7 +128,11 @@ class Project:
 
         output_path = self.input_db_path.parent
         rollback_transition_rules_path = self.rollback_output_path.absolute()
-        self.rollback.run(self.classifiers, self.tiler_output_path, self.input_db_path, rule_manager)
+        self.rollback.run(
+            self.classifiers, self.tiler_output_path, self.input_db_path,
+            rule_manager, (self.max_mem_gb // 4) if self.max_mem_gb else None
+        )
+
         if self.cohorts:
             for i, _ in enumerate(self.cohorts, 1):
                 with TemporaryDirectory() as tmp:
