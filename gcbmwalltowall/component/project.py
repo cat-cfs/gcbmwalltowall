@@ -128,9 +128,10 @@ class Project:
 
         output_path = self.input_db_path.parent
         rollback_transition_rules_path = self.rollback_output_path.absolute()
+        rollback_mem = (self.max_mem_gb // 8) if self.max_mem_gb else None
         self.rollback.run(
             self.classifiers, self.tiler_output_path, self.input_db_path,
-            rule_manager, (self.max_mem_gb // 4) if self.max_mem_gb else None
+            rule_manager, rollback_mem
         )
 
         if self.cohorts:
@@ -153,7 +154,11 @@ class Project:
                         shutil.copyfile(fn, staging_layers_path.joinpath(fn.name))
 
                     shutil.copyfile(self.input_db_path, cohort_staging_path.joinpath("input_database"))
-                    self.rollback.run(self.classifiers, staging_layers_path, self.input_db_path, rule_manager)
+                    self.rollback.run(
+                        self.classifiers, staging_layers_path, self.input_db_path,
+                        rule_manager, rollback_mem
+                    )
+
                     cohort_rollback_path = self.rollback_output_path.joinpath(rf"cohorts\{i}")
                     cohort_rollback_path.mkdir(parents=True)
                     for fn in cohort_staging_path.joinpath(r"layers\rollback").glob("*.*"):
