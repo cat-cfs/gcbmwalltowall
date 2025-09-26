@@ -4,7 +4,7 @@ name = "gcbmwalltowall"
 version = "2.2.2"
 description = "gcbmwalltowall"
 classifiers = ["Programming Language :: Python :: 3"]
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 dependencies = [
     "gcbminputloader",
     "mojadata",
