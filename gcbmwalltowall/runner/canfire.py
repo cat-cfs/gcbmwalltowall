@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
@@ -8,6 +7,8 @@ from cbm4_canfire.cbmspec.canfire_cbmspec_model import CanfireCbmSpecModel
 from cbm4_canfire.cbmspec.canfire_config import CanfireConfig
 from cbm4_canfire.cbmspec.cbmspec import CBMSpecModel
 from cbmspec_cbm3.models import cbmspec_cbm3_single_matrix
+
+from gcbmwalltowall.util.path import Path
 
 from . import cbmspec
 
