@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -39,11 +40,19 @@ def load_config(
     wrapped_cbmspec_model: CBMSpecModel,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    # This line could change to something else if the cbm4_config changes
-    # currently assuming that it would be in a flat shape
-    canfire_config = CanfireConfig.model_validate_json(
-        Path(cbm4_config_path).open("rb").read()
+
+    canfire_config_source: dict[str, Any] | str = (
+        json.load(Path(cbm4_config_path).open("rb"))
+        .get("modules", dict())
+        .get("canfire", dict())
     )
+
+    if isinstance(canfire_config_source, str):
+        canfire_config = CanfireConfig.model_validate_json(
+            Path(canfire_config_source).open("r").read()
+        )
+    else:
+        canfire_config = CanfireConfig.model_validate(canfire_config_source)
 
     model = CanfireCbmSpecModel(
         wrapped_cbmspec_model,

@@ -68,8 +68,8 @@ def test_run_canfire():
     project = Path(shutil.copytree(standalone_project_path, dst))
 
     config: dict[str, Any] = json.load(project.joinpath("cbm4_config.json").open())
-    config.update(standalone_canfire_config.model_dump())
-    json.dump(config, project.joinpath("cbm4_config.json").open("w"))
+    config.update({"modules": {"canfire": standalone_canfire_config.model_dump()}})
+    json.dump(config, project.joinpath("cbm4_config.json").open("w"), indent=4)
 
     cbm4_config_path = str(project.joinpath("cbm4_config.json"))
     model = cbmspec_cbm3_single_matrix.model_create()
