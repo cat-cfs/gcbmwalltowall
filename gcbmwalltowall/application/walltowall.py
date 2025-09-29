@@ -471,9 +471,6 @@ def cli():
         "--max_workers", type=int, help="[cbm4 only] max workers for CBM4 runs"
     )
     run_parser.add_argument(
-        "--max_workers", type=int, help="[cbm4 only] max workers for CBM4 runs"
-    )
-    run_parser.add_argument(
         "--engine",
         help="[cbm4 only] (libcbm/cbmspec) specify the CBM4 engine to use; default: libcbm",
         default="libcbm",
