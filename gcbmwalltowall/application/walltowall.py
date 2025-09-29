@@ -312,15 +312,10 @@ def run(args: RunArgs | dict):
 
                 cbm4.run(
                     str(cbm4_config_path),
-<<<<<<< HEAD
                     max_workers=args.max_workers,
                     apply_departial_dms=args.apply_departial_dms,
                     write_parameters=args.write_parameters,
                     **extra_kwargs,
-=======
-                    write_parameters=True,
-                    **config,
->>>>>>> 3dc6ffd (fix tests)
                 )
             else:
                 logging.info(f"Using {config.resolve(config.gcbm_exe)}")
