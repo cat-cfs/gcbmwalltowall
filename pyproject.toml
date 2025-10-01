@@ -1,7 +1,6 @@
-
 [project]
 name = "gcbmwalltowall"
-version = "2.2.3"
+version = "2.2.4"
 description = "gcbmwalltowall"
 classifiers = ["Programming Language :: Python :: 3"]
 requires-python = ">=3.9"
@@ -33,10 +32,13 @@ walltowall = "gcbmwalltowall.application.walltowall:cli"
 [build-system]
 requires = ["uv_build>=0.8.13,<0.9.0"]
 build-backend = "uv_build"
+
 [tool.uv.build-backend]
 module-name = "gcbmwalltowall"
 module-root = "."
 
+[tool.uv.build-backend.data]
+data = "files"
 
 [tool.uv.sources]
 cbm4 = { git = "https://github.com/cat-cfs/cbm4" }

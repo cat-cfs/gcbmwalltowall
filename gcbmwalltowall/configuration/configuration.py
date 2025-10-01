@@ -10,13 +10,13 @@ from gcbmwalltowall.util.path import Path
 
 class Configuration(dict):
 
-    global_settings_windows = Path(
-        sys.prefix, "Tools", "gcbmwalltowall", "settings.json"
-    )
-    global_settings_linux = Path(
-        sys.prefix, "local", "Tools", "gcbmwalltowall", "settings.json"
-    )
-    user_settings = Path(site.USER_BASE, "Tools", "gcbmwalltowall", "settings.json")
+    global_settings_paths = [
+        Path(sys.prefix, "Tools", "gcbmwalltowall", "settings.json"),
+        Path(sys.prefix, "local", "Tools", "gcbmwalltowall", "settings.json"),
+        Path(sys.prefix, "gcbmwalltowall", "settings.json"),
+        Path(sys.prefix, "local", "gcbmwalltowall", "settings.json"),
+        Path(site.USER_BASE, "Tools", "gcbmwalltowall", "settings.json"),
+    ]
 
     def __init__(self, d, config_path, working_path=None):
         super().__init__(d)
@@ -70,6 +70,12 @@ class Configuration(dict):
                         Path(
                             site.USER_BASE,
                             "Tools",
+                            "gcbmwalltowall",
+                            "templates",
+                            "default",
+                        ),
+                        Path(
+                            sys.prefix,
                             "gcbmwalltowall",
                             "templates",
                             "default",
@@ -143,11 +149,7 @@ class Configuration(dict):
 
     def _load_settings(self):
         project_settings = self.copy()
-        for config_path in (
-            Configuration.global_settings_windows,
-            Configuration.global_settings_linux,
-            Configuration.user_settings,
-        ):
+        for config_path in Configuration.global_settings_paths:
             if config_path.is_file():
                 self.update(json.load(open(config_path)))
 
@@ -159,9 +161,8 @@ class Configuration(dict):
             return target_file
 
         raise RuntimeError(
-            f"{file_name} not found - please check {setting_name} setting in either "
-            f"{Configuration.global_settings_windows}, {Configuration.global_settings_linux}, "
-            f"or {Configuration.user_settings}"
+            f"{file_name} not found - please check {setting_name} setting in any of these locations: "
+            + ", ".join(Configuration.global_settings_paths)
         )
 
     @classmethod
