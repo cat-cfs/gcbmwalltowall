@@ -1,8 +1,11 @@
-import pandas as pd
 from numbers import Number
-from gcbmwalltowall.util.path import Path
-from gcbmwalltowall.component.tileable import Tileable
+
+import pandas as pd
 from mojadata.layer.dummylayer import DummyLayer
+
+from gcbmwalltowall.component.tileable import Tileable
+from gcbmwalltowall.util.path import Path
+
 
 class Classifier(Tileable):
 
@@ -11,7 +14,7 @@ class Classifier(Tileable):
         self.values_path = Path(values_path) if values_path else None
         self.values_col = values_col
         self.yield_col = yield_col
-        
+
     @property
     def name(self):
         return self.layer.name
@@ -20,10 +23,9 @@ class Classifier(Tileable):
     def values(self):
         values_col_idx = self._find_values_col_index()
         unique_values = set(
-            pd.read_csv(self.values_path)
-              .iloc[:, values_col_idx]
-              .unique())
-        
+            pd.read_csv(self.values_path).iloc[:, values_col_idx].unique()
+        )
+
         return unique_values
 
     @property
@@ -53,10 +55,18 @@ class Classifier(Tileable):
         # No configured column or easy defaults - try to detect based on values.
         spatial_data = self.layer.attribute_table
         spatial_attribute = (
-            next(iter(spatial_data.keys())) if len(spatial_data.keys()) == 1
-            else self.layer.attributes[0] if self.layer.attributes
-            else self.name if self.name in spatial_data
-            else next(iter(spatial_data.keys())))
+            next(iter(spatial_data.keys()))
+            if len(spatial_data.keys()) == 1
+            else (
+                self.layer.attributes[0]
+                if self.layer.attributes
+                else (
+                    self.name
+                    if self.name in spatial_data
+                    else next(iter(spatial_data.keys()))
+                )
+            )
+        )
 
         if spatial_attribute in classifier_data:
             return classifier_data.columns.get_loc(spatial_attribute)
@@ -80,12 +90,20 @@ class Classifier(Tileable):
 
         raise RuntimeError(
             f"Unable to find column in {self.values_path} matching "
-            f"{spatial_attribute} in {self.layer.path}")
+            f"{spatial_attribute} in {self.layer.path}"
+        )
 
 
 class DefaultClassifier(Classifier):
 
-    def __init__(self, name, default_value=None, values_path=None, values_col=None, yield_col=None):
+    def __init__(
+        self,
+        name,
+        default_value=None,
+        values_path=None,
+        values_col=None,
+        yield_col=None,
+    ):
         self._name = name
         self._default_value = default_value
         self.values_path = Path(values_path) if values_path else None
@@ -108,4 +126,6 @@ class DefaultClassifier(Classifier):
         return True
 
     def to_tiler_layer(self, rule_manager, **kwargs):
-        return DummyLayer(self._name, self._default_value, tags=["classifier"], **kwargs)
+        return DummyLayer(
+            self._name, self._default_value, tags=["classifier"], **kwargs
+        )

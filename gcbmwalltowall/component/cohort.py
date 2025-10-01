@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+from gcbmwalltowall.component.classifier import Classifier
+from gcbmwalltowall.component.layer import Layer
+
+
 class Cohort:
 
-    def __init__(self, layers: list[Layer] = None, classifiers: list[Classifier] = None):
+    def __init__(
+        self, layers: list[Layer] = None, classifiers: list[Classifier] = None
+    ):
         self.layers = layers
         self.classifiers = classifiers
         self._validate()

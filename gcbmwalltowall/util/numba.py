@@ -1,7 +1,7 @@
-from numba import njit
-from numba.typed import Dict
-from numba import types
 import numpy as np
+from numba import njit, types
+from numba.typed import Dict
+
 
 def numba_map(a: np.ndarray, m: dict) -> np.ndarray:
     """Return the mapped value of a according to the dictionary m.
@@ -20,6 +20,7 @@ def numba_map(a: np.ndarray, m: dict) -> np.ndarray:
     for k, v in m.items():
         d[k] = v
     return _numba_map(a, d)
+
 
 @njit
 def _numba_map(a, m):

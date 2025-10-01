@@ -4,7 +4,7 @@ name = "gcbmwalltowall"
 version = "2.2.2"
 description = "gcbmwalltowall"
 classifiers = ["Programming Language :: Python :: 3"]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "cbm4-canfire",
     "gcbminputloader",
@@ -49,4 +49,7 @@ cbm_defaults = { git = "https://github.com/cat-cfs/cbm_defaults/" }
 cbm4-canfire = { git = "https://github.com/cat-cfs/cbm4_canfire.git" }
 
 [dependency-groups]
-dev = ["pytest>=8.4.2"]
+dev = [
+    "black>=25.9.0",
+    "pytest>=8.4.2",
+]

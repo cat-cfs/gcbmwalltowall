@@ -1,14 +1,21 @@
 import json
 import site
 import sys
+
 import pandas as pd
+
 from gcbmwalltowall.util.encoding import load_json
 from gcbmwalltowall.util.path import Path
 
+
 class Configuration(dict):
 
-    global_settings_windows = Path(sys.prefix, "Tools", "gcbmwalltowall", "settings.json")
-    global_settings_linux = Path(sys.prefix, "local", "Tools", "gcbmwalltowall", "settings.json")
+    global_settings_windows = Path(
+        sys.prefix, "Tools", "gcbmwalltowall", "settings.json"
+    )
+    global_settings_linux = Path(
+        sys.prefix, "local", "Tools", "gcbmwalltowall", "settings.json"
+    )
     user_settings = Path(site.USER_BASE, "Tools", "gcbmwalltowall", "settings.json")
 
     def __init__(self, d, config_path, working_path=None):
@@ -40,7 +47,7 @@ class Configuration(dict):
     def gcbm_disturbance_order_path(self):
         disturbance_order_path = self.get(
             "disturbance_order",
-            next(self.config_path.glob("disturbance_order.*"), None)
+            next(self.config_path.glob("disturbance_order.*"), None),
         )
 
         if not disturbance_order_path:
@@ -55,12 +62,38 @@ class Configuration(dict):
             template_path = self.resolve(self["gcbm_config_templates"])
 
         if not template_path or not template_path.exists():
-            template_path = next((path for path in (
-                self.resolve("templates"),
-                Path(site.USER_BASE, "Tools", "gcbmwalltowall", "templates", "default"),
-                Path(sys.prefix, "Tools", "gcbmwalltowall", "templates", "default"),
-                Path(sys.prefix, "local", "Tools", "gcbmwalltowall", "templates", "default"),
-            ) if path.exists()), None)
+            template_path = next(
+                (
+                    path
+                    for path in (
+                        self.resolve("templates"),
+                        Path(
+                            site.USER_BASE,
+                            "Tools",
+                            "gcbmwalltowall",
+                            "templates",
+                            "default",
+                        ),
+                        Path(
+                            sys.prefix,
+                            "Tools",
+                            "gcbmwalltowall",
+                            "templates",
+                            "default",
+                        ),
+                        Path(
+                            sys.prefix,
+                            "local",
+                            "Tools",
+                            "gcbmwalltowall",
+                            "templates",
+                            "default",
+                        ),
+                    )
+                    if path.exists()
+                ),
+                None,
+            )
 
         if not template_path:
             raise RuntimeError("GCBM config file templates not found")
@@ -73,7 +106,7 @@ class Configuration(dict):
         for config_path in (
             Configuration.global_settings_windows,
             Configuration.global_settings_linux,
-            Configuration.user_settings
+            Configuration.user_settings,
         ):
             if config_path.is_file():
                 settings_keys.update(json.load(open(config_path)).keys())
@@ -101,7 +134,7 @@ class Configuration(dict):
         for lookup_table in (
             self.working_path.joinpath(layer_path.with_suffix(".csv").name),
             self.config_path.joinpath(layer_path.with_suffix(".csv").name),
-            layer_path.with_suffix(".csv")
+            layer_path.with_suffix(".csv"),
         ):
             if lookup_table.exists():
                 return lookup_table
@@ -113,7 +146,7 @@ class Configuration(dict):
         for config_path in (
             Configuration.global_settings_windows,
             Configuration.global_settings_linux,
-            Configuration.user_settings
+            Configuration.user_settings,
         ):
             if config_path.is_file():
                 self.update(json.load(open(config_path)))
@@ -128,7 +161,8 @@ class Configuration(dict):
         raise RuntimeError(
             f"{file_name} not found - please check {setting_name} setting in either "
             f"{Configuration.global_settings_windows}, {Configuration.global_settings_linux}, "
-            f"or {Configuration.user_settings}")
+            f"or {Configuration.user_settings}"
+        )
 
     @classmethod
     def load(cls, config_path, working_path=None):
@@ -137,4 +171,5 @@ class Configuration(dict):
         return cls(
             load_json(config_path),
             config_path.parent,
-            Path(working_path or config_path.parent))
+            Path(working_path or config_path.parent),
+        )

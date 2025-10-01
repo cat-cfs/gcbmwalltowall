@@ -1,24 +1,34 @@
+import csv
 import io
-import os
-import simplejson as json
 import logging
+import os
 import shutil
 import sqlite3
-import csv
-import pandas as pd
-from contextlib import closing
-from itertools import chain
 from argparse import ArgumentParser
+from contextlib import closing, contextmanager
 from glob import iglob
-from contextlib import contextmanager
-from gcbmwalltowall.util.path import Path
-from gcbmwalltowall.util.path import relpath
+from itertools import chain
+
+import pandas as pd
+import simplejson as json
+
+from gcbmwalltowall.util.path import Path, relpath
+
 
 class GCBMConfigurer:
 
-    def __init__(self, layer_paths, template_path, input_db_path, output_path=".",
-                 start_year=None, end_year=None, disturbance_order=None,
-                 excluded_layers=None, copy_data=False):
+    def __init__(
+        self,
+        layer_paths,
+        template_path,
+        input_db_path,
+        output_path=".",
+        start_year=None,
+        end_year=None,
+        disturbance_order=None,
+        excluded_layers=None,
+        copy_data=False,
+    ):
         self._layer_paths = [Path(p).as_posix() for p in layer_paths]
         self._template_path = Path(template_path).as_posix()
         self._input_db_path = Path(input_db_path).as_posix()
@@ -32,13 +42,13 @@ class GCBMConfigurer:
     def configure(self):
         if not os.path.exists(self._output_path):
             os.makedirs(self._output_path)
-        
+
         for template in chain.from_iterable(
             iglob(os.path.join(self._template_path, ext))
             for ext in ["*.cfg", "*.json", "*.conf"]
         ):
             shutil.copy(template, self._output_path)
-        
+
         # Merge the study areas in reverse order - i.e. users supply base, scenario 1,
         # scenario 2, etc. with each successive scenario taking priority: if layer A is
         # found in scenario 2, don't add layer A from scenario 1.
@@ -48,22 +58,30 @@ class GCBMConfigurer:
             if not combined_study_area:
                 combined_study_area = study_area
 
-            current_layer_names = [layer["name"] for layer in combined_study_area["layers"]]
-            combined_study_area["layers"].extend(filter(
-                lambda layer: layer["name"] not in current_layer_names,
-                study_area["layers"]))
+            current_layer_names = [
+                layer["name"] for layer in combined_study_area["layers"]
+            ]
+            combined_study_area["layers"].extend(
+                filter(
+                    lambda layer: layer["name"] not in current_layer_names,
+                    study_area["layers"],
+                )
+            )
 
         # Remove any explicitly excluded layers from the final study area.
         combined_study_area["layers"] = [
-            layer for layer in combined_study_area["layers"]
+            layer
+            for layer in combined_study_area["layers"]
             if layer["name"] not in self._excluded_layers
         ]
 
-        output_study_area_path = os.path.join(self._output_path, "..", "layers", "tiled", "study_area.json")
+        output_study_area_path = os.path.join(
+            self._output_path, "..", "layers", "tiled", "study_area.json"
+        )
         if not os.path.exists(output_study_area_path):
             os.makedirs(os.path.dirname(output_study_area_path), exist_ok=True)
             GCBMConfigurer.write_json_file(output_study_area_path, combined_study_area)
-        
+
         self.update_simulation_study_area(combined_study_area)
         self.update_simulation_disturbances(combined_study_area)
         self.add_spinup_data_variables(combined_study_area)
@@ -74,7 +92,7 @@ class GCBMConfigurer:
         self.add_missing_pools()
         if self._start_year and self._end_year:
             self.update_simulation_years(self._start_year, self._end_year)
-    
+
     @staticmethod
     def write_json_file(path, contents):
         with io.open(path, "w", encoding="utf8") as json_file:
@@ -85,16 +103,19 @@ class GCBMConfigurer:
     def update_json_file(path):
         with open(path, "rb") as json_file:
             contents = json.load(json_file)
-            
+
         yield contents
-       
+
         GCBMConfigurer.write_json_file(path, contents)
-    
+
     @staticmethod
     def find_config_file(config_path, *search_path, all_matches=False):
         matching_files = []
-        for config_file in (fn for fn in iglob(os.path.join(config_path, "*.json"))
-                            if "internal" not in fn.lower()):
+        for config_file in (
+            fn
+            for fn in iglob(os.path.join(config_path, "*.json"))
+            if "internal" not in fn.lower()
+        ):
             # Drill down through the config file contents to see if the whole search path
             # is present; if it is, then this is the right file to modify.
             config = json.load(open(config_file, "r"))
@@ -102,41 +123,46 @@ class GCBMConfigurer:
                 config = config.get(entry)
                 if config is None:
                     break
-            
+
             if config is not None:
                 if all_matches:
                     matching_files.append(config_file)
                 else:
                     return config_file
-        
+
         if all_matches:
             return matching_files
 
         return None
 
     def update_mask(self, study_area):
-        mask_layers = [layer for layer in study_area["layers"] if self.is_mask_layer(layer)]
+        mask_layers = [
+            layer for layer in study_area["layers"] if self.is_mask_layer(layer)
+        ]
         if not mask_layers:
             return
 
         for module_config_section in ("Modules", "SpinupModules"):
             module_config_path = self.find_config_file(
-                self._output_path, module_config_section, "CBMBuildLandUnitModule")
-                
+                self._output_path, module_config_section, "CBMBuildLandUnitModule"
+            )
+
             with self.update_json_file(module_config_path) as module_config:
-                build_land_unit_config = module_config[module_config_section]["CBMBuildLandUnitModule"]
+                build_land_unit_config = module_config[module_config_section][
+                    "CBMBuildLandUnitModule"
+                ]
                 module_settings = build_land_unit_config.get("settings", {})
                 mask_config = module_settings.get("mask_vars", [])
                 for layer in mask_layers:
                     mask_config.insert(0, layer["name"])
-                
+
                 module_settings["mask_vars"] = mask_config
                 build_land_unit_config["settings"] = module_settings
 
     def add_missing_pools(self):
         with closing(sqlite3.connect(self._input_db_path)) as conn:
             db_pool_names = [row[0] for row in conn.execute("SELECT name FROM pool")]
-        
+
         pool_config_path = self.find_config_file(self._output_path, "Pools")
         with self.update_json_file(pool_config_path) as pool_config:
             pool_section = pool_config["Pools"]
@@ -148,9 +174,11 @@ class GCBMConfigurer:
     def update_provider_config(self, study_area):
         provider_config_path = self.find_config_file(self._output_path, "Providers")
         if not provider_config_path:
-            logging.fatal("No provider configuration file found in {}".format(self._output_path))
+            logging.fatal(
+                "No provider configuration file found in {}".format(self._output_path)
+            )
             return
-        
+
         with self.update_json_file(provider_config_path) as provider_config:
             provider_section = provider_config["Providers"]
             for provider, config in provider_section.items():
@@ -158,87 +186,123 @@ class GCBMConfigurer:
                     spatial_provider_config = config
                 elif "path" in config:
                     aspatial_provider_config = config
-            
+
             input_db_path = self._input_db_path
             if self._copy_data:
                 input_db_path = os.path.join(
-                    self._output_path, "..", "input_database", os.path.basename(self._input_db_path))
+                    self._output_path,
+                    "..",
+                    "input_database",
+                    os.path.basename(self._input_db_path),
+                )
 
                 os.makedirs(os.path.dirname(input_db_path), exist_ok=True)
                 shutil.copyfile(self._input_db_path, input_db_path)
 
-            aspatial_provider_config["path"] = os.path.join(relpath(
-                input_db_path, self._output_path))
+            aspatial_provider_config["path"] = os.path.join(
+                relpath(input_db_path, self._output_path)
+            )
 
-            spatial_provider_config["tileLatSize"]  = study_area["tile_size"]
-            spatial_provider_config["tileLonSize"]  = study_area["tile_size"]
+            spatial_provider_config["tileLatSize"] = study_area["tile_size"]
+            spatial_provider_config["tileLonSize"] = study_area["tile_size"]
             spatial_provider_config["blockLatSize"] = study_area["block_size"]
             spatial_provider_config["blockLonSize"] = study_area["block_size"]
-            spatial_provider_config["cellLatSize"]  = study_area["pixel_size"]
-            spatial_provider_config["cellLonSize"]  = study_area["pixel_size"]
-                    
+            spatial_provider_config["cellLatSize"] = study_area["pixel_size"]
+            spatial_provider_config["cellLonSize"] = study_area["pixel_size"]
+
             provider_layers = []
             for layer in study_area["layers"]:
                 logging.debug("Added {} to provider configuration".format(layer))
                 layer_path = layer["path"]
                 if self._copy_data:
-                    copied_layer_dir = os.path.join(self._output_path, "..", "layers", "tiled")
+                    copied_layer_dir = os.path.join(
+                        self._output_path, "..", "layers", "tiled"
+                    )
                     original_layer_path = layer_path
-                    layer_path = os.path.join(copied_layer_dir, os.path.basename(layer_path))
+                    layer_path = os.path.join(
+                        copied_layer_dir, os.path.basename(layer_path)
+                    )
                     os.makedirs(copied_layer_dir, exist_ok=True)
-                    for fn in iglob("{}.*".format(os.path.splitext(original_layer_path)[0])):
-                        copied_layer_path = os.path.join(copied_layer_dir, os.path.basename(fn))
+                    for fn in iglob(
+                        "{}.*".format(os.path.splitext(original_layer_path)[0])
+                    ):
+                        copied_layer_path = os.path.join(
+                            copied_layer_dir, os.path.basename(fn)
+                        )
                         if os.path.abspath(fn) != os.path.abspath(copied_layer_path):
                             shutil.copyfile(fn, copied_layer_path)
 
-                provider_layers.append({
-                    "name"        : layer["name"],
-                    "layer_path"  : os.path.join(relpath(layer_path, self._output_path)),
-                    "layer_prefix": layer["prefix"]
-                })
-                
+                provider_layers.append(
+                    {
+                        "name": layer["name"],
+                        "layer_path": os.path.join(
+                            relpath(layer_path, self._output_path)
+                        ),
+                        "layer_prefix": layer["prefix"],
+                    }
+                )
+
             spatial_provider_config["layers"] = provider_layers
-            logging.info("Updated provider configuration: {}".format(provider_config_path))
+            logging.info(
+                "Updated provider configuration: {}".format(provider_config_path)
+            )
 
     def update_simulation_study_area(self, study_area):
-        config_file_path = self.find_config_file(self._output_path, "LocalDomain", "landscape")
+        config_file_path = self.find_config_file(
+            self._output_path, "LocalDomain", "landscape"
+        )
         with self.update_json_file(config_file_path) as study_area_config:
-            tile_size    = study_area["tile_size"]
-            pixel_size   = study_area["pixel_size"]
+            tile_size = study_area["tile_size"]
+            pixel_size = study_area["pixel_size"]
             tile_size_px = int(tile_size / pixel_size)
-            
+
             landscape_config = study_area_config["LocalDomain"]["landscape"]
             landscape_config["tile_size_x"] = tile_size
             landscape_config["tile_size_y"] = tile_size
-            landscape_config["x_pixels"]    = tile_size_px
-            landscape_config["y_pixels"]    = tile_size_px
-            landscape_config["tiles"]       = study_area["tiles"]
-            logging.info("Study area configuration updated: {}".format(config_file_path))
+            landscape_config["x_pixels"] = tile_size_px
+            landscape_config["y_pixels"] = tile_size_px
+            landscape_config["tiles"] = study_area["tiles"]
+            logging.info(
+                "Study area configuration updated: {}".format(config_file_path)
+            )
 
     def update_simulation_years(self, start_year, end_year):
-        config_file_path = self.find_config_file(self._output_path, "LocalDomain", "start_date")
+        config_file_path = self.find_config_file(
+            self._output_path, "LocalDomain", "start_date"
+        )
         with self.update_json_file(config_file_path) as study_area_config:
             simulation_config = study_area_config["LocalDomain"]
             simulation_config["start_date"] = "{}/01/01".format(start_year)
             simulation_config["end_date"] = "{}/01/01".format(end_year + 1)
-            logging.info("Simulation time period updated: {} to {}".format(start_year, end_year))
-            
+            logging.info(
+                "Simulation time period updated: {} to {}".format(start_year, end_year)
+            )
+
     def update_simulation_disturbances(self, study_area):
-        config_file_path = self.find_config_file(self._output_path, "Modules", "CBMDisturbanceListener")
+        config_file_path = self.find_config_file(
+            self._output_path, "Modules", "CBMDisturbanceListener"
+        )
         with self.update_json_file(config_file_path) as module_config:
-            disturbance_listener_config = module_config["Modules"]["CBMDisturbanceListener"]
+            disturbance_listener_config = module_config["Modules"][
+                "CBMDisturbanceListener"
+            ]
             if "settings" not in disturbance_listener_config:
                 disturbance_listener_config["settings"] = {}
 
             disturbance_listener_config["settings"]["vars"] = [
-                layer["name"] for layer in sorted(
+                layer["name"]
+                for layer in sorted(
                     filter(self.is_disturbance_layer, study_area["layers"]),
-                    key=lambda layer: self.get_disturbance_order(layer))]
-            
+                    key=lambda layer: self.get_disturbance_order(layer),
+                )
+            ]
+
             if not disturbance_listener_config["settings"]["vars"]:
                 disturbance_listener_config["enabled"] = False
-                
-            logging.info("Disturbance configuration updated: {}".format(config_file_path))
+
+            logging.info(
+                "Disturbance configuration updated: {}".format(config_file_path)
+            )
 
     def add_spinup_data_variables(self, study_area):
         config_file_path = self.find_config_file(self._output_path, "SpinupVariables")
@@ -250,12 +314,12 @@ class GCBMConfigurer:
 
             if not last_pass_disturbances:
                 last_pass_disturbances = []
-            
+
             for layer in study_area["layers"]:
                 layer_tags = layer.get("tags") or []
                 if "last_pass_disturbance" in layer_tags:
                     last_pass_disturbances.append(layer["name"])
-            
+
             if last_pass_disturbances:
                 spinup_variables["last_pass_disturbance_timeseries"] = {
                     "transform": {
@@ -263,11 +327,13 @@ class GCBMConfigurer:
                         "type": "CompositeTransform",
                         "library": "internal.flint",
                         "vars": last_pass_disturbances,
-                        "format": "long"
+                        "format": "long",
                     }
                 }
-        
-        has_delay_layer = any((l["name"] == "inventory_delay" for l in study_area["layers"]))
+
+        has_delay_layer = any(
+            (l["name"] == "inventory_delay" for l in study_area["layers"])
+        )
         if has_delay_layer:
             aspatial_spinup_parameters_sql = (
                 "SELECT s.return_interval AS return_interval, s.max_rotations AS max_rotations, "
@@ -280,45 +346,49 @@ class GCBMConfigurer:
                 "INNER JOIN eco_boundary e ON spu.eco_boundary_id = e.id "
                 "WHERE a.name = {var:admin_boundary} AND e.name = {var:eco_boundary}"
             )
-        
+
             spinup_parameters_config_file_path = self.find_config_file(
-                self._output_path, "Variables", "spinup_parameters")
-                
-            with self.update_json_file(spinup_parameters_config_file_path) as spinup_config:
+                self._output_path, "Variables", "spinup_parameters"
+            )
+
+            with self.update_json_file(
+                spinup_parameters_config_file_path
+            ) as spinup_config:
                 variables = spinup_config["Variables"]
                 variables["aspatial_spinup_parameters"] = {
                     "transform": {
                         "queryString": aspatial_spinup_parameters_sql,
                         "type": "SQLQueryTransform",
                         "library": "internal.flint",
-                        "provider": "SQLite"
+                        "provider": "SQLite",
                     }
                 }
-                
+
                 variables["spinup_parameters"] = {
                     "transform": {
                         "allow_nulls": "true",
                         "type": "CompositeTransform",
                         "library": "internal.flint",
-                        "vars": [
-                            "aspatial_spinup_parameters",
-                            "inventory_delay"
-                        ]
+                        "vars": ["aspatial_spinup_parameters", "inventory_delay"],
                     }
                 }
 
     def add_simulation_data_variables(self, study_area):
-        config_file_path = self.find_config_file(self._output_path, "Variables", "initial_classifier_set")
+        config_file_path = self.find_config_file(
+            self._output_path, "Variables", "initial_classifier_set"
+        )
         with self.update_json_file(config_file_path) as variable_config:
             variables = variable_config["Variables"]
-            
+
             disturbance_order = variables.get("user_disturbance_order", [])
             disturbance_order.extend(self._user_disturbance_order or [])
             variables["user_disturbance_order"] = disturbance_order
-            
+
             classifier_layers = variables["initial_classifier_set"]["transform"]["vars"]
-            reporting_classifier_layers = variables["reporting_classifiers"]["transform"]["vars"]
-            
+            reporting_classifier_layers = variables["reporting_classifiers"][
+                "transform"
+            ]["vars"]
+
             for layer in study_area["layers"]:
                 layer_name = layer["name"]
                 layer_type = layer["type"]
@@ -328,45 +398,54 @@ class GCBMConfigurer:
                     classifier_layers.append(layer_name)
                 elif "reporting_classifier" in layer_tags:
                     reporting_classifier_layers.append(layer_name)
-                    
-                layer_settings = next(filter(lambda tag: isinstance(tag, dict), layer_tags), {}).get("settings", {})
+
+                layer_settings = next(
+                    filter(lambda tag: isinstance(tag, dict), layer_tags), {}
+                ).get("settings", {})
                 timeseries_start = layer_settings.get("start_year", 0)
                 timeseries_origin = layer_settings.get("origin", "start_sim")
-                    
-                layer_config = {
-                    "transform": {
-                        "library"      : "moja.modules.cbm",
-                        "type"         : "TimeSeriesIdxFromFlintDataTransform",
-                        "provider"     : "RasterTiled",
-                        "data_id"      : layer_name,
-                        "sub_same"     : "true",
-                        "origin"       : timeseries_origin,
-                        "start_year"   : timeseries_start,
-                        "data_per_year": layer["nStepsPerYear"],
-                        "n_years"      : layer["nLayers"]
+
+                layer_config = (
+                    {
+                        "transform": {
+                            "library": "moja.modules.cbm",
+                            "type": "TimeSeriesIdxFromFlintDataTransform",
+                            "provider": "RasterTiled",
+                            "data_id": layer_name,
+                            "sub_same": "true",
+                            "origin": timeseries_origin,
+                            "start_year": timeseries_start,
+                            "data_per_year": layer["nStepsPerYear"],
+                            "n_years": layer["nLayers"],
+                        }
                     }
-                } if layer_type == "RegularStackLayer" else {
-                    "transform": {
-                        "library" : "internal.flint",
-                        "type"    : "LocationIdxFromFlintDataTransform",
-                        "provider": "RasterTiled",
-                        "data_id" : layer_name
+                    if layer_type == "RegularStackLayer"
+                    else {
+                        "transform": {
+                            "library": "internal.flint",
+                            "type": "LocationIdxFromFlintDataTransform",
+                            "provider": "RasterTiled",
+                            "data_id": layer_name,
+                        }
                     }
-                }
-                
-                layer_config_file_path = (
-                    self.find_config_file(self._output_path, "Variables", layer_name)
-                    or self.find_config_file(self._output_path, "Variables", "initial_classifier_set")
+                )
+
+                layer_config_file_path = self.find_config_file(
+                    self._output_path, "Variables", layer_name
+                ) or self.find_config_file(
+                    self._output_path, "Variables", "initial_classifier_set"
                 )
 
                 if layer_config_file_path != config_file_path:
-                    with self.update_json_file(layer_config_file_path) as layer_config_file:
+                    with self.update_json_file(
+                        layer_config_file_path
+                    ) as layer_config_file:
                         layer_config_file["Variables"][layer_name] = layer_config
                 else:
                     variables[layer_name] = layer_config
 
         logging.info("Variable configuration updated: {}".format(config_file_path))
-    
+
     def configure_initial_pool_values(self, study_area):
         config_file_path = self.find_config_file(self._output_path, "Pools")
         with self.update_json_file(config_file_path) as pool_config:
@@ -375,14 +454,17 @@ class GCBMConfigurer:
 
             for layer in study_area["layers"]:
                 layer_name = layer["name"].lower()
-                if layer_name.startswith("initial") and layer_name.split("initial_")[1] in pool_names:
+                if (
+                    layer_name.startswith("initial")
+                    and layer_name.split("initial_")[1] in pool_names
+                ):
                     pool = pool_names[layer_name.split("initial_")[1]]
                     pool_section[pool] = {
                         "transform": {
                             "library": "internal.flint",
                             "type": "LocationIdxFromFlintDataTransform",
                             "provider": "RasterTiled",
-                            "data_id": layer_name
+                            "data_id": layer_name,
                         }
                     }
                 elif layer_name == "soil_type":
@@ -396,80 +478,105 @@ class GCBMConfigurer:
                                 "INNER JOIN soil_type st ON s.soil_type_id = st.id "
                                 "INNER JOIN pool p ON s.pool_id = p.id "
                                 "WHERE e.name = {var:eco_boundary} AND a.name = {var:admin_boundary} "
-                                "AND st.name = {var:soil_type} AND p.name = 'BelowGroundSlowSoil'"),
+                                "AND st.name = {var:soil_type} AND p.name = 'BelowGroundSlowSoil'"
+                            ),
                             "type": "SQLQueryTransform",
                             "library": "internal.flint",
                             "provider": "SQLite",
-                            "allow_empty_var_values": True
+                            "allow_empty_var_values": True,
                         }
                     }
-        
+
             logging.info("Initial pool values updated: {}".format(config_file_path))
-    
+
     def is_disturbance_layer(self, layer):
         layer_tags = layer.get("tags") or []
         return "disturbance" in layer_tags and "last_pass_disturbance" not in layer_tags
-        
+
     def is_mask_layer(self, layer):
         layer_tags = layer.get("tags") or []
         return "mask" in layer_tags
-        
+
     def get_default_disturbance_order(self):
         with closing(sqlite3.connect(self._input_db_path)) as conn:
-            return [row[0] for row in conn.execute("SELECT name FROM disturbance_type ORDER BY code")]
+            return [
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM disturbance_type ORDER BY code"
+                )
+            ]
 
     def get_disturbance_order(self, layer):
         if "rollback" in layer["name"]:
             return -10000 + int(layer["name"].split("_")[-1])
-    
+
         disturbance_type = self.get_disturbance_type(layer)
         default_disturbance_order = self.get_default_disturbance_order()
-        return -len(self._user_disturbance_order) + self._user_disturbance_order.index(disturbance_type) \
-            if disturbance_type in self._user_disturbance_order \
+        return (
+            -len(self._user_disturbance_order)
+            + self._user_disturbance_order.index(disturbance_type)
+            if disturbance_type in self._user_disturbance_order
             else default_disturbance_order.index(disturbance_type)
-    
+        )
+
     def get_disturbance_type(self, layer):
         metadata = json.load(open(layer["metadata_path"], "rb"))
-        dist_type = next((attr for attr in metadata["attributes"].values())).get("disturbance_type")
-        
+        dist_type = next((attr for attr in metadata["attributes"].values())).get(
+            "disturbance_type"
+        )
+
         return dist_type
-    
+
     def scan_for_layers(self, layer_root):
         provider_layers = []
-        layers = {fn for fn in os.listdir(layer_root)
-                  if (os.path.isdir(os.path.join(layer_root, fn)) and fn.endswith("moja"))
-                  or fn.endswith(".zip")
-                  or (fn.endswith("_moja.tiff")
-                      and not os.path.isdir(os.path.join(layer_root, os.path.splitext(fn)[0]))
-                      and os.path.exists(os.path.join(layer_root, ".".join((os.path.splitext(fn)[0], "json")))))}
-        
+        layers = {
+            fn
+            for fn in os.listdir(layer_root)
+            if (os.path.isdir(os.path.join(layer_root, fn)) and fn.endswith("moja"))
+            or fn.endswith(".zip")
+            or (
+                fn.endswith("_moja.tiff")
+                and not os.path.isdir(os.path.join(layer_root, os.path.splitext(fn)[0]))
+                and os.path.exists(
+                    os.path.join(
+                        layer_root, ".".join((os.path.splitext(fn)[0], "json"))
+                    )
+                )
+            )
+        }
+
         for layer in layers:
             logging.info("Found layer: {}".format(layer))
             layer_prefix, _ = os.path.splitext(os.path.basename(layer))
             layer_path = os.path.join(layer_root, layer)
             layer_name, _ = layer_prefix.split("_moja")
-            metadata_path = os.path.join(layer_root, layer_prefix, "{}.json".format(layer_prefix)) \
-                if os.path.isdir(layer_path) else os.path.join(layer_root, "{}.json".format(layer_prefix))
-            
-            provider_layers.append({
-                "name"         : layer_name,
-                "prefix"       : layer_prefix,
-                "type"         : None,
-                "path"         : layer_path,
-                "metadata_path": metadata_path
-            })
-            
+            metadata_path = (
+                os.path.join(layer_root, layer_prefix, "{}.json".format(layer_prefix))
+                if os.path.isdir(layer_path)
+                else os.path.join(layer_root, "{}.json".format(layer_prefix))
+            )
+
+            provider_layers.append(
+                {
+                    "name": layer_name,
+                    "prefix": layer_prefix,
+                    "type": None,
+                    "path": layer_path,
+                    "metadata_path": metadata_path,
+                }
+            )
+
         return provider_layers
-        
+
     def get_study_area(self, layer_root):
         study_area = {
-            "tile_size" : 1.0,
+            "tile_size": 1.0,
             "block_size": 0.1,
             "pixel_size": 0.00025,
-            "tiles"     : [],
-            "layers"    : []
+            "tiles": [],
+            "layers": [],
         }
-        
+
         study_area_path = os.path.join(layer_root, "study_area.json")
         if os.path.exists(study_area_path):
             with open(study_area_path, "rb") as study_area_file:
@@ -481,39 +588,81 @@ class GCBMConfigurer:
         study_area_layers = study_area.get("layers")
         if study_area_layers:
             for layer in layers:
-                for layer_metadata \
-                in filter(lambda l: l.get("name") == layer.get("name"), study_area_layers):
+                for layer_metadata in filter(
+                    lambda l: l.get("name") == layer.get("name"), study_area_layers
+                ):
                     layer.update(layer_metadata)
-        
+
         study_area["layers"] = layers
-       
+
         return study_area
+
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Update GCBM spatial provider configuration.")
-    parser.add_argument("--layer_root", help="one or more directories containing tiled layers and study area metadata", nargs="+", type=os.path.abspath)
-    parser.add_argument("--exclude", help="path to a text file listing names of layers to exclude from simulation, one per line", type=os.path.abspath)
-    parser.add_argument("--template_path", help="GCBM config file template path", required=True, type=os.path.abspath)
-    parser.add_argument("--input_db_path", help="GCBM input database path", required=True, type=os.path.abspath)
-    parser.add_argument("--output_path", help="GCBM config file output path", default=".", type=os.path.abspath)
+    parser.add_argument(
+        "--layer_root",
+        help="one or more directories containing tiled layers and study area metadata",
+        nargs="+",
+        type=os.path.abspath,
+    )
+    parser.add_argument(
+        "--exclude",
+        help="path to a text file listing names of layers to exclude from simulation, one per line",
+        type=os.path.abspath,
+    )
+    parser.add_argument(
+        "--template_path",
+        help="GCBM config file template path",
+        required=True,
+        type=os.path.abspath,
+    )
+    parser.add_argument(
+        "--input_db_path",
+        help="GCBM input database path",
+        required=True,
+        type=os.path.abspath,
+    )
+    parser.add_argument(
+        "--output_path",
+        help="GCBM config file output path",
+        default=".",
+        type=os.path.abspath,
+    )
     parser.add_argument("--start_year", type=int, help="simulation start year")
     parser.add_argument("--end_year", type=int, help="simulation end year")
     parser.add_argument("--log_path", default=".", type=os.path.abspath)
     parser.add_argument("--disturbance_order", default=None, type=os.path.abspath)
     args = parser.parse_args()
-    
-    logging.basicConfig(filename=os.path.join(args.log_path, "update_gcbm_config.log"),
-                        filemode="w", level=logging.INFO, format="%(message)s")
+
+    logging.basicConfig(
+        filename=os.path.join(args.log_path, "update_gcbm_config.log"),
+        filemode="w",
+        level=logging.INFO,
+        format="%(message)s",
+    )
 
     disturbance_order = None
     if args.disturbance_order:
-        disturbance_order = list(pd.read_csv(args.disturbance_order, sep="\0", header=None)[0])
+        disturbance_order = list(
+            pd.read_csv(args.disturbance_order, sep="\0", header=None)[0]
+        )
 
-    excluded_layers = [line[0] for line in csv.reader(open(args.exclude, "r"))] if args.exclude else None
+    excluded_layers = (
+        [line[0] for line in csv.reader(open(args.exclude, "r"))]
+        if args.exclude
+        else None
+    )
 
     configurer = GCBMConfigurer(
-        args.layer_root, args.template_path, args.input_db_path,
-        args.output_path, args.start_year, args.end_year, disturbance_order,
-        excluded_layers)
-    
+        args.layer_root,
+        args.template_path,
+        args.input_db_path,
+        args.output_path,
+        args.start_year,
+        args.end_year,
+        disturbance_order,
+        excluded_layers,
+    )
+
     configurer.configure()
