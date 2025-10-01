@@ -1,10 +1,10 @@
 
 [project]
 name = "gcbmwalltowall"
-version = "2.2.2"
+version = "2.2.3"
 description = "gcbmwalltowall"
 classifiers = ["Programming Language :: Python :: 3"]
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 dependencies = [
     "cbm4-canfire",
     "gcbminputloader",
@@ -20,7 +20,7 @@ dependencies = [
 cbm4 = [
     "cbm4",
     "cbm4-canfire",
-    "arrow-space",
+    "arrow_space",
     "cbmspec-cbm3",
     "cbm_defaults",
     "gdal<=3.11.3",
