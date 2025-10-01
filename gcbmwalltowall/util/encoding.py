@@ -1,6 +1,7 @@
 import json
-from ftfy import guess_bytes
-from ftfy import fix_encoding
+
+from ftfy import fix_encoding, guess_bytes
+
 
 def load_json(json_path):
     json_bytes = open(json_path, "rb").read()

@@ -1,6 +1,10 @@
 from __future__ import annotations
+
+from typing import Any
+
 from gcbmwalltowall.builder.projectbuilder import ProjectBuilder
 from gcbmwalltowall.configuration.configuration import Configuration
+
 
 class CompositeProjectBuilder(ProjectBuilder):
 
@@ -11,9 +15,12 @@ class CompositeProjectBuilder(ProjectBuilder):
         builder_config = config["builder"]
 
         for base_config_file in builder_config["config_files"]:
-            base_config = Configuration.load(config.resolve(base_config_file), config.config_path)
+            base_config = Configuration.load(
+                config.resolve(base_config_file), config.config_path
+            )
             base_config = ProjectBuilder._update_relative_paths(
-                base_config, base_config.config_path, config.config_path)
+                base_config, base_config.config_path, config.config_path
+            )
 
             config = CompositeProjectBuilder._merge(config, base_config)
 
@@ -24,7 +31,9 @@ class CompositeProjectBuilder(ProjectBuilder):
         return config
 
     @staticmethod
-    def _merge(root_config: Configuration, extra_config: dict[str, Any]) -> Configuration:
+    def _merge(
+        root_config: Configuration, extra_config: dict[str, Any]
+    ) -> Configuration:
         for k, v in extra_config.items():
             if k in CompositeProjectBuilder.composite_builder_keys:
                 continue

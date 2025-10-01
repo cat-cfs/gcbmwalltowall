@@ -1,6 +1,12 @@
 from __future__ import annotations
+
+from typing import Any
+
 from mojadata.boundingbox import BoundingBox as TilerBoundingBox
+
+from gcbmwalltowall.component.layer import Layer
 from gcbmwalltowall.component.tileable import Tileable
+
 
 class BoundingBox(Tileable):
 
@@ -10,6 +16,9 @@ class BoundingBox(Tileable):
         self.resolution = resolution or 0.001
 
     def to_tiler_layer(self, rule_manager: TransitionRuleManager, **kwargs: Any) -> Any:
-        return TilerBoundingBox(self.layer.to_tiler_layer(rule_manager, **kwargs),
-                                epsg=self.epsg, pixel_size=self.resolution,
-                                shrink_to_data=self.layer.is_raster)
+        return TilerBoundingBox(
+            self.layer.to_tiler_layer(rule_manager, **kwargs),
+            epsg=self.epsg,
+            pixel_size=self.resolution,
+            shrink_to_data=self.layer.is_raster,
+        )

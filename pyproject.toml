@@ -49,4 +49,7 @@ cbm_defaults = { git = "https://github.com/cat-cfs/cbm_defaults/" }
 cbm4-canfire = { git = "https://github.com/cat-cfs/cbm4_canfire.git" }
 
 [dependency-groups]
-dev = ["pytest>=8.4.2"]
+dev = [
+    "black>=25.9.0",
+    "pytest>=8.4.2",
+]

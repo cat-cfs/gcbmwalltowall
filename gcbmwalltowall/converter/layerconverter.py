@@ -11,8 +11,8 @@ from mojadata.util import gdal
 from mojadata.util.gdalhelper import GDALHelper
 from pandas import DataFrame
 
+from gcbmwalltowall.component.preparedproject import PreparedLayer
 from gcbmwalltowall.util.path import Path
-
 
 
 class LayerConverter:

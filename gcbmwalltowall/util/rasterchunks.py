@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import math
+
 from gcbmwalltowall.util.rasterbound import RasterBound
 
 
@@ -27,15 +29,11 @@ def __get_chunk_bounds(
     x_off = col * chunk_width
     x_size = chunk_width if (width - x_off) > chunk_width else width - x_off
     y_off = row * chunk_height
-    y_size = (
-        chunk_height if (height - y_off) > chunk_height else height - y_off
-    )
+    y_size = chunk_height if (height - y_off) > chunk_height else height - y_off
     return RasterBound(x_off, y_off, x_size, y_size)
 
 
-def get_raster_chunks(
-    width: int, height: int, chunk_width: int, chunk_height: int
-):
+def get_raster_chunks(width: int, height: int, chunk_width: int, chunk_height: int):
     """Generate descriptions of distinct rectangular sections for the
     specified raster dimensions, and maximum chunk size dimensions.
     Chunks are returned in row-major order.
@@ -60,9 +58,7 @@ def get_raster_chunks(
     n_rows = math.ceil(height / chunk_height)
     for col in range(0, n_cols):
         for row in range(0, n_rows):
-            yield __get_chunk_bounds(
-                width, height, chunk_width, chunk_height, row, col
-            )
+            yield __get_chunk_bounds(width, height, chunk_width, chunk_height, row, col)
 
 
 def get_memory_limited_raster_chunks(

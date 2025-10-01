@@ -1,29 +1,37 @@
 from __future__ import annotations
+
 import os
-import psutil
-from typing import Tuple
-from typing import Union
 from contextlib import contextmanager
-import numpy as np
-from gcbmwalltowall.util.rasterbound import RasterBound
 from multiprocessing import cpu_count
+from typing import Tuple, Union
+
+import numpy as np
+import psutil
 from mojadata.util import gdal
 from osgeo import gdal_array
+
+from gcbmwalltowall.util.rasterbound import RasterBound
 
 max_threads = int(max(cpu_count(), 4))
 gdal_threads = 4
 memory_limit_scale = int(max_threads / 10) or 1
 global_memory_limit = int(psutil.virtual_memory().available * 0.75 / memory_limit_scale)
 gdal_memory_limit = int(global_memory_limit / gdal_threads)
-gdal_creation_options = ["BIGTIFF=YES", "TILED=YES", "COMPRESS=ZSTD", "ZSTD_LEVEL=1", f"NUM_THREADS={gdal_threads}"]
+gdal_creation_options = [
+    "BIGTIFF=YES",
+    "TILED=YES",
+    "COMPRESS=ZSTD",
+    "ZSTD_LEVEL=1",
+    f"NUM_THREADS={gdal_threads}",
+]
 
-gdal.SetConfigOption("GDAL_SWATH_SIZE",              str(gdal_memory_limit))
-gdal.SetConfigOption("VSI_CACHE",                    "TRUE")
-gdal.SetConfigOption("VSI_CACHE_SIZE",               str(int(gdal_memory_limit / gdal_threads)))
+gdal.SetConfigOption("GDAL_SWATH_SIZE", str(gdal_memory_limit))
+gdal.SetConfigOption("VSI_CACHE", "TRUE")
+gdal.SetConfigOption("VSI_CACHE_SIZE", str(int(gdal_memory_limit / gdal_threads)))
 gdal.SetConfigOption("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
-gdal.SetConfigOption("GDAL_GEOREF_SOURCES",          "INTERNAL,NONE")
-gdal.SetConfigOption("GTIFF_DIRECT_IO",              "YES")
-gdal.SetConfigOption("GDAL_MAX_DATASET_POOL_SIZE",   "50000")
+gdal.SetConfigOption("GDAL_GEOREF_SOURCES", "INTERNAL,NONE")
+gdal.SetConfigOption("GTIFF_DIRECT_IO", "YES")
+gdal.SetConfigOption("GDAL_MAX_DATASET_POOL_SIZE", "50000")
 
 
 class GDALHelperDataset:
@@ -45,14 +53,9 @@ class GDALHelperDataset:
         self.geo_transform = geo_transform
         self.projection = projection
 
-        (
-            self.ulx,
-            self.xres,
-            self.xskew,
-            self.uly,
-            self.yskew,
-            self.yres
-        ) = geo_transform
+        (self.ulx, self.xres, self.xskew, self.uly, self.yskew, self.yres) = (
+            geo_transform
+        )
         self.lrx = self.ulx + (self.data_bounds.x_size * self.xres)
         self.lry = self.uly + (self.data_bounds.y_size * self.yres)
 
@@ -185,12 +188,10 @@ def read_dataset(path, bounds=None, raster_band=1):
             path=path,
             data=np.array(band.ReadAsArray(x_off, y_off, x_size, y_size)),
             data_bounds=RasterBound(x_off, y_off, x_size, y_size),
-            raster_bounds=RasterBound(
-                0, 0, dataset.RasterXSize, dataset.RasterYSize
-            ),
+            raster_bounds=RasterBound(0, 0, dataset.RasterXSize, dataset.RasterYSize),
             nodata=band.GetNoDataValue(),
             geo_transform=dataset.GetGeoTransform(),
-            projection=dataset.GetProjection()
+            projection=dataset.GetProjection(),
         )
 
         del band
@@ -237,9 +238,7 @@ def create_empty_raster(
         else:
             driver = source_dataset.GetDriver()
         if data_type:
-            gdal_data_type = gdal_array.NumericTypeCodeToGDALTypeCode(
-                data_type
-            )
+            gdal_data_type = gdal_array.NumericTypeCodeToGDALTypeCode(data_type)
             if not gdal_data_type:
                 raise ValueError(
                     f"specified data_type {data_type} is not convertable to "
@@ -254,7 +253,7 @@ def create_empty_raster(
             int(source_dataset.RasterYSize),
             1,
             gdal_data_type,
-            options
+            options,
         )
         new_dataset.SetGeoTransform(source_dataset.GetGeoTransform())
         new_dataset.SetProjection(source_dataset.GetProjection())

@@ -1,10 +1,12 @@
-from gcbmwalltowall.util.path import Path
+from mojadata.layer.dummylayer import DummyLayer
 from mojadata.layer.rasterlayer import RasterLayer
 from mojadata.layer.vectorlayer import VectorLayer
-from mojadata.layer.dummylayer import DummyLayer
-from gcbmwalltowall.component.tileable import Tileable
+
 from gcbmwalltowall.component.rasterattributetable import RasterAttributeTable
+from gcbmwalltowall.component.tileable import Tileable
 from gcbmwalltowall.component.vectorattributetable import VectorAttributeTable
+from gcbmwalltowall.util.path import Path
+
 
 class Layer(Tileable):
 
@@ -12,8 +14,15 @@ class Layer(Tileable):
     vector_formats = [".shp", ".gdb"]
 
     def __init__(
-        self, name, path, attributes=None, lookup_table=None, filters=None, layer=None,
-        strict_lookup_table=False, **tiler_kwargs
+        self,
+        name,
+        path,
+        attributes=None,
+        lookup_table=None,
+        filters=None,
+        layer=None,
+        strict_lookup_table=False,
+        **tiler_kwargs,
     ):
         self.name = name
         self.path = Path(path).absolute()
@@ -30,7 +39,7 @@ class Layer(Tileable):
         attribute_table = self._load_lookup_table()
         if attribute_table is None:
             return {}
-        
+
         return attribute_table.get_unique_values()
 
     @property
@@ -49,11 +58,15 @@ class Layer(Tileable):
                 str(self.path.absolute()),
                 name=self.name,
                 **lookup_table.to_tiler_args(self.attributes) if lookup_table else {},
-                **kwargs)
-        
+                **kwargs,
+            )
+
         attributes = self.attributes or [
-            self.name if self.name in lookup_table.attributes
-            else lookup_table.attributes[0]
+            (
+                self.name
+                if self.name in lookup_table.attributes
+                else lookup_table.attributes[0]
+            )
         ]
 
         # If it's the only selected attribute in a vector layer, and all the unique
@@ -67,16 +80,22 @@ class Layer(Tileable):
             str(self.path.absolute()),
             **lookup_table.to_tiler_args(attributes, self.filters),
             layer=self.layer,
-            **kwargs)
+            **kwargs,
+        )
 
     def split(self, name=None, attributes=None, filters=None):
         layer_copy = __class__(
-            name or self.name, self.path, attributes or self.attributes,
-            self.lookup_table, filters or self.filters, self.layer, **self.tiler_kwargs
+            name or self.name,
+            self.path,
+            attributes or self.attributes,
+            self.lookup_table,
+            filters or self.filters,
+            self.layer,
+            **self.tiler_kwargs,
         )
 
         layer_copy._cached_lookup_table = self._cached_lookup_table
-        
+
         return layer_copy
 
     def _find_lookup_table(self):
@@ -109,8 +128,11 @@ class Layer(Tileable):
             )
         else:
             self._cached_lookup_table = VectorAttributeTable(
-                self.path, lookup_table, layer=self.layer,
-                strict_lookup_table=self.strict_lookup_table)
+                self.path,
+                lookup_table,
+                layer=self.layer,
+                strict_lookup_table=self.strict_lookup_table,
+            )
 
         return self._cached_lookup_table
 

@@ -5,14 +5,13 @@ import multiprocessing as mp
 import shutil
 import subprocess
 import sys
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
 from datetime import datetime
 from logging import FileHandler, StreamHandler
 from tempfile import TemporaryDirectory
 from typing import Any
 
-from cbmspec_cbm3.models import cbmspec_cbm3_single_matrix
 from psutil import virtual_memory
 from spatial_inventory_rollback.gcbm.merge import gcbm_merge, gcbm_merge_tile
 from spatial_inventory_rollback.gcbm.merge.gcbm_merge_input_db import (

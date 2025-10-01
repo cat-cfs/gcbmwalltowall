@@ -8,10 +8,7 @@ from typing import Any
 
 import pandas as pd
 from cbm4.app.spatial.spatial_cbm3.spatial_cbm3_app import (
-    create_simulation_dataset,
-    spinup_all,
-    step_all,
-)
+    create_simulation_dataset, spinup_all, step_all)
 
 from gcbmwalltowall.util.path import Path
 

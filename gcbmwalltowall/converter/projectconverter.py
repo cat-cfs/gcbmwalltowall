@@ -1,23 +1,29 @@
 from __future__ import annotations
+
+import json
 import logging
 import shutil
-import json
-import pandas as pd
-from tempfile import TemporaryDirectory
 from contextlib import contextmanager
-from sqlalchemy import create_engine
-from gcbmwalltowall.util.path import Path
+from tempfile import TemporaryDirectory
+
+import pandas as pd
+from arrow_space.flattened_coordinate_dataset import \
+    create as create_arrowspace_dataset
 from arrow_space.input.input_layer_collection import InputLayerCollection
-from arrow_space.flattened_coordinate_dataset import create as create_arrowspace_dataset
-from cbm_defaults.app import run as make_cbm_defaults
-from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
-from gcbmwalltowall.converter.layerconverter import DelegatingLayerConverter
-from gcbmwalltowall.converter.layerconverter import DefaultLayerConverter
-from gcbmwalltowall.converter.layerconverter import LandClassLayerConverter
 from cbm4.app.spatial.gcbm_input.gcbm_preprocessor_app import preprocess
+from cbm_defaults.app import run as make_cbm_defaults
+from sqlalchemy import create_engine
+
+from gcbmwalltowall.component.preparedproject import PreparedProject
+from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
+from gcbmwalltowall.converter.layerconverter import (DefaultLayerConverter,
+                                                     DelegatingLayerConverter,
+                                                     LandClassLayerConverter)
+from gcbmwalltowall.util.path import Path
+
 
 class ProjectConverter:
-    
+
     def __init__(self, creation_options=None, disturbance_cohorts=False):
         self._disturbance_cohorts = disturbance_cohorts
         self._creation_options = {
@@ -30,8 +36,13 @@ class ProjectConverter:
         self._creation_options.update(creation_options or {})
 
     def convert(
-        self, project, output_path, aidb_path=None, spinup_disturbance_type=None,
-        apply_departial_dms=False, preserve_temp_files=False
+        self,
+        project,
+        output_path,
+        aidb_path=None,
+        spinup_disturbance_type=None,
+        apply_departial_dms=False,
+        preserve_temp_files=False,
     ):
         with TemporaryDirectory() as temp_path:
             temp_dir = Path(temp_path)
@@ -39,18 +50,18 @@ class ProjectConverter:
             aidb_path = Path(aidb_path) if aidb_path else None
             shutil.rmtree(output_path, ignore_errors=True)
             output_path.mkdir(parents=True, exist_ok=True)
-        
+
             self._convert_yields(project, temp_dir)
             self._build_input_database(project, temp_dir, aidb_path)
             use_cohorts = self._cohorts_enabled(project)
 
             mortality_transitions_path = temp_dir.joinpath(
-                "transitions.csv" if not use_cohorts
-                else "transition_mortality.csv"
+                "transitions.csv" if not use_cohorts else "transition_mortality.csv"
             )
 
             mortality_transition_rules_path = temp_dir.joinpath(
-                "transition_rules.csv" if not use_cohorts
+                "transition_rules.csv"
+                if not use_cohorts
                 else "transition_rules_mortality.csv"
             )
 
@@ -66,23 +77,29 @@ class ProjectConverter:
                 survivor_transitions = self._get_survivor_transitions(project)
                 if not survivor_transitions.empty:
                     survivor_transitions.to_csv(
-                        temp_dir.joinpath("transition_survivor.csv"), index=False)
+                        temp_dir.joinpath("transition_survivor.csv"), index=False
+                    )
 
                 survivor_transition_rules = self._get_survivor_transition_rules(project)
                 if not survivor_transition_rules.empty:
                     survivor_transition_rules.to_csv(
-                        temp_dir.joinpath("transition_rules_survivor.csv"), index=False)
+                        temp_dir.joinpath("transition_rules_survivor.csv"), index=False
+                    )
 
             subconverters = [
                 LandClassLayerConverter(),
-                DefaultLayerConverter({
-                    "initial_age": "age",
-                    "mean_annual_temperature": "mean_annual_temp",
-                    "inventory_delay": "delay"
-                })
+                DefaultLayerConverter(
+                    {
+                        "initial_age": "age",
+                        "mean_annual_temperature": "mean_annual_temp",
+                        "inventory_delay": "delay",
+                    }
+                ),
             ]
-        
-            cbm4_config = self._create_cbm4_config(project, output_path, spinup_disturbance_type)
+
+            cbm4_config = self._create_cbm4_config(
+                project, output_path, spinup_disturbance_type
+            )
             layer_converter = DelegatingLayerConverter(subconverters)
             self._convert_spatial_data(layer_converter, project, temp_dir)
             preprocess_config = {
@@ -107,7 +124,9 @@ class ProjectConverter:
                 },
                 "area_unit_conversion": 0.0001,  # ha/m^2
                 "cbm_defaults_locale": cbm4_config.get("cbm_defaults_locale", "en-CA"),
-                "inventory_override_values": cbm4_config.get("default_inventory_values"),
+                "inventory_override_values": cbm4_config.get(
+                    "default_inventory_values"
+                ),
                 "max_workers": self._creation_options.get("max_workers"),
                 "apply_departial_dms": apply_departial_dms,
             }
@@ -119,10 +138,9 @@ class ProjectConverter:
     @contextmanager
     def _input_db_connection(self, project):
         input_db_path = (
-            project.rollback_db_path if project.has_rollback
-            else project.input_db_path
+            project.rollback_db_path if project.has_rollback else project.input_db_path
         )
-        
+
         connection_url = f"sqlite:///{input_db_path}"
         engine = create_engine(connection_url)
         with engine.connect() as conn:
@@ -151,16 +169,16 @@ class ProjectConverter:
                     aidb_path = json_file.parent.joinpath(aidb_path).absolute()
                     if aidb_path.exists():
                         return aidb_path
-        
+
         # Last resort: try the default opscale AIDB path.
         default_aidb_path = Path(
             r"C:\Program Files (x86)\Operational-Scale CBM-CFS3\Admin\DBs",
-            "ArchiveIndex_Beta_Install.mdb"
+            "ArchiveIndex_Beta_Install.mdb",
         )
-        
+
         if default_aidb_path.exists():
             return default_aidb_path
-        
+
         raise IOError("Failed to locate AIDB.")
 
     def _convert_spatial_data(self, layer_converter, project, output_path):
@@ -170,7 +188,8 @@ class ProjectConverter:
 
         creation_options = self._creation_options.copy()
         mask_layers = ["age"] + [
-            mask for mask in project.masks
+            mask
+            for mask in project.masks
             if mask in base_arrowspace_collection.layer_names
         ]
 
@@ -178,18 +197,20 @@ class ProjectConverter:
             if optional_mask_layer in base_arrowspace_collection.layer_names:
                 mask_layers.append(optional_mask_layer)
 
-        creation_options.update({
-            "mask_layers": mask_layers
-        })
-        
+        creation_options.update({"mask_layers": mask_layers})
+
         base_dataset_name = "inventory.arrowspace"
         create_arrowspace_dataset(
-            base_arrowspace_collection, "inventory", "local_storage",
-            str(output_path.joinpath(base_dataset_name + (
-                ".cohort0" if self._cohorts_enabled(project)
-                else ""
-            ))),
-            creation_options
+            base_arrowspace_collection,
+            "inventory",
+            "local_storage",
+            str(
+                output_path.joinpath(
+                    base_dataset_name
+                    + (".cohort0" if self._cohorts_enabled(project) else "")
+                )
+            ),
+            creation_options,
         )
 
         for i, cohort in enumerate(project.cohorts, 1):
@@ -197,7 +218,8 @@ class ProjectConverter:
             cohort_arrowspace_layers = layer_converter.convert(cohort)
             cohort_layer_names = [l.name for l in cohort_arrowspace_layers]
             for base_layer in base_arrowspace_layers:
-                if ("historic_disturbance" in base_layer.tags
+                if (
+                    "historic_disturbance" in base_layer.tags
                     or "last_pass_disturbance" in base_layer.tags
                     or base_layer.name in cohort_layer_names
                 ):
@@ -205,24 +227,32 @@ class ProjectConverter:
 
                 cohort_arrowspace_layers.append(base_layer)
 
-            cohort_arrowspace_collection = InputLayerCollection(cohort_arrowspace_layers)
+            cohort_arrowspace_collection = InputLayerCollection(
+                cohort_arrowspace_layers
+            )
             create_arrowspace_dataset(
-                cohort_arrowspace_collection, "inventory", "local_storage",
+                cohort_arrowspace_collection,
+                "inventory",
+                "local_storage",
                 str(output_path.joinpath(dataset_name)),
-                creation_options
+                creation_options,
             )
 
     def _flatten_pivot_columns(self, pivot_data):
         pivot_data.columns = [
-            pivot_data.columns.get_level_values(1)[i] if pivot_data.columns.get_level_values(1)[i] != ""
-            else pivot_data.columns.get_level_values(0)[i]
+            (
+                pivot_data.columns.get_level_values(1)[i]
+                if pivot_data.columns.get_level_values(1)[i] != ""
+                else pivot_data.columns.get_level_values(0)[i]
+            )
             for i in range(len(pivot_data.columns))
         ]
 
     def _convert_yields(self, project, output_path):
         with self._input_db_connection(project) as conn:
-            components = pd.read_sql(
-                """
+            components = (
+                pd.read_sql(
+                    """
                 SELECT
                     gcc.id AS growth_curve_component_id, c.name AS classifier_name,
                     cv.value AS classifier_value
@@ -233,10 +263,13 @@ class ProjectConverter:
                     ON gccv.classifier_value_id = cv.id
                 INNER JOIN classifier c
                     ON cv.classifier_id = c.id
-                """, conn
-            ).pivot(
-                index="growth_curve_component_id", columns="classifier_name"
-            ).reset_index().set_index("growth_curve_component_id")
+                """,
+                    conn,
+                )
+                .pivot(index="growth_curve_component_id", columns="classifier_name")
+                .reset_index()
+                .set_index("growth_curve_component_id")
+            )
             self._flatten_pivot_columns(components)
 
             component_species = pd.read_sql(
@@ -245,7 +278,8 @@ class ProjectConverter:
                 FROM growth_curve_component gcc
                 INNER JOIN species s
                     ON gcc.species_id = s.id
-                """, conn
+                """,
+                conn,
             ).set_index("growth_curve_component_id")
 
             component_values = pd.read_sql(
@@ -254,18 +288,24 @@ class ProjectConverter:
                 FROM growth_curve_component gcc
                 INNER JOIN growth_curve_component_value gcv
                     ON gcc.id = gcv.growth_curve_component_id
-                """, conn
+                """,
+                conn,
             ).pivot(index="growth_curve_component_id", columns="age")
             self._flatten_pivot_columns(component_values)
 
             yield_output_path = output_path.joinpath("yield.csv")
-            yield_curves = components.join(component_species).join(component_values).reset_index()
-            yield_curves.drop("growth_curve_component_id", axis=1).to_csv(yield_output_path, index=False)
+            yield_curves = (
+                components.join(component_species).join(component_values).reset_index()
+            )
+            yield_curves.drop("growth_curve_component_id", axis=1).to_csv(
+                yield_output_path, index=False
+            )
 
     def _get_transitions(self, project):
         with self._input_db_connection(project) as conn:
-            transitions = pd.read_sql(
-                """
+            transitions = (
+                pd.read_sql(
+                    """
                 SELECT
                     t.id,
                     t.regen_delay AS "state.regeneration_delay",
@@ -279,11 +319,15 @@ class ProjectConverter:
                     ON tcv.classifier_value_id = cv.id
                 INNER JOIN classifier c
                     ON cv.classifier_id = c.id
-                """, conn
-            ).pivot(
-                index=["id", "state.regeneration_delay", "state.age"],
-                columns="classifier_name"
-            ).reset_index()
+                """,
+                    conn,
+                )
+                .pivot(
+                    index=["id", "state.regeneration_delay", "state.age"],
+                    columns="classifier_name",
+                )
+                .reset_index()
+            )
             self._flatten_pivot_columns(transitions)
 
         return self._sort_transition_data_cols(transitions)
@@ -291,8 +335,9 @@ class ProjectConverter:
     def _get_transition_rules(self, project):
         transitions = self._get_transitions(project)
         with self._input_db_connection(project) as conn:
-            transition_rules = pd.read_sql(
-                """
+            transition_rules = (
+                pd.read_sql(
+                    """
                 SELECT
                     tr.id,
                     tr.transition_id,
@@ -308,24 +353,26 @@ class ProjectConverter:
                     ON tcv.classifier_value_id = cv.id
                 INNER JOIN classifier c
                     ON cv.classifier_id = c.id
-                """, conn
-            ).pivot(
-                index=["id", "transition_id", "parameters.disturbance_type_match"],
-                columns="classifier_name"
-            ).reset_index()
+                """,
+                    conn,
+                )
+                .pivot(
+                    index=["id", "transition_id", "parameters.disturbance_type_match"],
+                    columns="classifier_name",
+                )
+                .reset_index()
+            )
             self._flatten_pivot_columns(transition_rules)
 
         transition_rule_data = transition_rules.merge(
-            transitions, left_on="transition_id", right_on="id",
-            suffixes=(None, "_")
+            transitions, left_on="transition_id", right_on="id", suffixes=(None, "_")
         )
-        
+
         transition_rule_data.drop(
-            ["transition_id"] + [
-                c for c in transition_rule_data.columns if c.endswith("_")
-            ],
+            ["transition_id"]
+            + [c for c in transition_rule_data.columns if c.endswith("_")],
             axis=1,
-            inplace=True
+            inplace=True,
         )
 
         return self._sort_transition_data_cols(transition_rule_data)
@@ -349,39 +396,61 @@ class ProjectConverter:
     def _format_survivor_transitions(self, project, transition_data):
         if "disturbance_type" in transition_data.columns:
             project_dist_types = self._load_disturbance_types(project)
-            dist_type_map = pd.DataFrame({
-                "disturbance_type": project_dist_types.keys(),
-                "disturbance_type_id": project_dist_types.values()
-            })
+            dist_type_map = pd.DataFrame(
+                {
+                    "disturbance_type": project_dist_types.keys(),
+                    "disturbance_type_id": project_dist_types.values(),
+                }
+            )
 
-            transition_data = transition_data.merge(dist_type_map, on="disturbance_type")
+            transition_data = transition_data.merge(
+                dist_type_map, on="disturbance_type"
+            )
             transition_data.drop("disturbance_type", axis=1, inplace=True)
 
         transition_data[transition_data.loc[transition_data["age_after"] == -1]] = "?"
-        transition_data.rename(columns={
-            "age_after": "state.age",
-            "regen_delay": "state.regeneration_delay",
-            "disturbance_type_id": "parameters.disturbance_type_match"
-        }, inplace=True)
+        transition_data.rename(
+            columns={
+                "age_after": "state.age",
+                "regen_delay": "state.regeneration_delay",
+                "disturbance_type_id": "parameters.disturbance_type_match",
+            },
+            inplace=True,
+        )
 
         for classifier in project.classifiers:
-            transition_data.rename(columns={
-                classifier: f"classifiers.{classifier}",
-                f"{classifier}_match": f"classifiers.{classifier}_match"
-            }, inplace=True)
+            transition_data.rename(
+                columns={
+                    classifier: f"classifiers.{classifier}",
+                    f"{classifier}_match": f"classifiers.{classifier}_match",
+                },
+                inplace=True,
+            )
 
         return self._sort_transition_data_cols(transition_data)
 
     def _sort_transition_data_cols(self, transition_data):
         cols = transition_data.columns.tolist()
-        sorted_cols = sorted(cols, key=lambda item: (
-            0 if item == "id"
-            else 1 if "disturbance_type" in item
-            else 2 if item.endswith("_match")
-            else 3 if item == "state.age"
-            else 4 if item == "state.regeneration_delay"
-            else 5
-        ))
+        sorted_cols = sorted(
+            cols,
+            key=lambda item: (
+                0
+                if item == "id"
+                else (
+                    1
+                    if "disturbance_type" in item
+                    else (
+                        2
+                        if item.endswith("_match")
+                        else (
+                            3
+                            if item == "state.age"
+                            else 4 if item == "state.regeneration_delay" else 5
+                        )
+                    )
+                )
+            ),
+        )
 
         return transition_data[sorted_cols]
 
@@ -391,12 +460,14 @@ class ProjectConverter:
         if aidb_path.suffix == ".db":
             shutil.copyfile(aidb_path, output_cbm_defaults_path)
         else:
-            make_cbm_defaults({
-                "output_path": output_cbm_defaults_path,
-                "default_locale": "en-CA",
-                "locales": [{"id": 1, "code": "en-CA"}],
-                "archive_index_data": [{"locale": "en-CA", "path": str(aidb_path)}]
-            })
+            make_cbm_defaults(
+                {
+                    "output_path": output_cbm_defaults_path,
+                    "default_locale": "en-CA",
+                    "locales": [{"id": 1, "code": "en-CA"}],
+                    "archive_index_data": [{"locale": "en-CA", "path": str(aidb_path)}],
+                }
+            )
 
         return output_cbm_defaults_path
 
@@ -406,13 +477,15 @@ class ProjectConverter:
         user_disturbance_order = project.disturbance_order
         unique_user_dist_types = set(user_disturbance_order)
         if not len(unique_user_dist_types) == len(user_disturbance_order):
-            raise ValueError(f"duplicate values detected in user disturbance type order")
-            
+            raise ValueError(
+                f"duplicate values detected in user disturbance type order"
+            )
+
         # check that every disturbance type in the user order exists in the database
         unknown_disturbance_types = unique_user_dist_types.difference(
             set(ordered_db_dist_types.keys())
         )
-            
+
         if unknown_disturbance_types:
             logging.warn(
                 "entries in user disturbance type order not found in database - ignoring: "
@@ -421,13 +494,12 @@ class ProjectConverter:
 
             for unknown_disturbance_type in unknown_disturbance_types:
                 user_disturbance_order.remove(unknown_disturbance_type)
-        
+
         output_order = [
-            ordered_db_dist_types[dist_type]
-            for dist_type in user_disturbance_order
+            ordered_db_dist_types[dist_type] for dist_type in user_disturbance_order
         ] + [
-            dist_code for dist_type, dist_code
-            in ordered_db_dist_types.items()
+            dist_code
+            for dist_type, dist_code in ordered_db_dist_types.items()
             if dist_type not in unique_user_dist_types
         ]
 
@@ -442,42 +514,48 @@ class ProjectConverter:
                 WHERE code > 0
                 ORDER BY code
                 """,
-                conn
+                conn,
             )
 
-        return {
-            str(row["name"]): int(row["code"])
-            for _, row in dist_types.iterrows()
-        }
+        return {str(row["name"]): int(row["code"]) for _, row in dist_types.iterrows()}
 
     def _create_cbm4_config(self, project, output_path, spinup_disturbance_type=None):
         default_inventory_values = {}
 
         cset_config_file = GCBMConfigurer.find_config_file(
-            project.gcbm_config_path, "Variables", "initial_classifier_set")
-        
-        classifiers = (
-            json.load(open(cset_config_file, "rb"))
-                ["Variables"]["initial_classifier_set"]["transform"]["vars"]
+            project.gcbm_config_path, "Variables", "initial_classifier_set"
         )
+
+        classifiers = json.load(open(cset_config_file, "rb"))["Variables"][
+            "initial_classifier_set"
+        ]["transform"]["vars"]
 
         classifiers.extend(["admin_boundary", "eco_boundary"])
 
         for classifier in classifiers:
             config_file = GCBMConfigurer.find_config_file(
-                project.gcbm_config_path, "Variables", classifier)
-        
-            classifier_value = json.load(open(config_file, "rb"))["Variables"][classifier]
+                project.gcbm_config_path, "Variables", classifier
+            )
+
+            classifier_value = json.load(open(config_file, "rb"))["Variables"][
+                classifier
+            ]
             if isinstance(classifier_value, dict):
                 continue
 
             default_inventory_values[classifier] = classifier_value
 
         if spinup_disturbance_type:
-            default_inventory_values["historic_disturbance_type"] = spinup_disturbance_type
-            default_inventory_values["last_pass_disturbance_type"] = spinup_disturbance_type
+            default_inventory_values["historic_disturbance_type"] = (
+                spinup_disturbance_type
+            )
+            default_inventory_values["last_pass_disturbance_type"] = (
+                spinup_disturbance_type
+            )
 
-        if not GCBMConfigurer.find_config_file(project.gcbm_config_path, "Variables", "inventory_delay"):
+        if not GCBMConfigurer.find_config_file(
+            project.gcbm_config_path, "Variables", "inventory_delay"
+        ):
             default_inventory_values["delay"] = 0
 
         config = {

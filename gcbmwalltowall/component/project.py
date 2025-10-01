@@ -1,28 +1,44 @@
-import logging
 import csv
+import logging
 import shutil
-from uuid import uuid4
-from multiprocessing import cpu_count
 from datetime import date
-from gcbmwalltowall.util.path import Path
 from itertools import chain
+from multiprocessing import cpu_count
 from tempfile import TemporaryDirectory
-from mojadata.util import gdal
+from uuid import uuid4
+
 from mojadata.cleanup import cleanup
 from mojadata.gdaltiler2d import GdalTiler2D
-from mojadata.layer.gcbm.transitionrulemanager import SharedTransitionRuleManager
+from mojadata.layer.gcbm.transitionrulemanager import \
+    SharedTransitionRuleManager
+from mojadata.util import gdal
+
 from gcbmwalltowall.component.boundingbox import BoundingBox
 from gcbmwalltowall.component.inputdatabase import InputDatabase
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
-from gcbmwalltowall.validation.string import require_not_null
+from gcbmwalltowall.util.path import Path
 from gcbmwalltowall.validation.generic import require_instance_of
+from gcbmwalltowall.validation.string import require_not_null
+
 
 class Project:
 
-    def __init__(self, name, bounding_box, classifiers, layers, input_db, output_path,
-                 disturbances=None, rollback=None, soft_transition_rules_path=None,
-                 survivor_soft_transition_rules_path=None, cohorts=None, max_workers=None,
-                 max_mem_gb=None):
+    def __init__(
+        self,
+        name,
+        bounding_box,
+        classifiers,
+        layers,
+        input_db,
+        output_path,
+        disturbances=None,
+        rollback=None,
+        soft_transition_rules_path=None,
+        survivor_soft_transition_rules_path=None,
+        cohorts=None,
+        max_workers=None,
+        max_mem_gb=None,
+    ):
         self.name = require_not_null(name)
         self.bounding_box = require_instance_of(bounding_box, BoundingBox)
         self.classifiers = require_instance_of(classifiers, list)
@@ -36,13 +52,13 @@ class Project:
             if soft_transition_rules_path
             else None
         )
-        
+
         self.survivor_soft_transition_rules_path = (
             Path(survivor_soft_transition_rules_path).absolute()
             if survivor_soft_transition_rules_path
             else None
         )
-        
+
         self.cohorts = cohorts
         self.max_workers = max_workers
         self.max_mem_gb = max_mem_gb
@@ -89,18 +105,25 @@ class Project:
                     else:
                         tiler_layers.append(layer)
 
-                    logging.info(f"Finished preparing {disturbance.name or disturbance.pattern}")
+                    logging.info(
+                        f"Finished preparing {disturbance.name or disturbance.pattern}"
+                    )
 
             logging.info("Starting up tiler...")
             tiler_mem = (self.max_mem_gb * 1024**3) if self.max_mem_gb else None
-            tiler = GdalTiler2D(tiler_bbox, use_bounding_box_resolution=True,
-                                workers=min((self.max_workers or cpu_count()), len(tiler_layers)),
-                                total_mem_bytes=tiler_mem)
+            tiler = GdalTiler2D(
+                tiler_bbox,
+                use_bounding_box_resolution=True,
+                workers=min((self.max_workers or cpu_count()), len(tiler_layers)),
+                total_mem_bytes=tiler_mem,
+            )
 
             tiler.tile(tiler_layers, str(self.tiler_output_path))
             if self.cohorts:
                 for i, cohort in enumerate(self.cohorts, 1):
-                    cohort_output_path = self.tiler_output_path.joinpath(rf"cohorts\{i}")
+                    cohort_output_path = self.tiler_output_path.joinpath(
+                        rf"cohorts\{i}"
+                    )
                     cohort_layers = [
                         self._make_tiler_layer(rule_manager, layer)
                         for layer in chain(cohort.layers, cohort.classifiers)
@@ -108,15 +131,23 @@ class Project:
 
                     tiler.tile(cohort_layers, str(cohort_output_path))
 
-            rule_manager.write_rules(str(self.tiler_output_path.joinpath("transition_rules.csv")))
+            rule_manager.write_rules(
+                str(self.tiler_output_path.joinpath("transition_rules.csv"))
+            )
 
     def create_input_database(self):
         output_path = self.input_db_path.parent
         output_path.mkdir(parents=True, exist_ok=True)
-        prepared_transition_rules_path = output_path.joinpath("gcbmwalltowall_transitions.csv")
+        prepared_transition_rules_path = output_path.joinpath(
+            "gcbmwalltowall_transitions.csv"
+        )
         tiler_transition_rules_path = self.tiler_output_path.absolute()
-        self._prepare_transition_rules(tiler_transition_rules_path, prepared_transition_rules_path)
-        self.input_db.create(self.classifiers, self.input_db_path, prepared_transition_rules_path)
+        self._prepare_transition_rules(
+            tiler_transition_rules_path, prepared_transition_rules_path
+        )
+        self.input_db.create(
+            self.classifiers, self.input_db_path, prepared_transition_rules_path
+        )
 
     def run_rollback(self):
         if not self.rollback:
@@ -130,8 +161,11 @@ class Project:
         rollback_transition_rules_path = self.rollback_output_path.absolute()
         rollback_mem = (self.max_mem_gb // 8) if self.max_mem_gb else None
         self.rollback.run(
-            self.classifiers, self.tiler_output_path, self.input_db_path,
-            rule_manager, rollback_mem
+            self.classifiers,
+            self.tiler_output_path,
+            self.input_db_path,
+            rule_manager,
+            rollback_mem,
         )
 
         if self.cohorts:
@@ -140,10 +174,15 @@ class Project:
                     cohort_staging_path = Path(tmp)
                     staging_layers_path = cohort_staging_path.joinpath(r"layers\tiled")
                     staging_layers_path.mkdir(parents=True)
-                    cohort_layers = list((
-                        fn for fn in self.tiler_output_path.joinpath(rf"cohorts\{i}").glob("*.*")
-                        if fn.name != "study_area.json"
-                    ))
+                    cohort_layers = list(
+                        (
+                            fn
+                            for fn in self.tiler_output_path.joinpath(
+                                rf"cohorts\{i}"
+                            ).glob("*.*")
+                            if fn.name != "study_area.json"
+                        )
+                    )
 
                     cohort_layer_names = [fn.name for fn in cohort_layers]
                     for fn in self.tiler_output_path.glob("*.*"):
@@ -153,76 +192,126 @@ class Project:
                     for fn in cohort_layers:
                         shutil.copyfile(fn, staging_layers_path.joinpath(fn.name))
 
-                    shutil.copyfile(self.input_db_path, cohort_staging_path.joinpath("input_database"))
+                    shutil.copyfile(
+                        self.input_db_path,
+                        cohort_staging_path.joinpath("input_database"),
+                    )
                     self.rollback.run(
-                        self.classifiers, staging_layers_path, self.input_db_path,
-                        rule_manager, rollback_mem
+                        self.classifiers,
+                        staging_layers_path,
+                        self.input_db_path,
+                        rule_manager,
+                        rollback_mem,
                     )
 
-                    cohort_rollback_path = self.rollback_output_path.joinpath(rf"cohorts\{i}")
+                    cohort_rollback_path = self.rollback_output_path.joinpath(
+                        rf"cohorts\{i}"
+                    )
                     cohort_rollback_path.mkdir(parents=True)
-                    for fn in cohort_staging_path.joinpath(r"layers\rollback").glob("*.*"):
+                    for fn in cohort_staging_path.joinpath(r"layers\rollback").glob(
+                        "*.*"
+                    ):
                         if "contemporary" not in str(fn):
                             shutil.copyfile(fn, cohort_rollback_path.joinpath(fn.name))
 
-        final_transition_rules_path = output_path.joinpath("gcbmwalltowall_rollback_transitions.csv")
-        self._prepare_transition_rules(rollback_transition_rules_path, final_transition_rules_path)
-        self.input_db.create(self.classifiers, self.rollback_input_db_path, final_transition_rules_path)
+        final_transition_rules_path = output_path.joinpath(
+            "gcbmwalltowall_rollback_transitions.csv"
+        )
+        self._prepare_transition_rules(
+            rollback_transition_rules_path, final_transition_rules_path
+        )
+        self.input_db.create(
+            self.classifiers, self.rollback_input_db_path, final_transition_rules_path
+        )
 
-    def configure_gcbm(self, template_path, disturbance_order=None,
-                       start_year=1990, end_year=date.today().year):
+    def configure_gcbm(
+        self,
+        template_path,
+        disturbance_order=None,
+        start_year=1990,
+        end_year=date.today().year,
+    ):
         exclusions_file = next(self.rollback_output_path.glob("exclusions.txt"), None)
         excluded_layers = (
             [line[0] for line in csv.reader(open(exclusions_file))]
-            if exclusions_file else None)
+            if exclusions_file
+            else None
+        )
 
-        input_db_path = self.rollback_input_db_path if exclusions_file else self.input_db_path
+        input_db_path = (
+            self.rollback_input_db_path if exclusions_file else self.input_db_path
+        )
 
         layer_paths = [str(self.tiler_output_path)]
         if exclusions_file:
             layer_paths.append(str(self.rollback_output_path))
 
         configurer = GCBMConfigurer(
-            layer_paths, template_path, input_db_path,
-            self.output_path.joinpath("gcbm_project"), start_year, end_year,
-            disturbance_order, excluded_layers)
-    
+            layer_paths,
+            template_path,
+            input_db_path,
+            self.output_path.joinpath("gcbm_project"),
+            start_year,
+            end_year,
+            disturbance_order,
+            excluded_layers,
+        )
+
         configurer.configure()
 
     def _make_tiler_layer(self, rule_manager, walltowall_layer):
         return walltowall_layer.to_tiler_layer(
             rule_manager,
             # For spatial rollback compatibility:
-            data_type=gdal.GDT_Int16
+            data_type=(
+                gdal.GDT_Int16
                 if getattr(walltowall_layer, "name", "") == "initial_age"
-                else None)
+                else None
+            ),
+        )
 
     def _prepare_transition_rules(self, tiler_output_path, output_path):
         output_fn_parts = output_path.name.split("_", 1)
         survivor_output_path = output_path.with_name(
-            "_".join((output_fn_parts[0], "survivor", output_fn_parts[1])))
+            "_".join((output_fn_parts[0], "survivor", output_fn_parts[1]))
+        )
 
         soft_survivor_output_path = output_path.parent.joinpath(
-            "gcbmwalltowall_survivor_transition_rules.csv")
+            "gcbmwalltowall_survivor_transition_rules.csv"
+        )
 
         for p in (output_path, survivor_output_path, soft_survivor_output_path):
             p.unlink(True)
 
         tiler_mortality_transitions = tiler_output_path.joinpath("transition_rules.csv")
-        if not (tiler_mortality_transitions.exists() or self.soft_transition_rules_path):
+        if not (
+            tiler_mortality_transitions.exists() or self.soft_transition_rules_path
+        ):
             return None
 
         all_transition_rules = []
-        for transition_path in (tiler_mortality_transitions, self.soft_transition_rules_path):
+        for transition_path in (
+            tiler_mortality_transitions,
+            self.soft_transition_rules_path,
+        ):
             if transition_path and transition_path.exists():
-                all_transition_rules.extend((
-                    row for row in csv.DictReader(open(transition_path, newline=""))))
+                all_transition_rules.extend(
+                    (row for row in csv.DictReader(open(transition_path, newline="")))
+                )
 
-        non_classifier_cols = {"id", "regen_delay", "age_after", "disturbance_type", "age_reset_type"}
+        non_classifier_cols = {
+            "id",
+            "regen_delay",
+            "age_after",
+            "disturbance_type",
+            "age_reset_type",
+        }
         all_transition_classifiers = set()
         for transition in all_transition_rules:
-            all_transition_classifiers.update(set(transition.keys()) - non_classifier_cols)
-            
+            all_transition_classifiers.update(
+                set(transition.keys()) - non_classifier_cols
+            )
+
         for transition in all_transition_rules:
             transition["id"] = transition.get("id", str(uuid4()))
             transition["disturbance_type"] = transition.get("disturbance_type", "")
@@ -234,16 +323,21 @@ class Project:
 
             for classifier in self.classifiers:
                 transition[classifier.name] = transition.get(classifier.name, "?")
-                transition[f"{classifier.name}_match"] = transition.get(f"{classifier.name}_match", "")
+                transition[f"{classifier.name}_match"] = transition.get(
+                    f"{classifier.name}_match", ""
+                )
 
-        tiler_survivor_transitions = tiler_output_path.joinpath("survivor_transition_rules.csv")
+        tiler_survivor_transitions = tiler_output_path.joinpath(
+            "survivor_transition_rules.csv"
+        )
         if tiler_survivor_transitions.exists():
             shutil.copyfile(str(tiler_survivor_transitions), str(survivor_output_path))
 
         if self.survivor_soft_transition_rules_path:
             shutil.copyfile(
                 str(self.survivor_soft_transition_rules_path),
-                str(soft_survivor_output_path))
+                str(soft_survivor_output_path),
+            )
 
         with open(output_path, "w", newline="") as merged_transition_rules:
             header = all_transition_rules[0].keys()

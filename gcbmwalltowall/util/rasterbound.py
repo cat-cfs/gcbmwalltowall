@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 class RasterBound:
     """structure describing a rectangular section of a raster.
     Uses upper left corner origin scheme that GDAL also uses.
