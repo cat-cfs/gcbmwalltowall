@@ -5,10 +5,10 @@ import logging
 import shutil
 from contextlib import contextmanager
 from tempfile import TemporaryDirectory
+from typing import Any
 
 import pandas as pd
-from arrow_space.flattened_coordinate_dataset import \
-    create as create_arrowspace_dataset
+from arrow_space.flattened_coordinate_dataset import create as create_arrowspace_dataset
 from arrow_space.input.input_layer_collection import InputLayerCollection
 from cbm4.app.spatial.gcbm_input.gcbm_preprocessor_app import preprocess
 from cbm_defaults.app import run as make_cbm_defaults
@@ -16,9 +16,11 @@ from sqlalchemy import create_engine
 
 from gcbmwalltowall.component.preparedproject import PreparedProject
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
-from gcbmwalltowall.converter.layerconverter import (DefaultLayerConverter,
-                                                     DelegatingLayerConverter,
-                                                     LandClassLayerConverter)
+from gcbmwalltowall.converter.layerconverter import (
+    DefaultLayerConverter,
+    DelegatingLayerConverter,
+    LandClassLayerConverter,
+)
 from gcbmwalltowall.util.path import Path
 
 
@@ -26,7 +28,7 @@ class ProjectConverter:
 
     def __init__(self, creation_options=None, disturbance_cohorts=False):
         self._disturbance_cohorts = disturbance_cohorts
-        self._creation_options = {
+        self._creation_options: dict[str, Any] = {
             "chunk_options": {
                 "chunk_x_size_max": 2500,
                 "chunk_y_size_max": 2500,
@@ -89,9 +91,8 @@ class ProjectConverter:
             subconverters = [
                 LandClassLayerConverter(),
                 DefaultLayerConverter(
-                    {
+                    name_remappings={
                         "initial_age": "age",
-                        "mean_annual_temperature": "mean_annual_temp",
                         "inventory_delay": "delay",
                     }
                 ),

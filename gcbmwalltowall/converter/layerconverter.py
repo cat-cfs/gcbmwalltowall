@@ -66,7 +66,6 @@ class DefaultLayerConverter(LayerConverter):
             "afforestation_pre_type",
             "historic_disturbance_type",
             "last_pass_disturbance_type",
-            "mean_annual_temp",
         ]
 
     def handles(self, layer: PreparedLayer) -> bool:
