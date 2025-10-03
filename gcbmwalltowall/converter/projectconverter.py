@@ -57,35 +57,35 @@ class ProjectConverter:
             self._build_input_database(project, temp_dir, aidb_path)
             use_cohorts = self._cohorts_enabled(project)
 
-            mortality_transitions_path = temp_dir.joinpath(
-                "transitions.csv" if not use_cohorts else "transition_mortality.csv"
+            transition_disturbed_path = temp_dir.joinpath(
+                "transitions.csv" if not use_cohorts else "transition_disturbed.csv"
             )
 
-            mortality_transition_rules_path = temp_dir.joinpath(
+            transition_rules_disturbed_path = temp_dir.joinpath(
                 "transition_rules.csv"
                 if not use_cohorts
-                else "transition_rules_mortality.csv"
+                else "transition_rules_disturbed.csv"
             )
 
             transitions = self._get_transitions(project)
             if not transitions.empty:
-                transitions.to_csv(mortality_transitions_path, index=False)
+                transitions.to_csv(transition_disturbed_path, index=False)
 
             transition_rules = self._get_transition_rules(project)
             if not transition_rules.empty:
-                transition_rules.to_csv(mortality_transition_rules_path, index=False)
+                transition_rules.to_csv(transition_rules_disturbed_path, index=False)
 
             if use_cohorts:
-                survivor_transitions = self._get_survivor_transitions(project)
-                if not survivor_transitions.empty:
-                    survivor_transitions.to_csv(
-                        temp_dir.joinpath("transition_survivor.csv"), index=False
+                transitions_undisturbed = self._get_transitions_undisturbed(project)
+                if not transitions_undisturbed.empty:
+                    transitions_undisturbed.to_csv(
+                        temp_dir.joinpath("transition_undisturbed.csv"), index=False
                     )
 
-                survivor_transition_rules = self._get_survivor_transition_rules(project)
-                if not survivor_transition_rules.empty:
-                    survivor_transition_rules.to_csv(
-                        temp_dir.joinpath("transition_rules_survivor.csv"), index=False
+                transition_rules_undisturbed = self._get_transition_rules_undisturbed(project)
+                if not transition_rules_undisturbed.empty:
+                    transition_rules_undisturbed.to_csv(
+                        temp_dir.joinpath("transition_rules_undisturbed.csv"), index=False
                     )
 
             subconverters = [
@@ -150,8 +150,8 @@ class ProjectConverter:
     def _cohorts_enabled(self, project):
         use_cohorts = (
             self._disturbance_cohorts
-            or project.survivor_transitions_path.exists()
-            or project.survivor_soft_transitions_path.exists()
+            or project.transition_undisturbed_path.exists()
+            or project.transition_rules_undisturbed_path.exists()
             or len(project.cohorts) > 0
         )
 
@@ -378,23 +378,23 @@ class ProjectConverter:
 
         return self._sort_transition_data_cols(transition_rule_data)
 
-    def _get_survivor_transitions(self, project):
-        if not project.survivor_transitions_path.exists():
+    def _get_transitions_undisturbed(self, project):
+        if not project.transitions_undisturbed_path.exists():
             return pd.DataFrame()
 
-        return self._format_survivor_transitions(
-            project, pd.read_csv(str(project.survivor_transitions_path))
+        return self._format_transitions_undisturbed(
+            project, pd.read_csv(str(project.transitions_undisturbed_path))
         )
 
-    def _get_survivor_transition_rules(self, project):
-        if not project.survivor_soft_transitions_path.exists():
+    def _get_transition_rules_undisturbed(self, project):
+        if not project.transition_rules_undisturbed_path.exists():
             return pd.DataFrame()
 
-        return self._format_survivor_transitions(
-            project, pd.read_csv(str(project.survivor_soft_transitions_path))
+        return self._format_transitions_undisturbed(
+            project, pd.read_csv(str(project.transition_rules_undisturbed_path))
         )
 
-    def _format_survivor_transitions(self, project, transition_data):
+    def _format_transitions_undisturbed(self, project, transition_data):
         if "disturbance_type" in transition_data.columns:
             project_dist_types = self._load_disturbance_types(project)
             dist_type_map = pd.DataFrame(

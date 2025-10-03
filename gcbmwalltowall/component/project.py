@@ -33,8 +33,8 @@ class Project:
         output_path,
         disturbances=None,
         rollback=None,
-        soft_transition_rules_path=None,
-        survivor_soft_transition_rules_path=None,
+        transition_rules_disturbed_path=None,
+        transition_rules_undisturbed_path=None,
         cohorts=None,
         max_workers=None,
         max_mem_gb=None,
@@ -47,15 +47,15 @@ class Project:
         self.output_path = Path(require_not_null(output_path)).absolute()
         self.disturbances = disturbances
         self.rollback = rollback
-        self.soft_transition_rules_path = (
-            Path(soft_transition_rules_path).absolute()
-            if soft_transition_rules_path
+        self.transition_rules_disturbed_path = (
+            Path(transition_rules_disturbed_path).absolute()
+            if transition_rules_disturbed_path
             else None
         )
 
-        self.survivor_soft_transition_rules_path = (
-            Path(survivor_soft_transition_rules_path).absolute()
-            if survivor_soft_transition_rules_path
+        self.transition_rules_undisturbed_path = (
+            Path(transition_rules_undisturbed_path).absolute()
+            if transition_rules_undisturbed_path
             else None
         )
 
@@ -272,27 +272,27 @@ class Project:
 
     def _prepare_transition_rules(self, tiler_output_path, output_path):
         output_fn_parts = output_path.name.split("_", 1)
-        survivor_output_path = output_path.with_name(
-            "_".join((output_fn_parts[0], "survivor", output_fn_parts[1]))
+        transition_undisturbed_path = output_path.with_name(
+            "_".join((output_fn_parts[0], "undisturbed", output_fn_parts[1]))
         )
 
-        soft_survivor_output_path = output_path.parent.joinpath(
-            "gcbmwalltowall_survivor_transition_rules.csv"
+        transition_rules_undisturbed_path = output_path.parent.joinpath(
+            "gcbmwalltowall_transition_rules_undisturbed.csv"
         )
 
-        for p in (output_path, survivor_output_path, soft_survivor_output_path):
+        for p in (output_path, transition_undisturbed_path, transition_rules_undisturbed_path):
             p.unlink(True)
 
-        tiler_mortality_transitions = tiler_output_path.joinpath("transition_rules.csv")
+        transition_disturbed_path = tiler_output_path.joinpath("transition_rules.csv")
         if not (
-            tiler_mortality_transitions.exists() or self.soft_transition_rules_path
+            transition_disturbed_path.exists() or self.transition_rules_disturbed_path
         ):
             return None
 
         all_transition_rules = []
         for transition_path in (
-            tiler_mortality_transitions,
-            self.soft_transition_rules_path,
+            transition_disturbed_path,
+            self.transition_rules_disturbed_path,
         ):
             if transition_path and transition_path.exists():
                 all_transition_rules.extend(
@@ -327,16 +327,16 @@ class Project:
                     f"{classifier.name}_match", ""
                 )
 
-        tiler_survivor_transitions = tiler_output_path.joinpath(
-            "survivor_transition_rules.csv"
+        tiler_transitions_undisturbed_path = tiler_output_path.joinpath(
+            "transition_rules_undisturbed.csv"
         )
-        if tiler_survivor_transitions.exists():
-            shutil.copyfile(str(tiler_survivor_transitions), str(survivor_output_path))
+        if tiler_transitions_undisturbed_path.exists():
+            shutil.copyfile(str(tiler_transitions_undisturbed_path), str(transition_undisturbed_path))
 
-        if self.survivor_soft_transition_rules_path:
+        if self.transition_rules_undisturbed_path:
             shutil.copyfile(
-                str(self.survivor_soft_transition_rules_path),
-                str(soft_survivor_output_path),
+                str(self.transition_rules_undisturbed_path),
+                str(transition_rules_undisturbed_path),
             )
 
         with open(output_path, "w", newline="") as merged_transition_rules:

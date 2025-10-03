@@ -30,7 +30,7 @@ class ProjectFactory:
         "lookup_table",
         "pattern",
         "metadata_attributes",
-        "survivor",
+        "transition_undisturbed",
         "proportion",
     }
 
@@ -50,13 +50,13 @@ class ProjectFactory:
         disturbances = self._create_disturbances(config, classifiers, input_db)
         rollback = self._create_rollback(config, layers)
 
-        soft_transitions = config.get("transition_rules")
-        if soft_transitions:
-            soft_transitions = config.resolve(soft_transitions)
+        transition_rules_disturbed = config.get("transition_rules") or config.get("transition_rules_disturbed")
+        if transition_rules_disturbed:
+            transition_rules_disturbed = config.resolve(transition_rules_disturbed)
 
-        survivor_soft_transitions = config.get("survivor_transition_rules")
-        if survivor_soft_transitions:
-            survivor_soft_transitions = config.resolve(survivor_soft_transitions)
+        transition_rules_undisturbed = config.get("transition_rules_undisturbed")
+        if transition_rules_undisturbed:
+            transition_rules_undisturbed = config.resolve(transition_rules_undisturbed)
 
         cohorts = self._create_cohorts(config)
 
@@ -69,8 +69,8 @@ class ProjectFactory:
             str(config.working_path),
             disturbances,
             rollback,
-            soft_transitions,
-            survivor_soft_transitions,
+            transition_rules_disturbed,
+            transition_rules_undisturbed,
             cohorts,
             config.get("max_workers"),
             config.get("max_mem_gb"),
@@ -214,9 +214,9 @@ class ProjectFactory:
                     )
                 )
             else:
-                mortality_transition = None
+                transition_disturbed = None
                 if dist_config.get("age_after") is not None:
-                    mortality_transition = Transition(
+                    transition_disturbed = Transition(
                         dist_config["age_after"],
                         dist_config.get("regen_delay", 0),
                         {
@@ -226,16 +226,16 @@ class ProjectFactory:
                         },
                     )
 
-                survivor_transition = None
-                survivor_transition_config = dist_config.get("survivor")
-                if survivor_transition_config:
-                    survivor_transition = Transition(
-                        survivor_transition_config.get("age_after"),
-                        survivor_transition_config.get("regen_delay", 0),
+                transition_undisturbed = None
+                transition_undisturbed_config = dist_config.get("transition_undisturbed")
+                if transition_undisturbed_config:
+                    transition_undisturbed = Transition(
+                        transition_undisturbed_config.get("age_after"),
+                        transition_undisturbed_config.get("regen_delay", 0),
                         {
-                            c.name: survivor_transition_config[c.name]
+                            c.name: transition_undisturbed_config[c.name]
                             for c in classifiers
-                            if c.name in survivor_transition_config
+                            if c.name in transition_undisturbed_config
                         },
                     )
 
@@ -245,8 +245,8 @@ class ProjectFactory:
                         input_db,
                         dist_config.get("year"),
                         dist_config.get("disturbance_type"),
-                        mortality_transition,
-                        survivor_transition,
+                        transition_disturbed,
+                        transition_undisturbed,
                         config.resolve(
                             dist_config.get("lookup_table", config.config_path)
                         ),
