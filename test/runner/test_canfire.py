@@ -5,6 +5,7 @@ from typing import Any
 
 from cbm4_canfire.cbmspec.canfire_cbmspec_model import CanfireCbmSpecModel
 from cbm4_canfire.cbmspec.canfire_config import CanfireConfig
+from cbm4_canfire.cbmspec.logging_config import LoggingConfig
 from cbmspec_cbm3.models import cbmspec_cbm3_single_matrix
 
 from gcbmwalltowall.runner.canfire import load_config, run
@@ -46,6 +47,16 @@ standalone_canfire_config = CanfireConfig(
         "soft_wood_species": "",
         "ru": 21,
     },
+    logging_config=LoggingConfig.model_validate(
+        {
+            "input_stand_log": str(
+                results_dir.joinpath("test_run_canfire", "canfire_logs")
+            ),
+            "disturbance_matrix_log": str(
+                results_dir.joinpath("test_run_canfire", "canfire_logs")
+            ),
+        }
+    ),
 )
 
 
