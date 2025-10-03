@@ -327,11 +327,11 @@ class Project:
                     f"{classifier.name}_match", ""
                 )
 
-        tiler_transitions_undisturbed_path = tiler_output_path.joinpath(
-            "transition_rules_undisturbed.csv"
+        tiler_transition_undisturbed_path = tiler_output_path.joinpath(
+            "undisturbed_transition_rules.csv"
         )
-        if tiler_transitions_undisturbed_path.exists():
-            shutil.copyfile(str(tiler_transitions_undisturbed_path), str(transition_undisturbed_path))
+        if tiler_transition_undisturbed_path.exists():
+            shutil.copyfile(str(tiler_transition_undisturbed_path), str(transition_undisturbed_path))
 
         if self.transition_rules_undisturbed_path:
             shutil.copyfile(

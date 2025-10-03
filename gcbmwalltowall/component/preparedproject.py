@@ -161,14 +161,14 @@ class PreparedProject:
         )
 
     @property
-    def transitions_undisturbed_path(self):
+    def transition_undisturbed_path(self):
         if self.has_rollback:
             return self.input_db_path.parent.joinpath(
-                "gcbmwalltowall_rollback_transitions_undisturbed.csv"
+                "gcbmwalltowall_rollback_transition_undisturbed.csv"
             )
 
         return self.input_db_path.parent.joinpath(
-            "gcbmwalltowall_transitions_undisturbed.csv"
+            "gcbmwalltowall_transition_undisturbed.csv"
         )
 
     @property

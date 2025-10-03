@@ -76,9 +76,9 @@ class ProjectConverter:
                 transition_rules.to_csv(transition_rules_disturbed_path, index=False)
 
             if use_cohorts:
-                transitions_undisturbed = self._get_transitions_undisturbed(project)
-                if not transitions_undisturbed.empty:
-                    transitions_undisturbed.to_csv(
+                transition_undisturbed = self._get_transition_undisturbed(project)
+                if not transition_undisturbed.empty:
+                    transition_undisturbed.to_csv(
                         temp_dir.joinpath("transition_undisturbed.csv"), index=False
                     )
 
@@ -378,23 +378,23 @@ class ProjectConverter:
 
         return self._sort_transition_data_cols(transition_rule_data)
 
-    def _get_transitions_undisturbed(self, project):
-        if not project.transitions_undisturbed_path.exists():
+    def _get_transition_undisturbed(self, project):
+        if not project.transition_undisturbed_path.exists():
             return pd.DataFrame()
 
-        return self._format_transitions_undisturbed(
-            project, pd.read_csv(str(project.transitions_undisturbed_path))
+        return self._format_transition_undisturbed(
+            project, pd.read_csv(str(project.transition_undisturbed_path))
         )
 
     def _get_transition_rules_undisturbed(self, project):
         if not project.transition_rules_undisturbed_path.exists():
             return pd.DataFrame()
 
-        return self._format_transitions_undisturbed(
+        return self._format_transition_undisturbed(
             project, pd.read_csv(str(project.transition_rules_undisturbed_path))
         )
 
-    def _format_transitions_undisturbed(self, project, transition_data):
+    def _format_transition_undisturbed(self, project, transition_data):
         if "disturbance_type" in transition_data.columns:
             project_dist_types = self._load_disturbance_types(project)
             dist_type_map = pd.DataFrame(
