@@ -111,9 +111,9 @@ class Disturbance(Tileable):
             self._make_transition(attribute_table, self.transition_undisturbed)
         )
 
-        spatial_classifier_transition = {}
-        spatial_classifier_transition.update(transition_disturbed_attributes or {})
-        spatial_classifier_transition.update(transition_undisturbed_attributes or {})
+        spatial_classifier_transition = set()
+        spatial_classifier_transition.update(set(transition_disturbed_attributes or []))
+        spatial_classifier_transition.update(set(transition_undisturbed_attributes or []))
 
         disturbance_type = self._get_disturbance_type_or_attribute(
             layer_path, attribute_table
@@ -123,15 +123,22 @@ class Disturbance(Tileable):
             attribute_table, "proportion", self.proportion
         )
 
-        transition_tiler_attributes = (
-            [transition_disturbed.age_after, transition_disturbed.regen_delay]
-            if transition_disturbed
-            else []
-        ) + (
-            [transition_undisturbed.age_after, transition_undisturbed.regen_delay]
-            if transition_undisturbed
-            else []
-        )
+        transition_tiler_attributes = []
+        if transition_disturbed:
+            for attr in (
+                transition_disturbed.age_after,
+                transition_disturbed.regen_delay
+            ):
+                if isinstance(attr, Attribute):
+                    transition_tiler_attributes.append(attr.name)
+
+        if transition_undisturbed:
+            for attr in (
+                transition_undisturbed.age_after,
+                transition_undisturbed.regen_delay
+            ):
+                if isinstance(attr, Attribute):
+                    transition_tiler_attributes.append(attr.name)
 
         tiler_attributes = {
             attr: attr
@@ -147,7 +154,7 @@ class Disturbance(Tileable):
             # Transition is configured as classifier to layer attribute;
             # use the inverse to rename those attributes to match the
             # classifiers when tiling.
-            tiler_attributes.update({v: k for k, v in self.transition.items()})
+            tiler_attributes.update({v: k for k, v in self.transition.classifiers.items()})
 
         layer_filters = {}
         for filter_attr, filter_value in self.filters.items():
