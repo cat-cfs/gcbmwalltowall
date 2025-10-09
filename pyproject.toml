@@ -1,6 +1,6 @@
 [project]
 name = "gcbmwalltowall"
-version = "2.2.4"
+version = "2.3.1"
 description = "gcbmwalltowall"
 classifiers = ["Programming Language :: Python :: 3"]
 requires-python = ">=3.9"

@@ -161,20 +161,20 @@ class PreparedProject:
         )
 
     @property
-    def survivor_transitions_path(self):
+    def transition_undisturbed_path(self):
         if self.has_rollback:
             return self.input_db_path.parent.joinpath(
-                "gcbmwalltowall_survivor_rollback_transitions.csv"
+                "gcbmwalltowall_rollback_transition_undisturbed.csv"
             )
 
         return self.input_db_path.parent.joinpath(
-            "gcbmwalltowall_survivor_transitions.csv"
+            "gcbmwalltowall_transition_undisturbed.csv"
         )
 
     @property
-    def survivor_soft_transitions_path(self):
+    def transition_rules_undisturbed_path(self):
         return self.input_db_path.parent.joinpath(
-            "gcbmwalltowall_survivor_transition_rules.csv"
+            "gcbmwalltowall_transition_rules_undisturbed.csv"
         )
 
     @property

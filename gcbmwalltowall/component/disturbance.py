@@ -23,7 +23,7 @@ class Disturbance(Tileable):
         year=None,
         disturbance_type=None,
         transition=None,
-        survivor_transition=None,
+        transition_undisturbed=None,
         lookup_table=None,
         filters=None,
         split_on=None,
@@ -38,7 +38,7 @@ class Disturbance(Tileable):
         self.year = year
         self.disturbance_type = disturbance_type
         self.transition = transition
-        self.survivor_transition = survivor_transition
+        self.transition_undisturbed = transition_undisturbed
         self.lookup_table = Path(lookup_table) if lookup_table else None
         self.filters = filters or {}
         self.split_on = (
@@ -103,17 +103,17 @@ class Disturbance(Tileable):
 
         attribute_table = layer.attribute_table
 
-        transition_rule, transition_rule_attributes = self._make_transition_rule(
+        transition_disturbed, transition_disturbed_attributes = self._make_transition(
             attribute_table, self.transition
         )
 
-        survivor_transition_rule, survivor_transition_rule_attributes = (
-            self._make_transition_rule(attribute_table, self.survivor_transition)
+        transition_undisturbed, transition_undisturbed_attributes = (
+            self._make_transition(attribute_table, self.transition_undisturbed)
         )
 
-        spatial_classifier_transition = {}
-        spatial_classifier_transition.update(transition_rule_attributes or {})
-        spatial_classifier_transition.update(survivor_transition_rule_attributes or {})
+        spatial_classifier_transition = set()
+        spatial_classifier_transition.update(set(transition_disturbed_attributes or []))
+        spatial_classifier_transition.update(set(transition_undisturbed_attributes or []))
 
         disturbance_type = self._get_disturbance_type_or_attribute(
             layer_path, attribute_table
@@ -123,15 +123,22 @@ class Disturbance(Tileable):
             attribute_table, "proportion", self.proportion
         )
 
-        transition_tiler_attributes = (
-            [transition_rule.age_after, transition_rule.regen_delay]
-            if transition_rule
-            else []
-        ) + (
-            [survivor_transition_rule.age_after, survivor_transition_rule.regen_delay]
-            if survivor_transition_rule
-            else []
-        )
+        transition_tiler_attributes = []
+        if transition_disturbed:
+            for attr in (
+                transition_disturbed.age_after,
+                transition_disturbed.regen_delay
+            ):
+                if isinstance(attr, Attribute):
+                    transition_tiler_attributes.append(attr.name)
+
+        if transition_undisturbed:
+            for attr in (
+                transition_undisturbed.age_after,
+                transition_undisturbed.regen_delay
+            ):
+                if isinstance(attr, Attribute):
+                    transition_tiler_attributes.append(attr.name)
 
         tiler_attributes = {
             attr: attr
@@ -147,7 +154,7 @@ class Disturbance(Tileable):
             # Transition is configured as classifier to layer attribute;
             # use the inverse to rename those attributes to match the
             # classifiers when tiling.
-            tiler_attributes.update({v: k for k, v in self.transition.items()})
+            tiler_attributes.update({v: k for k, v in self.transition.classifiers.items()})
 
         layer_filters = {}
         for filter_attr, filter_value in self.filters.items():
@@ -197,8 +204,8 @@ class Disturbance(Tileable):
                         if disturbance_type in attribute_table
                         else disturbance_type
                     ),
-                    transition_rule,
-                    survivor_transition=survivor_transition_rule,
+                    transition_disturbed,
+                    transition_undisturbed=transition_undisturbed,
                     proportion=(
                         Attribute(proportion)
                         if proportion in attribute_table
@@ -238,8 +245,8 @@ class Disturbance(Tileable):
                             if disturbance_type in tiler_attributes
                             else disturbance_type
                         ),
-                        transition_rule,
-                        survivor_transition=survivor_transition_rule,
+                        transition_disturbed,
+                        transition_undisturbed=transition_undisturbed,
                         proportion=(
                             Attribute(proportion)
                             if proportion in tiler_attributes
@@ -298,8 +305,8 @@ class Disturbance(Tileable):
                                 if disturbance_type in tiler_attributes
                                 else disturbance_type
                             ),
-                            transition_rule,
-                            survivor_transition=survivor_transition_rule,
+                            transition_disturbed,
+                            transition_undisturbed=transition_undisturbed,
                             proportion=(
                                 Attribute(proportion)
                                 if proportion in tiler_attributes
@@ -310,7 +317,7 @@ class Disturbance(Tileable):
 
         return disturbance_layers
 
-    def _make_transition_rule(self, attribute_table, transition_config):
+    def _make_transition(self, attribute_table, transition_config):
         if not transition_config:
             return None, None
 

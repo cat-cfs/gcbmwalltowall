@@ -44,7 +44,6 @@ class ConvertArgs(ArgBase):
     apply_departial_dms: bool
     preserve_temp_files: bool
     creation_options: dict
-    disturbance_cohorts: bool
     max_workers: int
     chunk_size: int
     tempdir: str
@@ -59,7 +58,6 @@ class ConvertArgs(ArgBase):
             apply_departial_dms=getattr(ns, "apply_departial_dms", False),
             preserve_temp_files=getattr(ns, "preserve_temp_files", False),
             creation_options=getattr(ns, "creation_options", {}),
-            disturbance_cohorts=getattr(ns, "disturbance_cohorts", False),
             max_workers=getattr(ns, "max_workers", None),
             chunk_size=getattr(ns, "chunk_size", None),
             tempdir=getattr(ns, "tempdir", None),
@@ -128,7 +126,6 @@ class RunArgs(ArgBase):
     batch_limit: int
     max_workers: int
     engine: str
-    apply_departial_dms: bool
     write_parameters: bool
 
     @classmethod
@@ -168,7 +165,7 @@ def convert(args: ConvertArgs | dict):
 
     project = PreparedProject(args.project_path)
     logging.info(f"Converting {project.path} to CBM4")
-    converter = ProjectConverter(creation_options, args.disturbance_cohorts)
+    converter = ProjectConverter(creation_options)
     converter.convert(
         project,
         args.output_path,
@@ -312,7 +309,6 @@ def run(args: RunArgs | dict):
                 cbm4.run(
                     str(cbm4_config_path),
                     max_workers=args.max_workers,
-                    apply_departial_dms=args.apply_departial_dms,
                     write_parameters=args.write_parameters,
                     **extra_kwargs,
                 )
@@ -492,9 +488,6 @@ def cli():
     )
     convert_parser.add_argument(
         "--aidb_path", help="AIDB to use when building CBM4 input database"
-    )
-    convert_parser.add_argument(
-        "--disturbance_cohorts", action="store_true", help="use disturbance cohorts"
     )
     convert_parser.add_argument("--chunk_size", help="maximum CBM4 chunk size")
     convert_parser.add_argument(

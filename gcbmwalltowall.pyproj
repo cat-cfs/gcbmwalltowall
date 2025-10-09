@@ -125,7 +125,6 @@
     <Compile Include="gcbmwalltowall\__init__.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="setup.py" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="build_wheel.bat" />
@@ -139,6 +138,7 @@
     <Content Include="files\templates\default\provider_config.json" />
     <Content Include="files\templates\default\spinup.json" />
     <Content Include="files\templates\default\variables.json" />
+    <Content Include="pyproject.toml" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
