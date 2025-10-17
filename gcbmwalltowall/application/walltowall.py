@@ -140,7 +140,6 @@ class RunArgs(ArgBase):
             batch_limit=getattr(ns, "batch_limit", None),
             max_workers=getattr(ns, "max_workers", None),
             engine=getattr(ns, "engine", "libcbm"),
-            apply_departial_dms=getattr(ns, "apply_departial_dms", False),
             write_parameters=getattr(ns, "write_parameters", False),
         )
 
