@@ -109,11 +109,7 @@ class Configuration(dict):
     @property
     def settings_keys(self):
         settings_keys = set()
-        for config_path in (
-            Configuration.global_settings_windows,
-            Configuration.global_settings_linux,
-            Configuration.user_settings,
-        ):
+        for config_path in Configuration.global_settings_paths:
             if config_path.is_file():
                 settings_keys.update(json.load(open(config_path)).keys())
 
