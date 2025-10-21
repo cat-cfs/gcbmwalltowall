@@ -132,6 +132,16 @@ class ProjectConverter:
                 "apply_departial_dms": apply_departial_dms,
             }
 
+            for extra_data_file in (
+                project.disturbance_rules_path,
+                project.rule_based_disturbances_path,
+            ):
+                if extra_data_file.exists():
+                    shutil.copyfile(
+                        project.disturbance_rules_path,
+                        temp_dir.joinpath(project.disturbance_rules_path.name)
+                    )
+
             preprocess(preprocess_config)
             if preserve_temp_files:
                 shutil.copytree(temp_dir, output_path.joinpath("temp"))

@@ -1,6 +1,7 @@
 import csv
 import logging
 import shutil
+import pandas as pd
 from datetime import date
 from itertools import chain
 from multiprocessing import cpu_count
@@ -38,6 +39,8 @@ class Project:
         cohorts=None,
         max_workers=None,
         max_mem_gb=None,
+        rule_based_disturbances=None,
+        disturbance_rules=None,
     ):
         self.name = require_not_null(name)
         self.bounding_box = require_instance_of(bounding_box, BoundingBox)
@@ -62,6 +65,8 @@ class Project:
         self.cohorts = cohorts
         self.max_workers = max_workers
         self.max_mem_gb = max_mem_gb
+        self.rule_based_disturbances = rule_based_disturbances
+        self.disturbance_rules = disturbance_rules
 
     @property
     def tiler_output_path(self):
@@ -148,6 +153,7 @@ class Project:
         self.input_db.create(
             self.classifiers, self.input_db_path, prepared_transition_rules_path
         )
+        self._prepare_extra_data(output_path)
 
     def run_rollback(self):
         if not self.rollback:
@@ -344,3 +350,21 @@ class Project:
             writer = csv.DictWriter(merged_transition_rules, fieldnames=header)
             writer.writeheader()
             writer.writerows(all_transition_rules)
+
+    def _prepare_extra_data(self, output_path):
+        if self.disturbance_rules:
+            shutil.copyfile(
+                self.disturbance_rules,
+                output_path.joinpath("disturbance_rules.json")
+            )
+        
+        if self.rule_based_disturbances:
+            rule_based_disturbances = pd.concat([
+                pd.read_csv(rule_based_dist_path)
+                for rule_based_dist_path in self.rule_based_disturbances
+            ])
+
+            rule_based_disturbances.to_csv(
+                output_path.joinpath("rule_based_disturbances.csv"),
+                index=False
+            )

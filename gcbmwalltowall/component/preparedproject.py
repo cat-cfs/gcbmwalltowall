@@ -188,6 +188,18 @@ class PreparedProject:
             .get("mask_vars", [])
         )
 
+    @property
+    def disturbance_rules_path(self):
+        return self.input_db_path.parent.joinpath(
+            "disturbance_rules.json"
+        )
+
+    @property
+    def rule_based_disturbances_path(self):
+        return self.input_db_path.parent.joinpath(
+            "rule_based_disturbances.csv"
+        )
+
     @contextmanager
     def temporary_new_end_year(self, end_year=None):
         if end_year is None:

@@ -47,7 +47,7 @@ class ProjectFactory:
         input_db = self._create_input_database(config)
         classifiers = self._create_classifiers(config)
         layers = self._create_general_layers(config)
-        disturbances = self._create_disturbances(config, classifiers, input_db)
+        disturbances, rule_based_disturbances = self._create_disturbances(config, classifiers, input_db)
         rollback = self._create_rollback(config, layers)
 
         transition_rules_disturbed = config.get("transition_rules") or config.get("transition_rules_disturbed")
@@ -59,6 +59,9 @@ class ProjectFactory:
             transition_rules_undisturbed = config.resolve(transition_rules_undisturbed)
 
         cohorts = self._create_cohorts(config)
+        dist_rules_path = config.get("disturbance_rules")
+        if dist_rules_path:
+            dist_rules_path = config.resolve(dist_rules_path)
 
         return Project(
             project_name,
@@ -74,6 +77,8 @@ class ProjectFactory:
             cohorts,
             config.get("max_workers"),
             config.get("max_mem_gb"),
+            rule_based_disturbances,
+            dist_rules_path,
         )
 
     def _extract_attribute(self, config):
@@ -203,16 +208,20 @@ class ProjectFactory:
 
     def _create_disturbances(self, config, classifiers, input_db):
         disturbances = []
+        rule_based_disturbances = []
         for pattern_or_name, dist_config in config.get("disturbances", {}).items():
             if isinstance(dist_config, str):
-                disturbance_pattern = dist_config
-                disturbances.append(
-                    Disturbance(
-                        config.resolve(disturbance_pattern),
-                        input_db,
-                        name=pattern_or_name,
+                if dist_config.endswith(".csv"):
+                    rule_based_disturbances.append(config.resolve(dist_config))
+                else:
+                    disturbance_pattern = dist_config
+                    disturbances.append(
+                        Disturbance(
+                            config.resolve(disturbance_pattern),
+                            input_db,
+                            name=pattern_or_name,
+                        )
                     )
-                )
             else:
                 transition_disturbed = None
                 if dist_config.get("age_after") is not None:
@@ -265,7 +274,7 @@ class ProjectFactory:
                     )
                 )
 
-        return disturbances
+        return disturbances, rule_based_disturbances
 
     def _create_rollback(self, config, project_layers):
         rollback_config = config.get("rollback")
