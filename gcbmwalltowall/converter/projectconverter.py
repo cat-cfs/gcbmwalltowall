@@ -138,8 +138,8 @@ class ProjectConverter:
             ):
                 if extra_data_file.exists():
                     shutil.copyfile(
-                        project.disturbance_rules_path,
-                        temp_dir.joinpath(project.disturbance_rules_path.name)
+                        extra_data_file,
+                        temp_dir.joinpath(extra_data_file.name)
                     )
 
             preprocess(preprocess_config)
