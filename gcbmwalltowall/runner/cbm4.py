@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 from cbm4.app.spatial.spatial_cbm3.spatial_cbm3_app import (
     create_simulation_dataset, spinup_all, step_all)
-
+from cbm4.app.spatial.event_handler import EventProcessor
 from gcbmwalltowall.util.path import Path
 
 
@@ -62,8 +62,16 @@ def load_config(
 
 
 def run(cbm4_config_path: str | Path, **kwargs):
+    json_config = json.load(open(cbm4_config_path))
+    sim_start_year = int(json_config["start_year"])
+
     simulation_config, spinup_config, step_configs = load_config(
         cbm4_config_path, **kwargs
+    )
+
+    cbm4_root = os.path.join(
+        simulation_config["out_simulation_dataset"]["path_or_uri"],
+        ".."
     )
 
     shutil.rmtree(simulation_config["out_simulation_dataset"]["path_or_uri"], True)
@@ -77,8 +85,12 @@ def run(cbm4_config_path: str | Path, **kwargs):
     spinup_all(spinup_config)
     step_times.append(["spinup", (time.time() - start)])
 
+    event_processor = EventProcessor(cbm4_root, sim_start_year)
     for step_config in step_configs:
         start = time.time()
+        event_processor.process_events_for_year(
+            sim_start_year - 1 + step_config["timestep"]
+        )
         step_all(step_config)
         step_times.append(
             [f"timestep_{step_config['timestep']}", (time.time() - start)]
