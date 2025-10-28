@@ -40,16 +40,6 @@ module-root = "."
 [tool.uv.build-backend.data]
 data = "files"
 
-[tool.uv.sources]
-cbm4 = { git = "https://github.com/cat-cfs/cbm4" }
-arrow-space = { git = "https://github.com/cat-cfs/arrow_space" }
-cbmspec-cbm3 = { git = "https://github.com/cat-cfs/cbmspec.cbm3.python" }
-spatial-inventory-rollback = { git = "https://github.com/cat-cfs/spatial_inventory_rollback" }
-mojadata = { git = "https://github.com/moja-global/GCBM.Data" }
-gcbminputloader = { git = "https://github.com/moja-global/GCBM.InputLoader" }
-cbm_defaults = { git = "https://github.com/cat-cfs/cbm_defaults/" }
-cbm4-canfire = { git = "https://github.com/cat-cfs/cbm4_canfire.git" }
-
 [dependency-groups]
 dev = [
     "black>=25.9.0",
