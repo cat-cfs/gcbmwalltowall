@@ -134,7 +134,7 @@ class VectorAttributeTable(AttributeTable):
             cached_data[attribute] = {}
             for value in values:
                 final_value = substitutions.get(attribute, {}).get(
-                    value,
+                    str(value),
                     (
                         value
                         if not self.strict_lookup_table
