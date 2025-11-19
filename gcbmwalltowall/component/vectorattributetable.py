@@ -181,6 +181,11 @@ class VectorAttributeTable(AttributeTable):
             ogr.DontUseExceptions()
 
         ds_table = lyr.GetName()
+        if ds is None or ds_table is None:
+            err = f"Fatal error loading {self.layer_path}"
+            logging.fatal(err)
+            sys.exit(err)
+
         logging.info(f"  reading attribute table: {self.layer_path.stem} [{ds_table}]")
 
         layer_attributes = self._get_attribute_names(ds_table)
