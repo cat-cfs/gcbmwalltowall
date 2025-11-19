@@ -10,7 +10,7 @@ from typing import Any
 import pandas as pd
 from arrow_space.raster_indexed_dataset import RasterIndexedDataset
 from cbm4.app.spatial.spatial_cbm4 import cbm4_spatial_runner
-from cbm4.app.spatial.event_handler import EventProcessor
+from cbm4.app.spatial.event_handler.event_processor import EventProcessor
 from cbmspec_cbm3.models import cbmspec_cbm3_single_matrix
 from cbmspec_cbm3.parameters.cbm_defaults import cbm4_parameter_dataset_factory
 
@@ -111,13 +111,11 @@ def run(
     step_times.append(["spinup", (time.time() - start)])
 
     sim_start_year = int(json_config["start_year"])
-    event_processor = EventProcessor(str(out_path.absolute()), sim_start_year)
+    event_processor = EventProcessor.for_simulation(str(out_path.absolute()))
     final_timestep = json_config["end_year"] - json_config["start_year"] + 1
     for timestep in range(1, final_timestep + 1):
         start = time.time()
-        event_processor.process_events_for_year(
-            sim_start_year - 1 + timestep
-        )
+        event_processor.process_events_for_timestep(timestep)
         cbm4_spatial_runner.step_all(
             model=cbmspec_cbm3_single_matrix_model,
             timestep=timestep,

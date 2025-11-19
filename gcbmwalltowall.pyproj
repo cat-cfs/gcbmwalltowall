@@ -7,12 +7,12 @@
     <StartupFile>gcbmwalltowall\application\walltowall.py</StartupFile>
     <SearchPath>
     </SearchPath>
-    <WorkingDirectory>D:\Projects\3a_Standalone_Template_JSON_Workflow</WorkingDirectory>
+    <WorkingDirectory>C:\Development\projects\cbm4_walltowall\examples\7_Rule_Based_Disturbances\cbm4</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <Name>gcbmwalltowall</Name>
     <RootNamespace>gcbmwalltowall</RootNamespace>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>run local cbm4 --max_workers 1</CommandLineArguments>
+    <CommandLineArguments>run local . --max_workers 1</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
     <IsWindowsApplication>False</IsWindowsApplication>
   </PropertyGroup>
