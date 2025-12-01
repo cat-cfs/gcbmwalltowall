@@ -5,7 +5,7 @@ import os
 import shutil
 import time
 from typing import Any
-
+from tempfile import TemporaryDirectory
 import pandas as pd
 from cbm4.app.spatial.spatial_cbm3.spatial_cbm3_app import (
     create_simulation_dataset, spinup_all, step_all)
@@ -85,16 +85,18 @@ def run(cbm4_config_path: str | Path, **kwargs):
     spinup_all(spinup_config)
     step_times.append(["spinup", (time.time() - start)])
 
-    event_processor = EventProcessor.for_simulation(cbm4_root)
-    for step_config in step_configs:
-        start = time.time()
-        event_processor.process_events_for_timestep(step_config["timestep"])
-        step_all(step_config)
-        step_times.append(
-            [f"timestep_{step_config['timestep']}", (time.time() - start)]
-        )
+    with TemporaryDirectory() as tmp:
+        event_processor = EventProcessor.for_simulation(cbm4_root, tmp)
+        for step_config in step_configs:
+            start = time.time()
+            event_processor.process_events_for_timestep(step_config["timestep"])
+            step_config["disturbance_dataset"]["path_or_uri"] = f"{tmp}/disturbance"
+            step_all(step_config)
+            step_times.append(
+                [f"timestep_{step_config['timestep']}", (time.time() - start)]
+            )
 
-    time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=step_times)
-    time_profiling.to_csv(
-        Path(cbm4_config_path).absolute().parent.joinpath("profiling.csv"), index=False
-    )
+        time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=step_times)
+        time_profiling.to_csv(
+            Path(cbm4_config_path).absolute().parent.joinpath("profiling.csv"), index=False
+        )
