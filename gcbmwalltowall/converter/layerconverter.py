@@ -129,45 +129,31 @@ class LandClassLayerConverter(LayerConverter):
 
         logging.info(f"Converting layer: {layer.name}")
 
-        gcbm_cbm4_landclass_lookup = {
-            "FL": 0,
-            "CL": 1,
-            "GL": 2,
-            "WL": 3,
-            "SL": 4,
-            "OL": 5,
-            "UFL": 16,
-        }
-
-        original_ndv = layer.tiler_metadata["nodata"]
-        new_ndv = 32767
-        px_remappings = {original_ndv: new_ndv}
-        px_remappings.update(
-            {
-                original_px: gcbm_cbm4_landclass_lookup.get(gcbm_landclass, new_ndv)
-                for original_px, gcbm_landclass in layer.tiler_metadata[
-                    "attributes"
-                ].items()
-            }
-        )
-
-        old_px, new_px = list(zip(*px_remappings.items()))
-        output_path = self._temp_dir.joinpath(f"{layer.name}.tif")
-        GDALHelper.calc(
-            str(layer.path),
-            str(output_path),
-            lambda d: np.select(
-                np.array(old_px)[:, None, None].astype(np.int16) == d.astype(np.int16),
-                new_px,
-            ),
-            data_type=gdal.GDT_Int16,
-            nodata_value=new_ndv,
-        )
-
         return [
             RasterInputLayer(
                 "land_class",
-                [RasterInputSource(path=str(output_path))],
-                tags=layer.study_area_metadata.get("tags"),
+                [RasterInputSource(path=str(layer.path))],
+                self._build_attribute_table(layer),
+                layer.study_area_metadata.get("tags"),
             )
         ]
+
+    def _build_attribute_table(self, layer: PreparedLayer) -> DataFrame:
+        gcbm_cbm4_landclass_lookup = {
+            "FL": "UNFCCC_FL_R_FL",
+            "CL": "UNFCCC_CL_R_CL",
+            "GL": "UNFCCC_GL_R_GL",
+            "WL": "UNFCCC_WL_R_WL",
+            "SL": "UNFCCC_SL_R_SL",
+            "OL": "UNFCCC_OL_R_OL",
+            "UFL": "UNFCCC_UFL",
+        }
+
+        gcbm_attribute_table = layer.tiler_metadata.get("attributes")
+        rows = []
+        for att_id, att_value in gcbm_attribute_table.items():
+            row = {"id": int(att_id)}
+            row.update({"value": gcbm_cbm4_landclass_lookup[att_value]})
+            rows.append(row)
+
+        return InMemoryAttributeTableReader(DataFrame(rows))
