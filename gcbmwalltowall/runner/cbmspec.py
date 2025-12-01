@@ -45,12 +45,6 @@ def run(
         json_config["cbm4_spatial_dataset"]["inventory"]["path_or_uri"],
     )
 
-    disturbance_ds = RasterIndexedDataset(
-        json_config["cbm4_spatial_dataset"]["disturbance"]["dataset_name"],
-        json_config["cbm4_spatial_dataset"]["disturbance"]["storage_type"],
-        json_config["cbm4_spatial_dataset"]["disturbance"]["path_or_uri"],
-    )
-
     with TemporaryDirectory() as tmp:
         cbm_defaults_path = Path(tmp).joinpath("cbm_defaults.db")
         try:
@@ -111,23 +105,24 @@ def run(
     step_times.append(["spinup", (time.time() - start)])
 
     sim_start_year = int(json_config["start_year"])
-    event_processor = EventProcessor.for_simulation(str(out_path.absolute()))
     final_timestep = json_config["end_year"] - json_config["start_year"] + 1
-    for timestep in range(1, final_timestep + 1):
-        start = time.time()
-        event_processor.process_events_for_timestep(timestep)
-        cbm4_spatial_runner.step_all(
-            model=cbmspec_cbm3_single_matrix_model,
-            timestep=timestep,
-            simulation_input_dataset=simulation_ds,
-            disturbance_event_dataset=disturbance_ds,
-            simulation_output_dataset=simulation_ds,
-            parameter_dataset=step_spatial_parameter_ds,
-            area_unit_conversion=0.0001,
-            max_workers=max_workers,
-            write_parameters=write_parameters,
-        )
-        step_times.append([f"timestep_{timestep}", (time.time() - start)])
+    with TemporaryDirectory() as tmp:
+        event_processor = EventProcessor.for_simulation(str(out_path.absolute()), tmp)
+        for timestep in range(1, final_timestep + 1):
+            start = time.time()
+            disturbance_ds = event_processor.process_events_for_timestep(timestep)
+            cbm4_spatial_runner.step_all(
+                model=cbmspec_cbm3_single_matrix_model,
+                timestep=timestep,
+                simulation_input_dataset=simulation_ds,
+                disturbance_event_dataset=disturbance_ds,
+                simulation_output_dataset=simulation_ds,
+                parameter_dataset=step_spatial_parameter_ds,
+                area_unit_conversion=0.0001,
+                max_workers=max_workers,
+                write_parameters=write_parameters,
+            )
+            step_times.append([f"timestep_{timestep}", (time.time() - start)])
 
-    time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=step_times)
-    time_profiling.to_csv(out_path.joinpath("profiling.csv"), index=False)
+        time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=step_times)
+        time_profiling.to_csv(out_path.joinpath("profiling.csv"), index=False)
