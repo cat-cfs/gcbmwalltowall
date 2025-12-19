@@ -43,7 +43,6 @@ class ProjectConverter:
         output_path,
         aidb_path=None,
         spinup_disturbance_type=None,
-        apply_departial_dms=False,
         preserve_temp_files=False,
     ):
         with TemporaryDirectory() as temp_path:
@@ -82,10 +81,13 @@ class ProjectConverter:
                         temp_dir.joinpath("transition_undisturbed.csv"), index=False
                     )
 
-                transition_rules_undisturbed = self._get_transition_rules_undisturbed(project)
+                transition_rules_undisturbed = self._get_transition_rules_undisturbed(
+                    project
+                )
                 if not transition_rules_undisturbed.empty:
                     transition_rules_undisturbed.to_csv(
-                        temp_dir.joinpath("transition_rules_undisturbed.csv"), index=False
+                        temp_dir.joinpath("transition_rules_undisturbed.csv"),
+                        index=False,
                     )
 
             subconverters = [
@@ -129,7 +131,6 @@ class ProjectConverter:
                     "default_inventory_values"
                 ),
                 "max_workers": self._creation_options.get("max_workers"),
-                "apply_departial_dms": apply_departial_dms,
             }
 
             for extra_data_file in (
@@ -138,8 +139,7 @@ class ProjectConverter:
             ):
                 if extra_data_file.exists():
                     shutil.copyfile(
-                        extra_data_file,
-                        temp_dir.joinpath(extra_data_file.name)
+                        extra_data_file, temp_dir.joinpath(extra_data_file.name)
                     )
 
             preprocess(preprocess_config)
@@ -582,7 +582,6 @@ class ProjectConverter:
             "default_inventory_values": default_inventory_values,
             "start_year": project.start_year,
             "end_year": project.end_year,
-            "apply_departial_dms": self._disturbance_cohorts,
             "use_smoother": project.use_smoother,
             "disturbance_order": self._load_disturbance_order(project),
         }
