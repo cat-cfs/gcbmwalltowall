@@ -320,6 +320,8 @@ class ProjectFactory:
                 establishment_disturbance_type
             )
 
+        stand_replacing_lookup = rollback_config.get("stand_replacing_lookup")
+
         rollback = Rollback(
             age_distribution,
             inventory_year_layer.name if inventory_year_layer else inventory_year,
@@ -328,6 +330,7 @@ class ProjectFactory:
             rollback_config.get("single_draw", False),
             establishment_disturbance_type,
             config.gcbm_disturbance_order_path,
+            config.resolve(stand_replacing_lookup) if stand_replacing_lookup else None,
         )
 
         return rollback
