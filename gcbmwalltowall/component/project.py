@@ -18,6 +18,7 @@ from gcbmwalltowall.component.boundingbox import BoundingBox
 from gcbmwalltowall.component.inputdatabase import InputDatabase
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.util.path import Path
+from gcbmwalltowall.util.encoding import load_csv
 from gcbmwalltowall.validation.generic import require_instance_of
 from gcbmwalltowall.validation.string import require_not_null
 
@@ -360,7 +361,7 @@ class Project:
         
         if self.rule_based_disturbances:
             rule_based_disturbances = pd.concat([
-                pd.read_csv(rule_based_dist_path)
+                load_csv(rule_based_dist_path)
                 for rule_based_dist_path in self.rule_based_disturbances
             ])
 
