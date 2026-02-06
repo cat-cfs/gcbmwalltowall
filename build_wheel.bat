@@ -1,9 +1,7 @@
 @echo off
-REM set PYTHONHOME=c:\python37
+set PYTHONHOME=c:\python310
 
 if exist dist rd /s /q dist
-
-python -m pip install --upgrade setuptools wheel
-python setup.py bdist_wheel
+python -m pip wheel -w dist --no-deps .
 if exist build rd /s /q build
 if exist gcbmwalltowall.egg-info rd /s /q gcbmwalltowall.egg-info
