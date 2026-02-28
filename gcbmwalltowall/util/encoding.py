@@ -15,4 +15,12 @@ def load_json(json_path):
 
 
 def load_csv(csv_path):
-    return pd.read_csv(BytesIO(read_text_file(csv_path).encode()))
+    text = read_text_file(csv_path)
+    
+    # Strip NBSP (\xa0) and possibly other whitespace characters that sometimes
+    # end up in CSV files.
+    sub_table = "".maketrans("\xa0", " ")
+    text = text.translate(sub_table)
+
+    text_bytes = BytesIO(text.encode())
+    return pd.read_csv(text_bytes)
