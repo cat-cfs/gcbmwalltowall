@@ -41,7 +41,6 @@ class ConvertArgs(ArgBase):
     output_path: str
     aidb_path: str
     spinup_disturbance_type: str
-    apply_departial_dms: bool
     preserve_temp_files: bool
     creation_options: dict
     max_workers: int
@@ -55,7 +54,6 @@ class ConvertArgs(ArgBase):
             output_path=ns.output_path,
             aidb_path=getattr(ns, "aidb_path", None),
             spinup_disturbance_type=getattr(ns, "spinup_disturbance_type", "Wildfire"),
-            apply_departial_dms=getattr(ns, "apply_departial_dms", False),
             preserve_temp_files=getattr(ns, "preserve_temp_files", False),
             creation_options=getattr(ns, "creation_options", {}),
             max_workers=getattr(ns, "max_workers", None),
@@ -170,7 +168,6 @@ def convert(args: ConvertArgs | dict):
         args.output_path,
         args.aidb_path,
         args.spinup_disturbance_type,
-        args.apply_departial_dms,
         args.preserve_temp_files,
     )
 
@@ -492,11 +489,7 @@ def cli():
     convert_parser.add_argument(
         "--spinup_disturbance_type", help="override default spinup disturbance type"
     )
-    convert_parser.add_argument(
-        "--apply_departial_dms",
-        action="store_true",
-        help="apply departial DMs (cohorts)",
-    )
+
     convert_parser.add_argument(
         "--max_workers", type=int, help="max workers for CBM4 conversion"
     )
