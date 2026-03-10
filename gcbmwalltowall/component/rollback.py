@@ -24,6 +24,7 @@ class Rollback:
         single_draw=False,
         establishment_disturbance_type="Wildfire",
         disturbance_order=None,
+        stand_replacing_lookup=None,
     ):
         self.age_distribution = Path(age_distribution)
         self.inventory_year = inventory_year
@@ -32,6 +33,7 @@ class Rollback:
         self.single_draw = single_draw
         self.establishment_disturbance_type = establishment_disturbance_type
         self.disturbance_order = disturbance_order
+        self.stand_replacing_lookup = stand_replacing_lookup
 
     def run(
         self,
@@ -85,7 +87,7 @@ class Rollback:
                 ),
                 single_draw=self.single_draw,
                 output_path=str(output_path),
-                stand_replacing_lookup=None,
+                stand_replacing_lookup=self.stand_replacing_lookup,
                 disturbance_type_order=self.disturbance_order,
                 logging_level="INFO",
                 transition_rule_manager=transition_rule_manager,

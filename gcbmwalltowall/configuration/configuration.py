@@ -158,7 +158,7 @@ class Configuration(dict):
 
         raise RuntimeError(
             f"{file_name} not found - please check {setting_name} setting in any of these locations: "
-            + ", ".join(Configuration.global_settings_paths)
+            + ", ".join((str(p) for p in Configuration.global_settings_paths))
         )
 
     @classmethod

@@ -53,10 +53,14 @@ class ProjectFactory:
         transition_rules_disturbed = config.get("transition_rules") or config.get("transition_rules_disturbed")
         if transition_rules_disturbed:
             transition_rules_disturbed = config.resolve(transition_rules_disturbed)
+            if not transition_rules_disturbed.exists():
+                raise IOError(f"transition_rules file not found: {str(transition_rules_disturbed)}")
 
         transition_rules_undisturbed = config.get("transition_rules_undisturbed")
         if transition_rules_undisturbed:
             transition_rules_undisturbed = config.resolve(transition_rules_undisturbed)
+            if not transition_rules_undisturbed.exists():
+                raise IOError(f"transition_rules_undisturbed file not found: {str(transition_rules_undisturbed)}")
 
         cohorts = self._create_cohorts(config)
         dist_rules_path = config.get("disturbance_rules")
@@ -320,6 +324,8 @@ class ProjectFactory:
                 establishment_disturbance_type
             )
 
+        stand_replacing_lookup = rollback_config.get("stand_replacing_lookup")
+
         rollback = Rollback(
             age_distribution,
             inventory_year_layer.name if inventory_year_layer else inventory_year,
@@ -328,6 +334,7 @@ class ProjectFactory:
             rollback_config.get("single_draw", False),
             establishment_disturbance_type,
             config.gcbm_disturbance_order_path,
+            config.resolve(stand_replacing_lookup) if stand_replacing_lookup else None,
         )
 
         return rollback
