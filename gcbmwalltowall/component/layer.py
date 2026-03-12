@@ -1,3 +1,5 @@
+import pandas as pd
+
 from mojadata.layer.dummylayer import DummyLayer
 from mojadata.layer.rasterlayer import RasterLayer
 from mojadata.layer.vectorlayer import VectorLayer
@@ -22,12 +24,14 @@ class Layer(Tileable):
         filters=None,
         layer=None,
         strict_lookup_table=False,
+        extended_attribute_table=None,
         **tiler_kwargs,
     ):
         self.name = name
         self.path = Path(path).absolute()
         self.attributes = [attributes] if isinstance(attributes, str) else attributes
         self.lookup_table = Path(lookup_table) if lookup_table else None
+        self.extended_attribute_table = Path(extended_attribute_table) if extended_attribute_table else None
         self.filters = filters or {}
         self.layer = layer or tiler_kwargs.pop("layer_name", None)
         self.strict_lookup_table = strict_lookup_table
@@ -75,11 +79,16 @@ class Layer(Tileable):
         if len(attributes) == 1 and lookup_table.is_numeric(next(iter(attributes))):
             kwargs["raw"] = kwargs.get("raw", True)
 
+        extended_attributes = pd.read_csv(
+            self.extended_attribute_table
+        ) if self.extended_attribute_table else None
+
         return VectorLayer(
             self.name,
             str(self.path.absolute()),
             **lookup_table.to_tiler_args(attributes, self.filters),
             layer=self.layer,
+            extended_attributes=extended_attributes,
             **kwargs,
         )
 
@@ -91,6 +100,7 @@ class Layer(Tileable):
             self.lookup_table,
             filters or self.filters,
             self.layer,
+            extended_attribute_table=self.extended_attribute_table,
             **self.tiler_kwargs,
         )
 
@@ -132,6 +142,7 @@ class Layer(Tileable):
                 lookup_table,
                 layer=self.layer,
                 strict_lookup_table=self.strict_lookup_table,
+                extended_attributes_path=self.extended_attribute_table,
             )
 
         return self._cached_lookup_table

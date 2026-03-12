@@ -42,6 +42,8 @@ class Project:
         max_mem_gb=None,
         rule_based_disturbances=None,
         disturbance_rules=None,
+        cohort_sorts=None,
+        cohort_filters=None,
     ):
         self.name = require_not_null(name)
         self.bounding_box = require_instance_of(bounding_box, BoundingBox)
@@ -68,6 +70,8 @@ class Project:
         self.max_mem_gb = max_mem_gb
         self.rule_based_disturbances = rule_based_disturbances
         self.disturbance_rules = disturbance_rules
+        self.cohort_sorts = cohort_sorts
+        self.cohort_filters = cohort_filters
 
     @property
     def tiler_output_path(self):
@@ -369,3 +373,9 @@ class Project:
                 output_path.joinpath("rule_based_disturbances.csv"),
                 index=False
             )
+
+        if self.cohort_sorts:
+            shutil.copyfile(self.cohort_sorts, output_path.joinpath("cohort_sort.csv"))
+
+        if self.cohort_filters:
+            shutil.copyfile(self.cohort_filters, output_path.joinpath("cohort_filter.csv"))

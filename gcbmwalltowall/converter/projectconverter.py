@@ -136,6 +136,8 @@ class ProjectConverter:
             for extra_data_file in (
                 project.disturbance_rules_path,
                 project.rule_based_disturbances_path,
+                project.cohort_sorts_path,
+                project.cohort_filters_path,
             ):
                 if extra_data_file.exists():
                     shutil.copyfile(
