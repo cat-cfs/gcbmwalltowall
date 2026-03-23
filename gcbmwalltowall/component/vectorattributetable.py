@@ -5,6 +5,7 @@ import logging
 import sys
 from multiprocessing import Pool
 from tempfile import TemporaryDirectory
+from tkinter import EXTENDED
 from typing import Any
 
 import pandas as pd
@@ -28,11 +29,19 @@ class VectorAttributeTable(AttributeTable):
         lookup_path: Path | str = None,
         layer: str = None,
         strict_lookup_table: bool = False,
+        extended_attributes_path: Path | str = None,
     ):
         self.layer_path = Path(layer_path).absolute()
         self.lookup_path = Path(lookup_path).absolute() if lookup_path else None
         self.layer = layer
         self.strict_lookup_table = strict_lookup_table
+        self.extended_attributes_path = Path(
+            extended_attributes_path
+        ).absolute() if extended_attributes_path else None
+
+        if self.extended_attributes_path is not None and not self.extended_attributes_path.exists():
+            raise ValueError(f"{extended_attributes_path} not found")
+
         if not self.layer_path.exists():
             raise ValueError(f"{layer_path} not found")
 
@@ -48,7 +57,13 @@ class VectorAttributeTable(AttributeTable):
 
             defn = lyr.GetLayerDefn()
             num_attributes = defn.GetFieldCount()
-            attributes = [defn.GetFieldDefn(i).GetName() for i in range(num_attributes)]
+            extended_attributes = self._load_extended_attributes()
+            attributes = list(
+                {defn.GetFieldDefn(i).GetName() for i in range(num_attributes)}.union(
+                    set(extended_attributes.columns) if extended_attributes is not None else set()
+                )
+            )
+
             __class__._attribute_cache[self._cache_key] = attributes
 
         return attributes.copy()
@@ -146,6 +161,13 @@ class VectorAttributeTable(AttributeTable):
                 if final_value is not None:
                     cached_data[attribute][value] = final_value
 
+        extended_attributes = self._load_extended_attributes()
+        if extended_attributes is not None:
+            for attribute, values in extended_attributes.to_dict("list").items():
+                cached_data[attribute] = {}
+                for value in values:
+                    cached_data[attribute][value] = value
+
         __class__._data_cache[self._cache_key] = cached_data
 
         return cached_data.copy()
@@ -153,6 +175,12 @@ class VectorAttributeTable(AttributeTable):
     def _get_distinct_attribute_values(
         self, table: str, attribute: str
     ) -> tuple[str, list[Any]]:
+        extended_attributes = self._load_extended_attributes()
+        if extended_attributes is not None:
+            extended_attribute_values = extended_attributes.to_dict("list").get(attribute)
+            if extended_attribute_values:
+                return attribute, list(set(extended_attribute_values))
+
         ds = ogr.Open(str(self.layer_path))
         query = ds.ExecuteSQL(
             f'SELECT DISTINCT "{attribute}" FROM {table} WHERE "{attribute}" IS NOT NULL'
@@ -162,10 +190,15 @@ class VectorAttributeTable(AttributeTable):
 
         return attribute, unique_values
 
-    def _get_attribute_names(self, table: str) -> tuple[str, list[Any]]:
+    def _get_attribute_names(self, table: str) -> list[str]:
         ds = ogr.Open(str(self.layer_path))
         layer = ds.GetLayer(table)
-        attributes = [field.GetName() for field in layer.schema]
+        extended_attributes = self._load_extended_attributes()
+        attributes = list(
+            {field.GetName() for field in layer.schema}.union(
+                set(extended_attributes.columns) if extended_attributes is not None else set()
+            )
+        )
 
         return attributes
 
@@ -263,6 +296,12 @@ class VectorAttributeTable(AttributeTable):
                     )
 
         return substitution_table
+
+    def _load_extended_attributes(self) -> pd.DataFrame | None:
+        if not self.extended_attributes_path:
+            return None
+
+        return pd.read_csv(str(self.extended_attributes_path))
 
     def _get_selected_attributes(self, attributes: str | list[str]) -> list[str]:
         return (

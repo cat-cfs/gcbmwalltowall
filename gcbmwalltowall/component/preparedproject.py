@@ -200,6 +200,18 @@ class PreparedProject:
             "rule_based_disturbances.csv"
         )
 
+    @property
+    def cohort_sorts_path(self):
+        return self.input_db_path.parent.joinpath(
+            "cohort_sort.csv"
+        )
+
+    @property
+    def cohort_filters_path(self):
+        return self.input_db_path.parent.joinpath(
+            "cohort_filter.csv"
+        )
+
     @contextmanager
     def temporary_new_end_year(self, end_year=None):
         if end_year is None:

@@ -20,6 +20,7 @@ class ProjectFactory:
         "values_path",
         "values_col",
         "yield_col",
+        "extended_attribute_table",
     }
 
     _disturbance_reserved_keywords = {
@@ -32,6 +33,10 @@ class ProjectFactory:
         "metadata_attributes",
         "transition_undisturbed",
         "proportion",
+        "area_basis",
+        "sort_id",
+        "filter_id",
+        "extended_attribute_table",
     }
 
     def create(self, config):
@@ -67,6 +72,14 @@ class ProjectFactory:
         if dist_rules_path:
             dist_rules_path = config.resolve(dist_rules_path)
 
+        cohort_sorts_path = config.get("cohort_sorts")
+        if cohort_sorts_path:
+            cohort_sorts_path = config.resolve(cohort_sorts_path)
+
+        cohort_filters_path = config.get("cohort_filters")
+        if cohort_filters_path:
+            cohort_filters_path = config.resolve(cohort_filters_path)
+
         return Project(
             project_name,
             bounding_box,
@@ -83,6 +96,8 @@ class ProjectFactory:
             config.get("max_mem_gb"),
             rule_based_disturbances,
             dist_rules_path,
+            cohort_sorts_path,
+            cohort_filters_path,
         )
 
     def _extract_attribute(self, config):
@@ -139,7 +154,8 @@ class ProjectFactory:
         layer_lookup_table = classifier_details.get(
             "lookup_table"
         ) or config.find_lookup_table(layer_path)
-
+        
+        extended_attribute_table = classifier_details.get("extended_attribute_table")
         attribute, attribute_filter = self._extract_attribute(classifier_details)
 
         layer = Layer(
@@ -148,6 +164,7 @@ class ProjectFactory:
             attribute,
             config.resolve(layer_lookup_table) if layer_lookup_table else None,
             attribute_filter,
+            extended_attribute_table=config.resolve(extended_attribute_table) if extended_attribute_table else None,
             **{
                 k: v
                 for k, v in classifier_details.items()
@@ -179,6 +196,7 @@ class ProjectFactory:
                 "lookup_table"
             ) or config.find_lookup_table(layer_path)
 
+            extended_attribute_table = layer_details.get("extended_attribute_table")
             attribute, attribute_filter = self._extract_attribute(layer_details)
 
             return Layer(
@@ -187,6 +205,7 @@ class ProjectFactory:
                 attribute,
                 config.resolve(layer_lookup_table) if layer_lookup_table else None,
                 attribute_filter,
+                extended_attribute_table=config.resolve(extended_attribute_table) if extended_attribute_table else None,
                 **{
                     k: v
                     for k, v in layer_details.items()
@@ -252,6 +271,7 @@ class ProjectFactory:
                         },
                     )
 
+                extended_attribute_table = dist_config.get("extended_attribute_table")
                 disturbances.append(
                     Disturbance(
                         config.resolve(dist_config.get("pattern", pattern_or_name)),
@@ -266,6 +286,12 @@ class ProjectFactory:
                         name=pattern_or_name if "pattern" in dist_config else None,
                         metadata_attributes=dist_config.get("metadata_attributes"),
                         proportion=dist_config.get("proportion"),
+                        area_basis=dist_config.get("area_basis"),
+                        sort_id=dist_config.get("sort_id"),
+                        filter_id=dist_config.get("filter_id"),
+                        extended_attribute_table=(
+                            config.resolve(extended_attribute_table) if extended_attribute_table else None
+                        ),
                         **{
                             k: v
                             for k, v in dist_config.items()
@@ -305,11 +331,14 @@ class ProjectFactory:
                 "lookup_table"
             ) or config.find_lookup_table(layer_path)
 
+            extended_attribute_table = inventory_year.get("extended_attribute_table")
+
             inventory_year_layer = Layer(
                 "inventory_year",
                 layer_path,
                 inventory_year.get("attribute"),
                 config.resolve(layer_lookup_table) if layer_lookup_table else None,
+                extended_attribute_table=config.resolve(extended_attribute_table) if extended_attribute_table else None
             )
 
         if inventory_year_layer:

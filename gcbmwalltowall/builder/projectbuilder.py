@@ -111,7 +111,7 @@ class ProjectBuilder:
                         v, original_path, output_path
                     )
             else:
-                if isinstance(v, str) and original_path.joinpath(Path(v)).exists():
+                if isinstance(v, str) and len(list(original_path.glob(v))) > 0:
                     config[k] = relpath(original_path.joinpath(v), output_path)
 
         return config

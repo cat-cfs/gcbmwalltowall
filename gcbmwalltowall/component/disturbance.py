@@ -25,12 +25,16 @@ class Disturbance(Tileable):
         transition=None,
         transition_undisturbed=None,
         lookup_table=None,
-        filters=None,
+        attribute_filters=None,
         split_on=None,
         name=None,
         layers=None,
         metadata_attributes=None,
         proportion=None,
+        area_basis=None,
+        sort_id=None,
+        filter_id=None,
+        extended_attribute_table=None,
         **layer_kwargs,
     ):
         self.pattern = Path(pattern)
@@ -40,7 +44,7 @@ class Disturbance(Tileable):
         self.transition = transition
         self.transition_undisturbed = transition_undisturbed
         self.lookup_table = Path(lookup_table) if lookup_table else None
-        self.filters = filters or {}
+        self.attribute_filters = attribute_filters or {}
         self.split_on = (
             [split_on]
             if isinstance(split_on, str)
@@ -50,6 +54,10 @@ class Disturbance(Tileable):
         self.layers = layers
         self.metadata_attributes = metadata_attributes or []
         self.proportion = proportion
+        self.area_basis = area_basis
+        self.sort_id = sort_id
+        self.filter_id = filter_id
+        self.extended_attribute_table = Path(extended_attribute_table) if extended_attribute_table else None
         self.layer_kwargs = layer_kwargs or {}
 
     def to_tiler_layer(self, rule_manager, **kwargs):
@@ -98,6 +106,7 @@ class Disturbance(Tileable):
             self._make_tiler_name(layer_path, layer_kwargs.get("layer")),
             layer_path,
             lookup_table=self.lookup_table,
+            extended_attribute_table=self.extended_attribute_table,
             **layer_kwargs,
         )
 
@@ -122,6 +131,15 @@ class Disturbance(Tileable):
         proportion = self._get_configured_or_default(
             attribute_table, "proportion", self.proportion
         )
+        area_basis = self._get_configured_or_default(
+            attribute_table, "area_basis", self.area_basis
+        )
+        sort_id = self._get_configured_or_default(
+            attribute_table, "sort_id", self.sort_id
+        )
+        filter_id = self._get_configured_or_default(
+            attribute_table, "filter_id", self.filter_id
+        )
 
         transition_tiler_attributes = []
         if transition_disturbed:
@@ -143,7 +161,7 @@ class Disturbance(Tileable):
         tiler_attributes = {
             attr: attr
             for attr in (
-                [year, disturbance_type, proportion]
+                [year, disturbance_type, proportion, area_basis, sort_id, filter_id]
                 + transition_tiler_attributes
                 + self.metadata_attributes
             )
@@ -157,7 +175,7 @@ class Disturbance(Tileable):
             tiler_attributes.update({v: k for k, v in self.transition.classifiers.items()})
 
         layer_filters = {}
-        for filter_attr, filter_value in self.filters.items():
+        for filter_attr, filter_value in self.attribute_filters.items():
             layer_filter_attr = (
                 filter_attr
                 if filter_attr not in ("year", "disturbance_type")
@@ -182,10 +200,10 @@ class Disturbance(Tileable):
             tiler_attributes[layer_filter_attr] = layer_filter_attr
 
         if layer.is_raster:
-            if "year" in self.filters and year not in layer_filters:
+            if "year" in self.attribute_filters and year not in layer_filters:
                 # Raster layers support simple year filtering - skip layers
                 # not in the allowed range.
-                if year not in self._parse_filter_value(self.filters["year"]):
+                if year not in self._parse_filter_value(self.attribute_filters["year"]):
                     return disturbance_layers
 
             disturbance_layer = layer
@@ -210,6 +228,21 @@ class Disturbance(Tileable):
                         Attribute(proportion)
                         if proportion in attribute_table
                         else proportion
+                    ),
+                    area_basis=(
+                        Attribute(area_basis)
+                        if area_basis in attribute_table
+                        else area_basis
+                    ),
+                    sort_id=(
+                        Attribute(sort_id)
+                        if sort_id in attribute_table
+                        else sort_id
+                    ),
+                    filter_id=(
+                        Attribute(filter_id)
+                        if filter_id in attribute_table
+                        else filter_id
                     ),
                 )
             )
@@ -251,6 +284,21 @@ class Disturbance(Tileable):
                             Attribute(proportion)
                             if proportion in tiler_attributes
                             else proportion
+                        ),
+                        area_basis=(
+                            Attribute(area_basis)
+                            if area_basis in tiler_attributes
+                            else area_basis
+                        ),
+                        sort_id=(
+                            Attribute(sort_id)
+                            if sort_id in tiler_attributes
+                            else sort_id
+                        ),
+                        filter_id=(
+                            Attribute(filter_id)
+                            if filter_id in tiler_attributes
+                            else filter_id
                         ),
                     )
                 )
@@ -312,6 +360,21 @@ class Disturbance(Tileable):
                                 if proportion in tiler_attributes
                                 else proportion
                             ),
+                            area_basis=(
+                                Attribute(area_basis)
+                                if area_basis in tiler_attributes
+                                else area_basis
+                            ),
+                            sort_id=(
+                                Attribute(sort_id)
+                                if sort_id in tiler_attributes
+                                else sort_id
+                            ),
+                            filter_id=(
+                                Attribute(filter_id)
+                                if filter_id in tiler_attributes
+                                else filter_id
+                            ),
                         )
                     )
 
@@ -348,7 +411,7 @@ class Disturbance(Tileable):
 
     def _make_tiler_name(self, layer_path, *args):
         return (
-            "_".join([self.name, *(str(a) for a in args if a is not None)])
+            "_".join([self.name, layer_path.stem, *(str(a) for a in args if a is not None)])
             if self.name
             else "_".join([layer_path.stem, *(str(a) for a in args if a is not None)])
         )
