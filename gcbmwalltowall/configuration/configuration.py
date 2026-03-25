@@ -168,5 +168,5 @@ class Configuration(dict):
         return cls(
             load_json(config_path),
             config_path.parent,
-            Path(working_path or config_path.parent),
+            Path(working_path or config_path.parent).absolute(),
         )

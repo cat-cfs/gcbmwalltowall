@@ -132,7 +132,7 @@ class Project:
             if self.cohorts:
                 for i, cohort in enumerate(self.cohorts, 1):
                     cohort_output_path = self.tiler_output_path.joinpath(
-                        rf"cohorts\{i}"
+                        "cohorts", str(i)
                     )
                     cohort_layers = [
                         self._make_tiler_layer(rule_manager, layer)
@@ -183,13 +183,13 @@ class Project:
             for i, _ in enumerate(self.cohorts, 1):
                 with TemporaryDirectory() as tmp:
                     cohort_staging_path = Path(tmp)
-                    staging_layers_path = cohort_staging_path.joinpath(r"layers\tiled")
+                    staging_layers_path = cohort_staging_path.joinpath(r"layers", "tiled")
                     staging_layers_path.mkdir(parents=True)
                     cohort_layers = list(
                         (
                             fn
                             for fn in self.tiler_output_path.joinpath(
-                                rf"cohorts\{i}"
+                                "cohorts", str(i)
                             ).glob("*.*")
                             if fn.name != "study_area.json"
                         )
@@ -216,10 +216,10 @@ class Project:
                     )
 
                     cohort_rollback_path = self.rollback_output_path.joinpath(
-                        rf"cohorts\{i}"
+                        "cohorts", str(i)
                     )
                     cohort_rollback_path.mkdir(parents=True)
-                    for fn in cohort_staging_path.joinpath(r"layers\rollback").glob(
+                    for fn in cohort_staging_path.joinpath(r"layers", "rollback").glob(
                         "*.*"
                     ):
                         if "contemporary" not in str(fn):
