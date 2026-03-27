@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import json
 
 from gcbmwalltowall.configuration.configuration import Configuration
@@ -83,10 +84,10 @@ class ProjectBuilder:
                     for dist_pattern, dist_config in v.copy().items():
                         if (
                             "*" in dist_config
-                            or original_path.joinpath(Path(f"{dist_config}")).exists()
+                            or Path(os.path.join(original_path, Path(f"{dist_config}"))).exists()
                         ):
                             v[dist_pattern] = relpath(
-                                original_path.joinpath(dist_config), output_path
+                                os.path.join(original_path, dist_config), output_path
                             )
                         elif "pattern" in dist_config:
                             dist_config = ProjectBuilder._update_relative_paths(
@@ -100,7 +101,7 @@ class ProjectBuilder:
                             )
 
                             working_pattern = relpath(
-                                original_path.joinpath(dist_pattern), output_path
+                                os.path.join(original_path, dist_pattern), output_path
                             )
 
                             v[working_pattern] = dist_config
@@ -111,7 +112,10 @@ class ProjectBuilder:
                         v, original_path, output_path
                     )
             else:
-                if isinstance(v, str) and len(list(original_path.glob(v))) > 0:
-                    config[k] = relpath(original_path.joinpath(v), output_path)
+                if isinstance(v, str) and (
+                    Path(v).exists()
+                    or len(list(Path(original_path).glob(Path(v).name))) > 0
+                ):
+                    config[k] = relpath(os.path.join(original_path, v), output_path)
 
         return config
