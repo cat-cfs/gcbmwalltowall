@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import json
 
 from gcbmwalltowall.configuration.configuration import Configuration
@@ -111,7 +112,13 @@ class ProjectBuilder:
                         v, original_path, output_path
                     )
             else:
-                if isinstance(v, str) and len(list(original_path.glob(v))) > 0:
+                if not isinstance(v, str):
+                    continue
+
+                if os.path.isabs(v) and Path(v).exists():
                     config[k] = relpath(original_path.joinpath(v), output_path)
+                else:
+                    if len(list(original_path.glob(v))) > 0:
+                        config[k] = relpath(original_path.joinpath(v), output_path)
 
         return config
