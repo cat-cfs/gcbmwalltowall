@@ -111,6 +111,11 @@ class ProjectBuilder:
                     config[k] = ProjectBuilder._update_relative_paths(
                         v, original_path, output_path
                     )
+            elif isinstance(v, list):
+                for i, e in enumerate(v):
+                    config[k][i] = ProjectBuilder._update_relative_paths(
+                        e, original_path, output_path
+                    )
             else:
                 if not isinstance(v, str):
                     continue
