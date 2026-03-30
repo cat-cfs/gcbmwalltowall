@@ -113,9 +113,19 @@ class ProjectBuilder:
                     )
             elif isinstance(v, list):
                 for i, e in enumerate(v):
-                    config[k][i] = ProjectBuilder._update_relative_paths(
-                        e, original_path, output_path
-                    )
+                    if isinstance(e, dict):
+                        config[k][i] = ProjectBuilder._update_relative_paths(
+                            e, original_path, output_path
+                        )
+                    else:
+                        if not isinstance(e, str):
+                            continue
+
+                        if os.path.isabs(e) and Path(e).exists():
+                            config[k][i] = relpath(original_path.joinpath(e), output_path)
+                        else:
+                            if len(list(original_path.glob(str(Path(e))))) > 0:
+                                config[k][i] = relpath(original_path.joinpath(e), output_path)
             else:
                 if not isinstance(v, str):
                     continue
