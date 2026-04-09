@@ -5,7 +5,7 @@ import os
 import shutil
 import time
 from tempfile import TemporaryDirectory
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 from arrow_space.raster_indexed_dataset import RasterIndexedDataset
@@ -32,6 +32,8 @@ def run(
     cbm4_config_path: str | Path,
     max_workers: int = None,
     write_parameters: bool = False,
+    on_pre_spinup: Callable[[str]] | None = None,
+    on_pre_simulation: Callable[[str]] | None = None,
     **kwargs,
 ):
     json_config = kwargs.get("json_config") or load_config(cbm4_config_path, **kwargs)
@@ -93,6 +95,11 @@ def run(
         )
     )
 
+    if on_pre_spinup is not None:
+        start = time.time()
+        on_pre_spinup(json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"])
+        step_times.append(["pre-spinup callback", (time.time() - start)])
+
     start = time.time()
     cbm4_spatial_runner.spinup_all(
         model=cbmspec_cbm3_single_matrix_model,
@@ -104,7 +111,11 @@ def run(
     )
     step_times.append(["spinup", (time.time() - start)])
 
-    sim_start_year = int(json_config["start_year"])
+    if on_pre_simulation is not None:
+        start = time.time()
+        on_pre_simulation(json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"])
+        step_times.append(["pre-simulation callback", (time.time() - start)])
+
     final_timestep = json_config["end_year"] - json_config["start_year"] + 1
     with TemporaryDirectory() as tmp:
         event_processor = EventProcessor.for_simulation(str(out_path.absolute()), tmp)
