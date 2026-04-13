@@ -4,7 +4,7 @@ import json
 import os
 import shutil
 import time
-from typing import Any
+from typing import Any, Callable
 from tempfile import TemporaryDirectory
 import pandas as pd
 from cbm4.app.spatial.spatial_cbm3.spatial_cbm3_app import (
@@ -61,7 +61,12 @@ def load_config(
     return simulation_config, spinup_config, step_configs
 
 
-def run(cbm4_config_path: str | Path, **kwargs):
+def run(
+    cbm4_config_path: str | Path,
+    on_pre_spinup: Callable[[str]] | None = None,
+    on_pre_simulation: Callable[[str]] | None = None,
+    **kwargs
+):
     json_config = json.load(open(cbm4_config_path))
     sim_start_year = int(json_config["start_year"])
 
@@ -81,9 +86,19 @@ def run(cbm4_config_path: str | Path, **kwargs):
     create_simulation_dataset(simulation_config)
     step_times.append(["create simulation dataset", (time.time() - start)])
 
+    if on_pre_spinup is not None:
+        start = time.time()
+        on_pre_spinup(simulation_config["out_simulation_dataset"]["path_or_uri"])
+        step_times.append(["pre-spinup callback", (time.time() - start)])
+
     start = time.time()
     spinup_all(spinup_config)
     step_times.append(["spinup", (time.time() - start)])
+
+    if on_pre_simulation is not None:
+        start = time.time()
+        on_pre_simulation(simulation_config["out_simulation_dataset"]["path_or_uri"])
+        step_times.append(["pre-simulation callback", (time.time() - start)])
 
     with TemporaryDirectory() as tmp:
         event_processor = EventProcessor.for_simulation(cbm4_root, tmp)
