@@ -110,6 +110,20 @@ def run(
         )
     )
 
+    if "increment_table" in spinup_model_config:
+        shutil.rmtree(out_path.joinpath(
+            "spinup_parameters", "spinup_parameters-table-increments"
+        ))
+        
+        param_meta = spinup_spatial_parameter_ds.read_table_pandas(
+            "parameter_table_metadata"
+        )
+
+        param_meta = param_meta[param_meta["table_name"] != "increments"]
+        spinup_spatial_parameter_ds.write_table(
+            "parameter_table_metadata", param_meta
+        )
+
     step_spatial_parameter_ds = (
         cbm4_parameter_dataset_factory.step_parameter_dataset_create(
             inventory_ds,
@@ -119,6 +133,20 @@ def run(
             enable_cbm_cfs3_smoother=json_config.get("use_smoother", True),
         )
     )
+
+    if "increment_table" in step_model_config:
+        shutil.rmtree(out_path.joinpath(
+            "step_parameters", "step_parameters-table-increments"
+        ))
+        
+        param_meta = step_spatial_parameter_ds.read_table_pandas(
+            "parameter_table_metadata"
+        )
+
+        param_meta = param_meta[param_meta["table_name"] != "increments"]
+        step_spatial_parameter_ds.write_table(
+            "parameter_table_metadata", param_meta
+        )
 
     if on_pre_spinup is not None:
         start = time.time()
