@@ -28,6 +28,22 @@ def load_config(cbm4_config_path: str | Path, **kwargs) -> dict[str, Any]:
     return json_config
 
 
+def create_model(inventory_ds: RasterIndexedDataset, **model_kwargs) -> Any:
+    with TemporaryDirectory() as tmp:
+        cbm_defaults_path = Path(tmp).joinpath("cbm_defaults.db")
+        try:
+            inventory_ds.extract_file_or_dir("cbm_defaults", str(cbm_defaults_path))
+        except:
+            pass
+
+        cbmspec_cbm3_single_matrix_model = cbmspec_cbm3_single_matrix.model_create(
+            str(cbm_defaults_path) if cbm_defaults_path.exists() else None,
+            **model_kwargs
+        )
+
+    return cbmspec_cbm3_single_matrix_model
+
+
 def run(
     cbm4_config_path: str | Path,
     max_workers: int = None,
@@ -47,23 +63,32 @@ def run(
         json_config["cbm4_spatial_dataset"]["inventory"]["path_or_uri"],
     )
 
-    with TemporaryDirectory() as tmp:
-        cbm_defaults_path = Path(tmp).joinpath("cbm_defaults.db")
-        try:
-            inventory_ds.extract_file_or_dir("cbm_defaults", str(cbm_defaults_path))
-        except:
-            pass
+    spinup_model_config = json_config.get("model_parameters", {}).get("spinup", {})
+    step_model_config = json_config.get("model_parameters", {}).get("step", {})
+    for model_config in (spinup_model_config, step_model_config):
+        increment_table_rel_path = model_config.get("increment_table")
+        if increment_table_rel_path:
+            increment_table_abs_path = os.path.join(
+                os.path.dirname(cbm4_config_path),
+                increment_table_rel_path
+            )
 
-        cbmspec_cbm3_single_matrix_model = json_config.get(
-            "cbmspec_model"
-        ) or cbmspec_cbm3_single_matrix.model_create(
-            str(cbm_defaults_path) if cbm_defaults_path.exists() else None
-        )
+            model_config["increment_table"] = increment_table_abs_path
+
+    spinup_model = create_model(
+        inventory_ds,
+        **json_config.get("model_parameters", {}).get("spinup", {})
+    )
+
+    step_model = json_config.get("cbmspec_model") or create_model(
+        inventory_ds,
+        **json_config.get("model_parameters", {}).get("step", {})
+    )
 
     step_times = []
     start = time.time()
     simulation_ds = cbm4_spatial_runner.create_simulation_dataset(
-        cbmspec_cbm3_single_matrix_model,
+        spinup_model,
         inventory_ds,
         json_config["cbm4_spatial_dataset"]["simulation"]["dataset_name"],
         json_config["cbm4_spatial_dataset"]["simulation"]["storage_type"],
@@ -102,7 +127,7 @@ def run(
 
     start = time.time()
     cbm4_spatial_runner.spinup_all(
-        model=cbmspec_cbm3_single_matrix_model,
+        model=spinup_model,
         inventory_dataset=inventory_ds,
         simulation_dataset=simulation_ds,
         parameter_dataset=spinup_spatial_parameter_ds,
@@ -123,7 +148,7 @@ def run(
             start = time.time()
             disturbance_ds = event_processor.process_events_for_timestep(timestep)
             cbm4_spatial_runner.step_all(
-                model=cbmspec_cbm3_single_matrix_model,
+                model=step_model,
                 timestep=timestep,
                 simulation_input_dataset=simulation_ds,
                 disturbance_event_dataset=disturbance_ds,
