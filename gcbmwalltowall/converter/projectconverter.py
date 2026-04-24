@@ -186,7 +186,7 @@ class ProjectConverter:
         # Generate gcid and assign to unique yields.
         gcid_cols = [
             c for c in transformed_yields.columns if c.startswith("classifiers.")
-        ] + ["inventory.spatial_unit"]
+        ]
 
         unique_gcids = (
             transformed_yields[gcid_cols].drop_duplicates().reset_index(drop=True)
