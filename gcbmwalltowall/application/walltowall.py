@@ -46,6 +46,22 @@ class ConvertArgs(ArgBase):
     max_workers: int
     chunk_size: int
     tempdir: str
+    optimize_spinup: bool
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]):
+        return cls(
+            project_path=d["project_path"],
+            output_path=d["output_path"],
+            aidb_path=d.get("aidb_path", None),
+            spinup_disturbance_type=d.get("spinup_disturbance_type", "Wildfire"),
+            preserve_temp_files=d.get("preserve_temp_files", False),
+            creation_options=d.get("creation_options", {}),
+            max_workers=d.get("max_workers", None),
+            chunk_size=d.get("chunk_size", None),
+            tempdir=d.get("tempdir", None),
+            optimize_spinup=d.get("optimize_spinup", False)
+        )
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
@@ -59,6 +75,7 @@ class ConvertArgs(ArgBase):
             max_workers=getattr(ns, "max_workers", None),
             chunk_size=getattr(ns, "chunk_size", None),
             tempdir=getattr(ns, "tempdir", None),
+            optimize_spinup=getattr(ns, "optimize_spinup", False)
         )
 
 
@@ -66,6 +83,13 @@ class ConvertArgs(ArgBase):
 class BuildArgs(ArgBase):
     config_path: str
     output_path: str
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]):
+        return cls(
+            config_path=d["config_path"],
+            output_path=d["output_path"],
+        )
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
@@ -81,6 +105,15 @@ class PrepareArgs(ArgBase):
     output_path: str
     max_workers: int
     max_mem_gb: int
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]):
+        return cls(
+            config_path=d["config_path"],
+            output_path=d.get("output_path", None),
+            max_workers=d.get("max_workers", None),
+            max_mem_gb=d.get("max_mem_gb", None),
+        )
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
@@ -100,6 +133,17 @@ class MergeArgs(ArgBase):
     include_index_layer: bool
     max_mem_gb: int
     tempdir: str
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]):
+        return cls(
+            config_path=d["config_path"],
+            project_paths=d["project_paths"],
+            output_path=d["output_path"],
+            include_index_layer=d["include_index_layer"],
+            max_mem_gb=d.get("max_mem_gb", None),
+            tempdir=d.get("tempdir", None),
+        )
 
     @classmethod
     def from_namespace(cls, ns: Namespace):
@@ -127,6 +171,21 @@ class RunArgs(ArgBase):
     write_parameters: bool
 
     @classmethod
+    def from_dict(cls, d: dict[str, Any]):
+        return cls(
+            project_path=d["project_path"],
+            host=d.get("host", "local"),
+            config_path=d.get("config_path", None),
+            end_year=d.get("end_year", None),
+            title=d.get("title", None),
+            compile_results_config=d.get("compile_results_config", None),
+            batch_limit=d.get("batch_limit", None),
+            max_workers=d.get("max_workers", None),
+            engine=d.get("engine", "libcbm"),
+            write_parameters=d.get("write_parameters", False),
+        )
+
+    @classmethod
     def from_namespace(cls, ns: Namespace):
         return cls(
             project_path=ns.project_path,
@@ -146,7 +205,7 @@ def convert(args: ConvertArgs | dict):
     # Guard against importing CBM4 dependencies until needed.
     from gcbmwalltowall.converter.projectconverter import ProjectConverter
 
-    args = ConvertArgs(**args)
+    args = args if isinstance(args, ConvertArgs) else ConvertArgs.from_dict(args)
     creation_options = args.creation_options or {}
     creation_options["max_workers"] = args.max_workers
     chunk_size = args.chunk_size
@@ -169,6 +228,7 @@ def convert(args: ConvertArgs | dict):
         args.aidb_path,
         args.spinup_disturbance_type,
         args.preserve_temp_files,
+        args.optimize_spinup
     )
 
 
@@ -177,7 +237,7 @@ def _convert(args: Namespace):
 
 
 def build(args: BuildArgs | dict):
-    args = BuildArgs(**args)
+    args = args if isinstance(args, BuildArgs) else BuildArgs.from_dict(args)
     logging.info(f"Building {args.config_path}")
     ProjectBuilder.build_from_file(args.config_path, args.output_path)
 
@@ -187,7 +247,7 @@ def _build(args: Namespace):
 
 
 def prepare(args: PrepareArgs | dict):
-    args = PrepareArgs(**args)
+    args = args if isinstance(args, PrepareArgs) else PrepareArgs.from_dict(args)
     config = Configuration.load(args.config_path, args.output_path)
     config["max_workers"] = args.max_workers
     config["max_mem_gb"] = args.max_mem_gb
@@ -214,7 +274,7 @@ def _prepare(args: Namespace):
 
 
 def merge(args: MergeArgs | dict):
-    args = MergeArgs(**args)
+    args = args if isinstance(args, MergeArgs) else MergeArgs.from_dict(args)
     with TemporaryDirectory() as tmp:
         projects = [PreparedProject(path) for path in args.project_paths]
         logging.info(
@@ -272,7 +332,7 @@ def _merge(args: Namespace):
 
 
 def run(args: RunArgs | dict):
-    args = RunArgs(**args)
+    args = args if isinstance(args, RunArgs) else RunArgs.from_dict(args)
     project = PreparedProject(args.project_path)
     logging.info(f"Running project ({args.host}):\n{project.path}")
 
@@ -497,6 +557,11 @@ def cli():
         "--preserve_temp_files",
         action="store_true",
         help="preserve temporary files generated during conversion",
+    )
+    convert_parser.add_argument(
+        "--optimize_spinup",
+        action="store_true",
+        help="optimize spinup by converting yields to long/gcid format",
     )
 
     args = parser.parse_args()

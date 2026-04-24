@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+import pathlib
 from contextlib import contextmanager
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -13,6 +14,9 @@ from arrow_space.input.input_layer_collection import InputLayerCollection
 from cbm4.app.spatial.gcbm_input.gcbm_preprocessor_app import preprocess
 from cbm_defaults.app import run as make_cbm_defaults
 from sqlalchemy import create_engine
+from cbmspec_cbm3.parameters.cbm_defaults import volume_to_biomass
+from arrow_space.raster_indexed_dataset import RasterIndexedDataset
+from cbm4.app.spatial.spatial_cbm4.classifier_tree import ClassifierTree
 
 from gcbmwalltowall.component.preparedproject import PreparedProject
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
@@ -44,6 +48,7 @@ class ProjectConverter:
         aidb_path=None,
         spinup_disturbance_type=None,
         preserve_temp_files=False,
+        optimize_spinup=False,
     ):
         with TemporaryDirectory() as temp_path:
             temp_dir = Path(temp_path)
@@ -53,7 +58,7 @@ class ProjectConverter:
             output_path.mkdir(parents=True, exist_ok=True)
 
             self._convert_yields(project, temp_dir)
-            self._build_input_database(project, temp_dir, aidb_path)
+            cbm_defaults_path = self._build_input_database(project, temp_dir, aidb_path)
             use_cohorts = self._cohorts_enabled(project)
 
             transition_disturbed_path = temp_dir.joinpath(
@@ -145,8 +150,104 @@ class ProjectConverter:
                     )
 
             preprocess(preprocess_config)
+            if optimize_spinup:
+                self._optimize_spinup(preprocess_config, cbm_defaults_path, output_path)
+
             if preserve_temp_files:
                 shutil.copytree(temp_dir, output_path.joinpath("temp"))
+
+    def _optimize_spinup(
+        self, preprocess_config: dict, cbm_defaults_path: pathlib.Path, output_path: pathlib.Path
+    ):
+        # Transform the yields from wide to long format.
+        inventory_ds = RasterIndexedDataset(
+            preprocess_config["inventory_dataset"]["dataset_name"],
+            preprocess_config["inventory_dataset"]["storage_type"],
+            preprocess_config["inventory_dataset"]["path_or_uri"],
+        )
+        yields = inventory_ds.read_table_pandas("yield")
+        classifier_names = list(
+            yields.columns[: list(yields.columns).index("species")]
+        )
+        inventory = inventory_ds.read_pandas()
+
+        with TemporaryDirectory() as tmp:
+            inventory_ds.extract_file_or_dir("cbm_defaults", str(cbm_defaults_path))
+            transformed_yields = volume_to_biomass.volume_to_biomass(
+                yields,
+                n_yield_table_classifiers=len(classifier_names),
+                inventory_df=inventory,
+                return_format="HardwoodAndSoftwoodLong",
+                cbm_defaults_db_path=str(cbm_defaults_path),
+            )
+            
+            transformed_yields = transformed_yields[transformed_yields["state.age"] != "?"]
+
+        # Generate gcid and assign to unique yields.
+        gcid_cols = [
+            c for c in transformed_yields.columns if c.startswith("classifiers.")
+        ] + ["inventory.spatial_unit"]
+
+        unique_gcids = (
+            transformed_yields[gcid_cols].drop_duplicates().reset_index(drop=True)
+        )
+        unique_gcids.insert(0, "gcid", unique_gcids.index + 1)
+
+        transformed_yields = pd.merge(
+            transformed_yields, unique_gcids, on=gcid_cols
+        )
+
+        # Write out the yield table for use with spinup only (stepping uses ordinary curves).
+        transformed_yields[
+            ["gcid", "state.age"] + [c for c in transformed_yields.columns if "increment" in c]
+        ].rename(
+            columns={"state.age": "age"}
+        ).to_csv(output_path.joinpath("spinup_yields.csv"), index=False)
+
+        # Match the initial inventory (spinup) state to the spinup gcids using the
+        # same classifier set matching as the model.
+        c_tree = ClassifierTree(
+            unique_gcids.rename({c: c.split(".")[-1] for c in gcid_cols}, axis=1),
+            value_columns=["gcid"],
+            classifier_columns=classifier_names,
+            wildcards={c: "?" for c in classifier_names},
+        )
+
+        gcid_df = c_tree.find(inventory[classifier_names])
+        inventory["gcid"] = gcid_df
+
+        spinup_inventory_path = Path(preprocess_config["data_dir"]).joinpath("gcid_inventory")
+        inventory_ds.copy(
+            "inventory",
+            "local_storage",
+            str(spinup_inventory_path),
+        )
+
+        spinup_inventory_ds = RasterIndexedDataset(
+            "inventory", "local_storage", str(spinup_inventory_path)
+        )
+
+        # Append the "parameter" tag to the arrowspace metadata table, so that
+        # gcid is interpreted as a parameter by CBM4.
+        gcid_added_tags = pd.concat(
+            [
+                spinup_inventory_ds.meta.get_tags(),
+                pd.DataFrame([{"layer_name": "gcid", "tag": "parameter"}]),
+            ]
+        )
+
+        spinup_inventory_ds.meta.write_tags(gcid_added_tags)
+        spinup_inventory_ds.write(inventory)
+
+        with GCBMConfigurer.update_json_file(
+            str(output_path.joinpath("cbm4_config.json"))
+        ) as cbm4_config:
+            cbm4_config["model_parameters"] = {
+                "spinup": {"increment_table": "spinup_yields.csv"}
+            }
+
+        shutil.rmtree(preprocess_config["inventory_dataset"]["path_or_uri"])
+        shutil.move(spinup_inventory_path, preprocess_config["inventory_dataset"]["path_or_uri"])
 
     @contextmanager
     def _input_db_connection(self, project):
