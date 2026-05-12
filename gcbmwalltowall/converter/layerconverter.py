@@ -3,12 +3,9 @@ from __future__ import annotations
 import logging
 from tempfile import TemporaryDirectory
 
-import numpy as np
+import pandas as pd
 from arrow_space.input.attribute_table_reader import InMemoryAttributeTableReader
 from arrow_space.input.raster_input_layer import RasterInputLayer, RasterInputSource
-from mojadata.config import GDAL_CREATION_OPTIONS
-from mojadata.util import gdal
-from mojadata.util.gdalhelper import GDALHelper
 from pandas import DataFrame
 
 from gcbmwalltowall.component.preparedproject import PreparedLayer
@@ -69,7 +66,11 @@ class DefaultLayerConverter(LayerConverter):
         ]
 
     def handles(self, layer: PreparedLayer) -> bool:
-        _handles = layer.name not in {"initial_current_land_class"}
+        _handles = layer.name not in {
+            "initial_current_land_class",
+            "rollback_procedure",
+        }
+
         return _handles
 
     def convert_internal(self, layers: list[PreparedLayer]) -> list[RasterInputLayer]:
@@ -157,3 +158,42 @@ class LandClassLayerConverter(LayerConverter):
             rows.append(row)
 
         return InMemoryAttributeTableReader(DataFrame(rows))
+
+
+class RollbackInfoLayerConverter(LayerConverter):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def handles(self, layer: PreparedLayer) -> bool:
+        return layer.name == "rollback_procedure"
+
+    def convert_internal(self, layers: list[PreparedLayer]) -> list[RasterInputLayer]:
+        layer = next(iter(layers), None)
+        if not layer:
+            return []
+
+        logging.info(f"Converting layer: {layer.name}")
+
+        return [
+            RasterInputLayer(
+                "rollback_procedure",
+                [RasterInputSource(path=str(layer.path))],
+                self._build_attribute_table(layer),
+                ["reporting_classifier"],
+            )
+        ]
+
+    def _build_attribute_table(self, layer: PreparedLayer) -> DataFrame:
+        attribute_table = pd.read_csv(
+            layer.path.with_suffix(".csv"),
+            usecols=["id", "procedure_name", "procedure_description"]
+        )
+
+        attribute_table["value"] = (
+            attribute_table["procedure_name"]
+            + ", "
+            + attribute_table["procedure_description"]
+        )
+
+        return InMemoryAttributeTableReader(attribute_table[["id", "value"]])

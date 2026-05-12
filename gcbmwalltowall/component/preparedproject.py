@@ -45,8 +45,9 @@ class PreparedLayer:
 
 class PreparedProject:
 
-    def __init__(self, path):
+    def __init__(self, path, include_rollback_info=False):
         self.path = Path(path).absolute()
+        self.include_rollback_info = include_rollback_info
 
     @property
     def resolution(self):
@@ -113,6 +114,14 @@ class PreparedProject:
                             ]
                         )
 
+                        if self.include_rollback_info:
+                            cohort_layers.append(
+                                PreparedLayer(
+                                    "rollback_procedure",
+                                    cohort_rollback.joinpath("rollback_stats", "procedure_info.tiff")
+                                )
+                            )
+
                 cohort_layer_names = [l.name for l in cohort_layers]
                 cohort_layers.extend(
                     [
@@ -131,12 +140,22 @@ class PreparedProject:
         config = json.load(open(self.gcbm_config_path.joinpath("provider_config.json")))
         provider_layers = config["Providers"]["RasterTiled"]["layers"]
 
-        return [
+        layers = [
             PreparedLayer(
                 l["name"], self.gcbm_config_path.joinpath(l["layer_path"]).absolute()
             )
             for l in provider_layers
         ]
+
+        if self.rollback_layer_path is not None and self.include_rollback_info:
+            layers.append(
+                PreparedLayer(
+                    "rollback_procedure",
+                    self.rollback_layer_path.joinpath("rollback_stats", "procedure_info.tiff")
+                )
+            )
+
+        return layers
 
     @property
     def disturbance_order(self):

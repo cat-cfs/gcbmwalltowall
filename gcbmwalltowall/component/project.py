@@ -224,6 +224,11 @@ class Project:
                     ):
                         if "contemporary" not in str(fn):
                             shutil.copyfile(fn, cohort_rollback_path.joinpath(fn.name))
+                    
+                    shutil.copytree(
+                        cohort_staging_path.joinpath(r"layers", "rollback", "rollback_stats"),
+                        cohort_rollback_path.joinpath("rollback_stats")
+                    )
 
         final_transition_rules_path = output_path.joinpath(
             "gcbmwalltowall_rollback_transitions.csv"

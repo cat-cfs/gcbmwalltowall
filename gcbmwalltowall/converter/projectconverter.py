@@ -24,6 +24,7 @@ from gcbmwalltowall.converter.layerconverter import (
     DefaultLayerConverter,
     DelegatingLayerConverter,
     LandClassLayerConverter,
+    RollbackInfoLayerConverter,
 )
 from gcbmwalltowall.util.path import Path
 
@@ -97,6 +98,7 @@ class ProjectConverter:
 
             subconverters = [
                 LandClassLayerConverter(),
+                RollbackInfoLayerConverter(),
                 DefaultLayerConverter(
                     name_remappings={
                         "initial_age": "age",

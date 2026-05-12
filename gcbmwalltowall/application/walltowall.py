@@ -47,6 +47,7 @@ class ConvertArgs(ArgBase):
     chunk_size: int
     tempdir: str
     optimize_spinup: bool
+    include_rollback_info: bool
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]):
@@ -60,7 +61,8 @@ class ConvertArgs(ArgBase):
             max_workers=d.get("max_workers", None),
             chunk_size=d.get("chunk_size", None),
             tempdir=d.get("tempdir", None),
-            optimize_spinup=d.get("optimize_spinup", False)
+            optimize_spinup=d.get("optimize_spinup", False),
+            include_rollback_info=d.get("include_rollback_info", False),
         )
 
     @classmethod
@@ -75,7 +77,8 @@ class ConvertArgs(ArgBase):
             max_workers=getattr(ns, "max_workers", None),
             chunk_size=getattr(ns, "chunk_size", None),
             tempdir=getattr(ns, "tempdir", None),
-            optimize_spinup=getattr(ns, "optimize_spinup", False)
+            optimize_spinup=getattr(ns, "optimize_spinup", False),
+            include_rollback_info=getattr(ns, "include_rollback_info", False),
         )
 
 
@@ -219,7 +222,7 @@ def convert(args: ConvertArgs | dict):
             }
         )
 
-    project = PreparedProject(args.project_path)
+    project = PreparedProject(args.project_path, args.include_rollback_info)
     logging.info(f"Converting {project.path} to CBM4")
     converter = ProjectConverter(creation_options)
     converter.convert(
@@ -334,7 +337,8 @@ def _merge(args: Namespace):
 def run(args: RunArgs | dict):
     args = args if isinstance(args, RunArgs) else RunArgs.from_dict(args)
     project = PreparedProject(args.project_path)
-    logging.info(f"Running project ({args.host}):\n{project.path}")
+    run_type = "Queueing" if args.host == "cluster" else "Running"
+    logging.info(f"{run_type} project ({args.host}):\n{project.path}")
 
     with project.temporary_new_end_year(args.end_year):
         config = (
@@ -418,6 +422,8 @@ def run(args: RunArgs | dict):
                 run_args.extend(["--batch-limit", batch_limit])
 
             subprocess.run(run_args, cwd=project.path)
+
+    logging.info(f"Finished {run_type.lower()} project ({args.host}):\n{project.path}")
 
 
 def _run(args: RunArgs):
@@ -562,6 +568,11 @@ def cli():
         "--optimize_spinup",
         action="store_true",
         help="optimize spinup by converting yields to long/gcid format",
+    )
+    convert_parser.add_argument(
+        "--include_rollback_info",
+        action="store_true",
+        help="include rollback procedure info as a reporting classifier",
     )
 
     args = parser.parse_args()
