@@ -13,6 +13,7 @@ from cbm4.app.spatial.spatial_cbm4 import cbm4_spatial_runner
 from cbm4.app.spatial.event_handler.event_processor import EventProcessor
 from cbmspec_cbm3.models import cbmspec_cbm3_single_matrix
 from cbmspec_cbm3.parameters.cbm_defaults import cbm4_parameter_dataset_factory
+from tqdm import tqdm
 
 from gcbmwalltowall.util.path import Path
 
@@ -161,59 +162,62 @@ def run(
         on_pre_spinup(json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"])
         step_times.append(["pre-spinup callback", (time.time() - start)])
 
-    if json_cache_config is None:
-        start = time.time()
-        cbm4_spatial_runner.spinup_all(
-            model=spinup_model,
-            inventory_dataset=inventory_ds,
-            simulation_dataset=simulation_ds,
-            parameter_dataset=spinup_spatial_parameter_ds,
-            max_workers=max_workers,
-            write_parameters=write_parameters,
-        )
-        step_times.append(["spinup", (time.time() - start)])
-
-    if on_pre_simulation is not None:
-        start = time.time()
-        on_pre_simulation(json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"])
-        step_times.append(["pre-simulation callback", (time.time() - start)])
-
     start_year = json_config["start_year"]
     end_year = json_config["end_year"]
     final_timestep = end_year - start_year + 1
-
-    cache_end_timestep = -1
-    if json_cache_config is not None:
-        simulation_cache_ds = RasterIndexedDataset(
-            json_cache_config["dataset_name"],
-            json_cache_config["storage_type"],
-            json_cache_config["path_or_uri"],
-        )
-        cache_end_timestep = json_cache_config["end_year"] - start_year + 1
-
-    with TemporaryDirectory() as tmp:
-        event_processor = EventProcessor.for_simulation(str(out_path.absolute()), tmp)
-        for timestep in range(1, final_timestep + 1):
-            if timestep <= cache_end_timestep:
-                continue
-
+    timesteps = list(range(1, final_timestep + 1))
+    with tqdm(desc="Simulation", total=len(timesteps) + 1) as pbar:
+        if json_cache_config is None:
             start = time.time()
-            disturbance_ds = event_processor.process_events_for_timestep(timestep)
-            cbm4_spatial_runner.step_all(
-                model=step_model,
-                timestep=timestep,
-                simulation_input_dataset=(
-                    simulation_cache_ds if timestep - 1 == cache_end_timestep
-                    else simulation_ds
-                ),
-                disturbance_event_dataset=disturbance_ds,
-                simulation_output_dataset=simulation_ds,
-                parameter_dataset=step_spatial_parameter_ds,
-                area_unit_conversion=0.0001,
+            cbm4_spatial_runner.spinup_all(
+                model=spinup_model,
+                inventory_dataset=inventory_ds,
+                simulation_dataset=simulation_ds,
+                parameter_dataset=spinup_spatial_parameter_ds,
                 max_workers=max_workers,
                 write_parameters=write_parameters,
             )
-            step_times.append([f"timestep_{timestep}", (time.time() - start)])
+            pbar.update()
+            step_times.append(["spinup", (time.time() - start)])
 
-        time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=step_times)
-        time_profiling.to_csv(out_path.joinpath("profiling.csv"), index=False)
+        if on_pre_simulation is not None:
+            start = time.time()
+            on_pre_simulation(json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"])
+            step_times.append(["pre-simulation callback", (time.time() - start)])
+
+        cache_end_timestep = -1
+        if json_cache_config is not None:
+            simulation_cache_ds = RasterIndexedDataset(
+                json_cache_config["dataset_name"],
+                json_cache_config["storage_type"],
+                json_cache_config["path_or_uri"],
+            )
+            cache_end_timestep = json_cache_config["end_year"] - start_year + 1
+
+        with TemporaryDirectory() as tmp:
+            event_processor = EventProcessor.for_simulation(str(out_path.absolute()), tmp)
+            for timestep in timesteps:
+                if timestep <= cache_end_timestep:
+                    continue
+
+                start = time.time()
+                disturbance_ds = event_processor.process_events_for_timestep(timestep)
+                cbm4_spatial_runner.step_all(
+                    model=step_model,
+                    timestep=timestep,
+                    simulation_input_dataset=(
+                        simulation_cache_ds if timestep - 1 == cache_end_timestep
+                        else simulation_ds
+                    ),
+                    disturbance_event_dataset=disturbance_ds,
+                    simulation_output_dataset=simulation_ds,
+                    parameter_dataset=step_spatial_parameter_ds,
+                    area_unit_conversion=0.0001,
+                    max_workers=max_workers,
+                    write_parameters=write_parameters,
+                )
+                step_times.append([f"timestep_{timestep}", (time.time() - start)])
+                pbar.update()
+
+            time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=step_times)
+            time_profiling.to_csv(out_path.joinpath("profiling.csv"), index=False)

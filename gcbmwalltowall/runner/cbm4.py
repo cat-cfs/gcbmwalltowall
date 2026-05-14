@@ -11,6 +11,7 @@ from cbm4.app.spatial.spatial_cbm3.spatial_cbm3_app import (
     create_simulation_dataset, spinup_all, step_all)
 from cbm4.app.spatial.event_handler.event_processor import EventProcessor
 from gcbmwalltowall.util.path import Path
+from tqdm import tqdm
 
 
 def load_config(
@@ -91,25 +92,28 @@ def run(
         on_pre_spinup(simulation_config["out_simulation_dataset"]["path_or_uri"])
         step_times.append(["pre-spinup callback", (time.time() - start)])
 
-    start = time.time()
-    spinup_all(spinup_config)
-    step_times.append(["spinup", (time.time() - start)])
-
-    if on_pre_simulation is not None:
+    with tqdm(desc="Simulation", total=len(step_configs) + 1) as pbar:
         start = time.time()
-        on_pre_simulation(simulation_config["out_simulation_dataset"]["path_or_uri"])
-        step_times.append(["pre-simulation callback", (time.time() - start)])
+        spinup_all(spinup_config)
+        pbar.update()
+        step_times.append(["spinup", (time.time() - start)])
 
-    with TemporaryDirectory() as tmp:
-        event_processor = EventProcessor.for_simulation(cbm4_root, tmp)
-        for step_config in step_configs:
+        if on_pre_simulation is not None:
             start = time.time()
-            event_processor.process_events_for_timestep(step_config["timestep"])
-            step_config["disturbance_dataset"]["path_or_uri"] = f"{tmp}/disturbance"
-            step_all(step_config)
-            step_times.append(
-                [f"timestep_{step_config['timestep']}", (time.time() - start)]
-            )
+            on_pre_simulation(simulation_config["out_simulation_dataset"]["path_or_uri"])
+            step_times.append(["pre-simulation callback", (time.time() - start)])
+
+        with TemporaryDirectory() as tmp:
+            event_processor = EventProcessor.for_simulation(cbm4_root, tmp)
+            for step_config in step_configs:
+                start = time.time()
+                event_processor.process_events_for_timestep(step_config["timestep"])
+                step_config["disturbance_dataset"]["path_or_uri"] = f"{tmp}/disturbance"
+                step_all(step_config)
+                pbar.update()
+                step_times.append(
+                    [f"timestep_{step_config['timestep']}", (time.time() - start)]
+                )
 
         time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=step_times)
         time_profiling.to_csv(
