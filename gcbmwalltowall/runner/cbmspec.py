@@ -124,13 +124,12 @@ def run(
             "spinup_parameters", "spinup_parameters-table-increments"
         ))
         
-        param_meta = spinup_spatial_parameter_ds.read_table_pandas(
-            "parameter_table_metadata"
-        )
-
-        param_meta = param_meta[param_meta["table_name"] != "increments"]
         spinup_spatial_parameter_ds.write_table(
-            "parameter_table_metadata", param_meta
+            "parameter_table_metadata",
+            spinup_spatial_parameter_ds.read_table_pandas(
+                "parameter_table_metadata",
+                filters=[("table_name", "!=", "increments")]
+            )
         )
 
     step_spatial_parameter_ds = (
@@ -148,13 +147,12 @@ def run(
             "step_parameters", "step_parameters-table-increments"
         ))
         
-        param_meta = step_spatial_parameter_ds.read_table_pandas(
-            "parameter_table_metadata"
-        )
-
-        param_meta = param_meta[param_meta["table_name"] != "increments"]
         step_spatial_parameter_ds.write_table(
-            "parameter_table_metadata", param_meta
+            "parameter_table_metadata",
+            step_spatial_parameter_ds.read_table_pandas(
+                "parameter_table_metadata",
+                filters=[("table_name", "!=", "increments")]
+            )
         )
 
     if on_pre_spinup is not None:
@@ -177,9 +175,9 @@ def run(
                 max_workers=max_workers,
                 write_parameters=write_parameters,
             )
-            pbar.update()
             step_times.append(["spinup", (time.time() - start)])
 
+        pbar.update()
         if on_pre_simulation is not None:
             start = time.time()
             on_pre_simulation(json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"])
@@ -198,6 +196,7 @@ def run(
             event_processor = EventProcessor.for_simulation(str(out_path.absolute()), tmp)
             for timestep in timesteps:
                 if timestep <= cache_end_timestep:
+                    pbar.update()
                     continue
 
                 start = time.time()
