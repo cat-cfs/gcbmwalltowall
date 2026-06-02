@@ -707,7 +707,11 @@ class ProjectConverter:
         transitions,
         temp_dir
     ):
-        next_transition_id = transitions["id"].max() + 1
+        next_transition_id = np.nanmax((
+            transitions.loc[~transitions["id"].isna(), "id"].max() + 1,
+            1
+        ))
+
         events = pd.read_csv(project.rule_based_disturbances_path)
         if "transition" not in events:
             shutil.copyfile(
@@ -720,7 +724,7 @@ class ProjectConverter:
         events.loc[events["transition"].isna(), "disturbed_transition_id"] = -1
         events.loc[~events["transition"].isna(), "disturbed_transition_id"] = (
             np.arange(len(events[~events["transition"].isna()]))
-             + next_transition_id
+            + next_transition_id
         )
 
         event_transitions = pd.DataFrame(
