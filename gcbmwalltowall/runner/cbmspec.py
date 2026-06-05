@@ -218,5 +218,6 @@ def run(
                 step_times.append([f"timestep_{timestep}", (time.time() - start)])
                 pbar.update()
 
+            event_processor.summarize()
             time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=step_times)
             time_profiling.to_csv(out_path.joinpath("profiling.csv"), index=False)

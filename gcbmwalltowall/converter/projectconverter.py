@@ -7,7 +7,7 @@ import pathlib
 from contextlib import contextmanager
 from tempfile import TemporaryDirectory
 from typing import Any
-
+import numpy as np
 import pandas as pd
 from arrow_space.flattened_coordinate_dataset import create as create_arrowspace_dataset
 from arrow_space.input.input_layer_collection import InputLayerCollection
@@ -73,6 +73,13 @@ class ProjectConverter:
             )
 
             transitions = self._get_transitions(project)
+            if project.rule_based_disturbances_path.exists():
+                transitions = self._prepare_rule_based_disturbances(
+                    project,
+                    transitions,
+                    temp_dir
+                )
+            
             if not transitions.empty:
                 transitions.to_csv(transition_disturbed_path, index=False)
 
@@ -142,7 +149,6 @@ class ProjectConverter:
 
             for extra_data_file in (
                 project.disturbance_rules_path,
-                project.rule_based_disturbances_path,
                 project.cohort_sorts_path,
                 project.cohort_filters_path,
             ):
@@ -422,20 +428,20 @@ class ProjectConverter:
             transitions = (
                 pd.read_sql(
                     """
-                SELECT
-                    t.id,
-                    t.regen_delay AS "state.regeneration_delay",
-                    CASE WHEN t.age = -1 THEN '?' ELSE t.age END AS "state.age",
-                    'classifiers.' || c.name AS classifier_name,
-                    cv.value AS classifier_value
-                FROM transition t
-                INNER JOIN transition_classifier_value tcv
-                    ON t.id = tcv.transition_id
-                INNER JOIN classifier_value cv
-                    ON tcv.classifier_value_id = cv.id
-                INNER JOIN classifier c
-                    ON cv.classifier_id = c.id
-                """,
+                    SELECT
+                        t.id,
+                        t.regen_delay AS "state.regeneration_delay",
+                        CASE WHEN t.age = -1 THEN '?' ELSE t.age END AS "state.age",
+                        'classifiers.' || c.name AS classifier_name,
+                        cv.value AS classifier_value
+                    FROM transition t
+                    INNER JOIN transition_classifier_value tcv
+                        ON t.id = tcv.transition_id
+                    INNER JOIN classifier_value cv
+                        ON tcv.classifier_value_id = cv.id
+                    INNER JOIN classifier c
+                        ON cv.classifier_id = c.id
+                    """,
                     conn,
                 )
                 .pivot(
@@ -454,22 +460,22 @@ class ProjectConverter:
             transition_rules = (
                 pd.read_sql(
                     """
-                SELECT
-                    tr.id,
-                    tr.transition_id,
-                    dt.code AS "parameters.disturbance_type_match",
-                    'classifiers.' || c.name || '_match' AS classifier_name,
-                    cv.value AS classifier_value
-                FROM transition_rule tr
-                INNER JOIN disturbance_type dt
-                    ON tr.disturbance_type_id = dt.id
-                INNER JOIN transition_rule_classifier_value tcv
-                    ON tr.id = tcv.transition_rule_id
-                INNER JOIN classifier_value cv
-                    ON tcv.classifier_value_id = cv.id
-                INNER JOIN classifier c
-                    ON cv.classifier_id = c.id
-                """,
+                    SELECT
+                        tr.id,
+                        tr.transition_id,
+                        dt.code AS "parameters.disturbance_type_match",
+                        'classifiers.' || c.name || '_match' AS classifier_name,
+                        cv.value AS classifier_value
+                    FROM transition_rule tr
+                    INNER JOIN disturbance_type dt
+                        ON tr.disturbance_type_id = dt.id
+                    INNER JOIN transition_rule_classifier_value tcv
+                        ON tr.id = tcv.transition_rule_id
+                    INNER JOIN classifier_value cv
+                        ON tcv.classifier_value_id = cv.id
+                    INNER JOIN classifier c
+                        ON cv.classifier_id = c.id
+                    """,
                     conn,
                 )
                 .pivot(
@@ -603,7 +609,7 @@ class ProjectConverter:
         )
 
         if unknown_disturbance_types:
-            logging.warn(
+            logging.warning(
                 "entries in user disturbance type order not found in database - ignoring: "
                 f"{unknown_disturbance_types}"
             )
@@ -694,3 +700,62 @@ class ProjectConverter:
         json.dump(config, open(output_path.joinpath("cbm4_config.json"), "w"), indent=4)
 
         return config
+
+    def _prepare_rule_based_disturbances(
+        self,
+        project,
+        transitions,
+        temp_dir
+    ):
+        next_transition_id = np.nanmax((
+            transitions.loc[~transitions["id"].isna(), "id"].max() + 1,
+            1
+        ))
+
+        events = pd.read_csv(project.rule_based_disturbances_path)
+        if "transition" not in events:
+            shutil.copyfile(
+                project.rule_based_disturbances_path,
+                temp_dir.joinpath(project.rule_based_disturbances_path.name)
+            )
+
+            return transitions
+
+        events.loc[events["transition"].isna(), "disturbed_transition_id"] = -1
+        events.loc[~events["transition"].isna(), "disturbed_transition_id"] = (
+            np.arange(len(events[~events["transition"].isna()]))
+            + next_transition_id
+        )
+
+        event_transitions = pd.DataFrame(
+            {"id": row["disturbed_transition_id"], **json.loads(row["transition"])}
+            for _, row in
+            events.loc[
+                ~events["transition"].isna(),
+                ["disturbed_transition_id", "transition"]
+            ].iterrows()
+        )
+
+        all_transitions = pd.concat(
+            [transitions, event_transitions]
+        )
+
+        for col in all_transitions.columns:
+            if col.startswith("classifiers.") or col == "state.age":
+                all_transitions.loc[all_transitions[col].isna(), col] = "?"
+            elif col == "state.regeneration_delay":
+                all_transitions.loc[all_transitions[col].isna(), col] = 0
+
+        all_transitions = all_transitions.astype({
+            "id": "int",
+            "state.regeneration_delay": "int",
+        })
+
+        events.drop(
+            columns="transition"
+        ).astype({"disturbed_transition_id": "int"}).to_csv(
+            temp_dir.joinpath(project.rule_based_disturbances_path.name),
+            index=False
+        )
+        
+        return all_transitions
