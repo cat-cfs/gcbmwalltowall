@@ -115,7 +115,7 @@ def run(
                     [f"timestep_{step_config['timestep']}", (time.time() - start)]
                 )
 
-        event_processor.summarize()
+        event_processor.summarize(os.path.join(cbm4_root, "event_processor_summary.csv"))
         time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=step_times)
         time_profiling.to_csv(
             Path(cbm4_config_path).absolute().parent.joinpath("profiling.csv"), index=False
