@@ -12,6 +12,7 @@ import pandas as pd
 from arrow_space.flattened_coordinate_dataset import create as create_arrowspace_dataset
 from arrow_space.input.input_layer_collection import InputLayerCollection
 from cbm4.app.spatial.gcbm_input.gcbm_preprocessor_app import preprocess
+from cbm4.app.spatial.gcbm_input import gcbm_inventory_cohort_normalizer
 from cbm_defaults.app import run as make_cbm_defaults
 from sqlalchemy import create_engine
 from cbmspec_cbm3.parameters.cbm_defaults import volume_to_biomass
@@ -322,16 +323,28 @@ class ProjectConverter:
         creation_options.update({"mask_layers": mask_layers})
 
         base_dataset_name = "inventory.arrowspace"
+
+        tmp_arrowspace_ds_dirs: list[str] = []
+        if self._cohorts_enabled:
+            tmp_arrowspace_output_path = output_path / "tmp"
+            tmp_arrowspace_output_path.mkdir()
+
+        else:
+            tmp_arrowspace_output_path = output_path
+
+        out_ds_dir_0 = str(
+            tmp_arrowspace_output_path.joinpath(
+                base_dataset_name
+                + (".cohort0" if self._cohorts_enabled(project) else "")
+            )
+        )
+        tmp_arrowspace_ds_dirs.append(out_ds_dir_0)
+
         create_arrowspace_dataset(
             base_arrowspace_collection,
             "inventory",
             "local_storage",
-            str(
-                output_path.joinpath(
-                    base_dataset_name
-                    + (".cohort0" if self._cohorts_enabled(project) else "")
-                )
-            ),
+            out_ds_dir_0,
             creation_options,
         )
 
@@ -352,13 +365,21 @@ class ProjectConverter:
             cohort_arrowspace_collection = InputLayerCollection(
                 cohort_arrowspace_layers
             )
+            out_ds_dir = str(tmp_arrowspace_output_path.joinpath(dataset_name))
+            tmp_arrowspace_ds_dirs.append(out_ds_dir)
             create_arrowspace_dataset(
                 cohort_arrowspace_collection,
                 "inventory",
                 "local_storage",
-                str(output_path.joinpath(dataset_name)),
+                out_ds_dir,
                 creation_options,
             )
+
+        if self._cohorts_enabled:
+            gcbm_inventory_cohort_normalizer.normalize(
+                tmp_arrowspace_ds_dirs, str(output_path)
+            )
+            shutil.rmtree(tmp_arrowspace_output_path)
 
     def _flatten_pivot_columns(self, pivot_data):
         pivot_data.columns = [
