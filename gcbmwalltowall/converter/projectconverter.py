@@ -325,7 +325,7 @@ class ProjectConverter:
         base_dataset_name = "inventory.arrowspace"
 
         tmp_arrowspace_ds_dirs: list[str] = []
-        if self._cohorts_enabled:
+        if self._cohorts_enabled(project):
             tmp_arrowspace_output_path = output_path / "tmp"
             tmp_arrowspace_output_path.mkdir()
 
@@ -375,7 +375,7 @@ class ProjectConverter:
                 creation_options,
             )
 
-        if self._cohorts_enabled:
+        if self._cohorts_enabled(project):
             gcbm_inventory_cohort_normalizer.normalize(
                 tmp_arrowspace_ds_dirs, str(output_path)
             )
