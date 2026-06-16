@@ -28,7 +28,7 @@ class PreparedLayer:
         if not study_area_path.exists():
             return study_area_metadata
 
-        study_area_layers = json.load(open(study_area_path))["layers"]
+        study_area_layers = json.load(open(study_area_path, "rb"))["layers"]
         study_area_metadata.update(
             next((l for l in study_area_layers if l["name"] == self.name))
         )
@@ -137,7 +137,7 @@ class PreparedProject:
 
     @property
     def layers(self):
-        config = json.load(open(self.gcbm_config_path.joinpath("provider_config.json")))
+        config = json.load(open(self.gcbm_config_path.joinpath("provider_config.json"), "rb"))
         provider_layers = config["Providers"]["RasterTiled"]["layers"]
 
         layers = [

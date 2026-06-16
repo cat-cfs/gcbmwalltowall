@@ -1,12 +1,10 @@
 from __future__ import annotations
-
-from typing import Any
-
 import numpy as np
 import pandas as pd
-
+from typing import Any
 from gcbmwalltowall.component.attributetable import AttributeTable
 from gcbmwalltowall.util.path import Path
+from gcbmwalltowall.util.encoding import load_csv
 
 
 class RasterAttributeTable(AttributeTable):
@@ -57,7 +55,7 @@ class RasterAttributeTable(AttributeTable):
     @property
     def _data(self) -> pd.DataFrame:
         if self._cached_data is None:
-            self._cached_data = pd.read_csv(str(self.path)).replace(np.nan, None)
+            self._cached_data = load_csv(str(self.path)).replace(np.nan, None)
 
         return self._cached_data.copy()
 

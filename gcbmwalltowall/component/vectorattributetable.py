@@ -1,21 +1,19 @@
 from __future__ import annotations
-
 import json
 import logging
 import sys
+import pandas as pd
 from multiprocessing import Pool
 from tempfile import TemporaryDirectory
 from tkinter import EXTENDED
 from typing import Any
-
-import pandas as pd
 from ftfy import fix_encoding, guess_bytes
 from mojadata.layer.attribute import Attribute
 from mojadata.layer.filter.valuefilter import ValueFilter
 from mojadata.util import ogr
-
 from gcbmwalltowall.component.attributetable import AttributeTable
 from gcbmwalltowall.util.path import Path
+from gcbmwalltowall.util.encoding import load_csv
 
 
 class VectorAttributeTable(AttributeTable):
@@ -273,7 +271,7 @@ class VectorAttributeTable(AttributeTable):
         if not self.lookup_path:
             return {}
 
-        substitutions = pd.read_csv(str(self.lookup_path), dtype=str)
+        substitutions = load_csv(str(self.lookup_path), dtype=str)
         header = substitutions.columns
         substitution_table = {col: {} for col in header[::2]}
         for _, row in substitutions.iterrows():
@@ -301,7 +299,7 @@ class VectorAttributeTable(AttributeTable):
         if not self.extended_attributes_path:
             return None
 
-        return pd.read_csv(str(self.extended_attributes_path))
+        return load_csv(str(self.extended_attributes_path))
 
     def _get_selected_attributes(self, attributes: str | list[str]) -> list[str]:
         return (

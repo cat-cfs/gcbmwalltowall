@@ -4,15 +4,13 @@ import logging
 import os
 import shutil
 import sqlite3
+import simplejson as json
 from argparse import ArgumentParser
 from contextlib import closing, contextmanager
 from glob import iglob
 from itertools import chain
-
-import pandas as pd
-import simplejson as json
-
 from gcbmwalltowall.util.path import Path, relpath
+from gcbmwalltowall.util.encoding import load_csv
 
 
 class GCBMConfigurer:
@@ -118,7 +116,7 @@ class GCBMConfigurer:
         ):
             # Drill down through the config file contents to see if the whole search path
             # is present; if it is, then this is the right file to modify.
-            config = json.load(open(config_file, "r"))
+            config = json.load(open(config_file, "rb"))
             for entry in search_path:
                 config = config.get(entry)
                 if config is None:
@@ -645,11 +643,11 @@ if __name__ == "__main__":
     disturbance_order = None
     if args.disturbance_order:
         disturbance_order = list(
-            pd.read_csv(args.disturbance_order, sep="\0", header=None)[0]
+            load_csv(args.disturbance_order, sep="\0", header=None)[0]
         )
 
     excluded_layers = (
-        [line[0] for line in csv.reader(open(args.exclude, "r"))]
+        [line[0] for line in csv.reader(open(args.exclude, "r", encoding="utf8"))]
         if args.exclude
         else None
     )

@@ -48,6 +48,7 @@ class ConvertArgs(ArgBase):
     tempdir: str
     optimize_spinup: bool
     include_rollback_info: bool
+    locale: str
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]):
@@ -55,7 +56,7 @@ class ConvertArgs(ArgBase):
             project_path=d["project_path"],
             output_path=d["output_path"],
             aidb_path=d.get("aidb_path", None),
-            spinup_disturbance_type=d.get("spinup_disturbance_type", "Wildfire"),
+            spinup_disturbance_type=d.get("spinup_disturbance_type"),
             preserve_temp_files=d.get("preserve_temp_files", False),
             creation_options=d.get("creation_options", {}),
             max_workers=d.get("max_workers", None),
@@ -63,6 +64,7 @@ class ConvertArgs(ArgBase):
             tempdir=d.get("tempdir", None),
             optimize_spinup=d.get("optimize_spinup", False),
             include_rollback_info=d.get("include_rollback_info", False),
+            locale=d.get("locale", "en-CA"),
         )
 
     @classmethod
@@ -71,7 +73,7 @@ class ConvertArgs(ArgBase):
             project_path=ns.project_path,
             output_path=ns.output_path,
             aidb_path=getattr(ns, "aidb_path", None),
-            spinup_disturbance_type=getattr(ns, "spinup_disturbance_type", "Wildfire"),
+            spinup_disturbance_type=getattr(ns, "spinup_disturbance_type"),
             preserve_temp_files=getattr(ns, "preserve_temp_files", False),
             creation_options=getattr(ns, "creation_options", {}),
             max_workers=getattr(ns, "max_workers", None),
@@ -79,6 +81,7 @@ class ConvertArgs(ArgBase):
             tempdir=getattr(ns, "tempdir", None),
             optimize_spinup=getattr(ns, "optimize_spinup", False),
             include_rollback_info=getattr(ns, "include_rollback_info", False),
+            locale=getattr(ns, "locale", "en-CA"),
         )
 
 
@@ -231,7 +234,8 @@ def convert(args: ConvertArgs | dict):
         args.aidb_path,
         args.spinup_disturbance_type,
         args.preserve_temp_files,
-        args.optimize_spinup
+        args.optimize_spinup,
+        args.locale,
     )
 
 
@@ -573,6 +577,9 @@ def cli():
         "--include_rollback_info",
         action="store_true",
         help="include rollback procedure info as a reporting classifier",
+    )
+    convert_parser.add_argument(
+        "--locale", help="locale code (e.g. fr-CA)", default="en-CA"
     )
 
     args = parser.parse_args()

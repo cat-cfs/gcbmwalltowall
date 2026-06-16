@@ -1,13 +1,11 @@
-import pandas as pd
-
 from mojadata.layer.dummylayer import DummyLayer
 from mojadata.layer.rasterlayer import RasterLayer
 from mojadata.layer.vectorlayer import VectorLayer
-
 from gcbmwalltowall.component.rasterattributetable import RasterAttributeTable
 from gcbmwalltowall.component.tileable import Tileable
 from gcbmwalltowall.component.vectorattributetable import VectorAttributeTable
 from gcbmwalltowall.util.path import Path
+from gcbmwalltowall.util.encoding import load_csv
 
 
 class Layer(Tileable):
@@ -79,7 +77,7 @@ class Layer(Tileable):
         if len(attributes) == 1 and lookup_table.is_numeric(next(iter(attributes))):
             kwargs["raw"] = kwargs.get("raw", True)
 
-        extended_attributes = pd.read_csv(
+        extended_attributes = load_csv(
             self.extended_attribute_table
         ) if self.extended_attribute_table else None
 

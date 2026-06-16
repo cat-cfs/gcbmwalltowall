@@ -1,21 +1,21 @@
-from numbers import Number
-
 import pandas as pd
+from numbers import Number
 from gcbminputloader.project.project import ProjectType
 from gcbminputloader.project.projectfactory import ProjectFactory
 from gcbminputloader.util.configuration import Configuration
 from gcbminputloader.util.db import get_connection
 from sqlalchemy import text
-
 from gcbmwalltowall.util.path import Path
+from gcbmwalltowall.util.encoding import load_csv
 
 
 class InputDatabase:
 
-    def __init__(self, aidb_path, yield_path, yield_interval):
+    def __init__(self, aidb_path, yield_path, yield_interval, locale="en-CA"):
         self.aidb_path = Path(aidb_path).absolute()
         self.yield_path = Path(yield_path).absolute()
         self.yield_interval = yield_interval
+        self.locale = locale
 
     def create(self, classifiers, output_path, transition_rules_path=None):
         output_path = Path(output_path).absolute()
@@ -24,7 +24,7 @@ class InputDatabase:
 
         # Add any missing classifier columns to the transition rules.
         if transition_rules_path and Path(transition_rules_path).exists():
-            transitions = pd.read_csv(transition_rules_path)
+            transitions = load_csv(transition_rules_path)
             changed = False
             for classifier in classifiers:
                 if classifier.name not in transitions:
@@ -40,6 +40,7 @@ class InputDatabase:
 
         input_db_config = Configuration(
             {
+                "locale": self.locale,
                 "aidb": self.aidb_path,
                 "classifiers": [c.name for c in classifiers],
                 "features": {
@@ -118,13 +119,16 @@ class InputDatabase:
                     for row in conn.execute(
                         text(
                             """
-                        SELECT DISTINCT name
-                        FROM disturbance_type dt
-                        INNER JOIN disturbance_type_tr d_tr
-                            ON dt.id = d_tr.disturbance_type_id
-                        WHERE locale_id = 1
-                        """
-                        )
+                            SELECT DISTINCT name
+                            FROM disturbance_type dt
+                            INNER JOIN disturbance_type_tr d_tr
+                                ON dt.id = d_tr.disturbance_type_id
+                            INNER JOIN locale
+                                ON d_tr.locale_id = locale.id
+                            WHERE locale.code = :locale
+                            """
+                        ),
+                        {"locale": self.locale}
                     )
                 }
 
@@ -134,7 +138,7 @@ class InputDatabase:
         # Look for a run of at least 5 columns where the values are all numeric,
         # the first column's values are all zero, and the values in the final
         # column decline by no more than 50%.
-        yield_table = pd.read_csv(self.yield_path)
+        yield_table = load_csv(self.yield_path)
         yield_columns = yield_table.columns
         numeric_col_run = 0
         increment_start_col = -1
@@ -185,17 +189,20 @@ class InputDatabase:
                     for row in conn.execute(
                         text(
                             """
-                        SELECT DISTINCT name
-                        FROM species s
-                        INNER JOIN species_tr s_tr
-                            ON s.id = s_tr.species_id
-                        WHERE locale_id = 1
-                        """
-                        )
+                            SELECT DISTINCT name
+                            FROM species s
+                            INNER JOIN species_tr s_tr
+                                ON s.id = s_tr.species_id
+                            INNER JOIN locale
+                                ON s_tr.locale_id = locale.id
+                            WHERE locale.code = :locale
+                            """
+                        ),
+                        {"locale": self.locale}
                     )
                 }
 
-        yield_table = pd.read_csv(self.yield_path)
+        yield_table = load_csv(self.yield_path)
         for col in yield_table.columns:
             yield_col_values = {str(v).lower() for v in yield_table[col].unique()}
             if yield_col_values.issubset(species_types):
@@ -212,7 +219,7 @@ class InputDatabase:
             return classifier.yield_col
 
         # Configured yield column name.
-        yield_table = pd.read_csv(self.yield_path)
+        yield_table = load_csv(self.yield_path)
         if classifier.yield_col:
             return yield_table.columns.get_loc(classifier.yield_col)
 
@@ -252,7 +259,7 @@ class InputDatabase:
         if not (csv_path and csv_path.exists()):
             return default
 
-        header = pd.read_csv(csv_path, nrows=1)
+        header = load_csv(csv_path, nrows=1)
         if col_name not in header:
             return default
 
