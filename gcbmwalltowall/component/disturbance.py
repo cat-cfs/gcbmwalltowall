@@ -498,14 +498,15 @@ class Disturbance(Tileable):
         # If it parses to an int and has 4 digits, it's probably a year. We don't
         # try full date parsing here because there could be attributes with all
         # kinds of numeric values that aren't disturbance year.
-        if len(str(value)) != 4:
+        try:
+            val = int(float(value))
+        except:
             return False
 
-        try:
-            val = int(value)
-            if not (val > 1000 and val < 2500):
-                return False
-        except:
+        if len(str(val)) != 4:
+            return False
+
+        if not (val > 1000 and val < 2500):
             return False
 
         return True
