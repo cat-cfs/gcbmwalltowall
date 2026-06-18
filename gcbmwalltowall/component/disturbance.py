@@ -428,7 +428,7 @@ class Disturbance(Tileable):
         return filter_value
 
     def _try_parse_year(self, layer_path):
-        parse_result = re.findall(r"(\d{4})", str(layer_path))
+        parse_result = re.findall(r"(\d{4})", str(layer_path.name))
         if parse_result is not None:
             try:
                 year = int(parse_result[-1])
