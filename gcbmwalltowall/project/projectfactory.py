@@ -364,6 +364,7 @@ class ProjectFactory:
             establishment_disturbance_type,
             config.gcbm_disturbance_order_path,
             config.resolve(stand_replacing_lookup) if stand_replacing_lookup else None,
+            rollback_config.get("random_seed"),
         )
 
         return rollback
