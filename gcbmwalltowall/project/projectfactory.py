@@ -133,6 +133,7 @@ class ProjectFactory:
             config.resolve(require_not_null(config.get("aidb"))),
             config.resolve(require_not_null(config.get("yield_table"))),
             require_instance_of(config.get("yield_interval"), int),
+            config.get("locale", "en-CA"),
         )
 
         return input_db

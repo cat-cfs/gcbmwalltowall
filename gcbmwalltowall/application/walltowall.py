@@ -179,6 +179,9 @@ def cli():
         action="store_true",
         help="include rollback procedure info as a reporting classifier",
     )
+    convert_parser.add_argument(
+        "--locale", help="locale code (e.g. fr-CA)", default="en-CA"
+    )
 
     clone_parser = subparsers.add_parser(
         "clone", help="Clone a CBM4 project, using the original as a base/cached run."
