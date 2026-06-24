@@ -529,8 +529,14 @@ class ProjectConverter:
                 dist_type_map, on="disturbance_type"
             )
             transition_data.drop("disturbance_type", axis=1, inplace=True)
-
-        transition_data[transition_data.loc[transition_data["age_after"] == -1]] = "?"
+        transition_data["age_after"] = transition_data["age_after"].astype(str)
+        transition_data.loc[
+            (
+                (transition_data["age_after"] == "-1")
+                | (transition_data["age_after"] == "-1.0")
+            ),
+            "age_after"
+        ] = "?"
         transition_data.rename(
             columns={
                 "age_after": "state.age",
