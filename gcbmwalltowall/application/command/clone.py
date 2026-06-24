@@ -85,7 +85,7 @@ def clone(args: CloneArgs | dict):
                 clone_cbm4_config_path.parent
             ),
             "end_year": (
-                args["start_year"] - 1 if "start_year" in args
+                (args["start_year"] - 1) if args.get("start_year") is not None
                 else config["end_year"]
             )
         }

@@ -92,6 +92,7 @@ def run(args: RunArgs | dict):
                     str(cbm4_config_path),
                     max_workers=args.max_workers,
                     write_parameters=args.write_parameters,
+                    end_year=args.end_year,
                     **extra_kwargs,
                 )
             else:

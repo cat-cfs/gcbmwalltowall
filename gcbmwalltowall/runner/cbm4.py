@@ -16,7 +16,8 @@ from tqdm import tqdm
 
 def load_config(
     cbm4_config_path: str | Path,
-    max_workers: int = None,
+    max_workers: int | None = None,
+    end_year: int | None = None,
     **kwargs,
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
     output_path = str(Path(cbm4_config_path).absolute().parent)
@@ -39,7 +40,7 @@ def load_config(
         "use_smoother": json_config.get("use_smoother", True),
     }
 
-    final_timestep = json_config["end_year"] - json_config["start_year"] + 1
+    final_timestep = (end_year or json_config["end_year"]) - json_config["start_year"] + 1
     step_configs = [
         {
             "timestep": timestep,
@@ -66,13 +67,11 @@ def run(
     cbm4_config_path: str | Path,
     on_pre_spinup: Callable[[str]] | None = None,
     on_pre_simulation: Callable[[str]] | None = None,
+    end_year: int | None = None,
     **kwargs
 ):
-    json_config = json.load(open(cbm4_config_path))
-    sim_start_year = int(json_config["start_year"])
-
     simulation_config, spinup_config, step_configs = load_config(
-        cbm4_config_path, **kwargs
+        cbm4_config_path, end_year=end_year, **kwargs
     )
 
     cbm4_root = os.path.join(
