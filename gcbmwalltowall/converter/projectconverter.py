@@ -1,12 +1,8 @@
 from __future__ import annotations
-
 import json
 import logging
 import shutil
 import pathlib
-from contextlib import contextmanager
-from tempfile import TemporaryDirectory
-from typing import Any
 import numpy as np
 import pandas as pd
 from arrow_space.flattened_coordinate_dataset import create as create_arrowspace_dataset
@@ -17,7 +13,9 @@ from sqlalchemy import create_engine
 from cbmspec_cbm3.parameters.cbm_defaults import volume_to_biomass
 from arrow_space.raster_indexed_dataset import RasterIndexedDataset
 from cbm4.app.spatial.spatial_cbm4.classifier_tree import ClassifierTree
-
+from contextlib import contextmanager
+from tempfile import TemporaryDirectory
+from typing import Any
 from gcbmwalltowall.component.preparedproject import PreparedProject
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.converter.layerconverter import (
@@ -27,6 +25,7 @@ from gcbmwalltowall.converter.layerconverter import (
     RollbackInfoLayerConverter,
 )
 from gcbmwalltowall.util.path import Path
+from gcbmwalltowall.util.encoding import load_csv
 
 
 class ProjectConverter:
@@ -50,6 +49,7 @@ class ProjectConverter:
         spinup_disturbance_type=None,
         preserve_temp_files=False,
         optimize_spinup=False,
+        locale="en-CA",
     ):
         with TemporaryDirectory() as temp_path:
             temp_dir = Path(temp_path)
@@ -59,7 +59,7 @@ class ProjectConverter:
             output_path.mkdir(parents=True, exist_ok=True)
 
             self._convert_yields(project, temp_dir)
-            cbm_defaults_path = self._build_input_database(project, temp_dir, aidb_path)
+            cbm_defaults_path = self._build_input_database(project, temp_dir, aidb_path, locale)
             use_cohorts = self._cohorts_enabled(project)
 
             transition_disturbed_path = temp_dir.joinpath(
@@ -115,7 +115,7 @@ class ProjectConverter:
             ]
 
             cbm4_config = self._create_cbm4_config(
-                project, output_path, spinup_disturbance_type
+                project, output_path, spinup_disturbance_type, locale
             )
             layer_converter = DelegatingLayerConverter(subconverters)
             self._convert_spatial_data(layer_converter, project, temp_dir)
@@ -141,7 +141,7 @@ class ProjectConverter:
                 },
                 "area_unit_conversion": 0.0001,  # ha/m^2
                 "cbm_defaults_locale": cbm4_config.get("cbm_defaults_locale", "en-CA"),
-                "inventory_override_values": cbm4_config.get(
+                "default_inventory_values": cbm4_config.get(
                     "default_inventory_values"
                 ),
                 "max_workers": self._creation_options.get("max_workers"),
@@ -504,7 +504,7 @@ class ProjectConverter:
             return pd.DataFrame()
 
         return self._format_transition_undisturbed(
-            project, pd.read_csv(str(project.transition_undisturbed_path))
+            project, load_csv(str(project.transition_undisturbed_path))
         )
 
     def _get_transition_rules_undisturbed(self, project):
@@ -512,7 +512,7 @@ class ProjectConverter:
             return pd.DataFrame()
 
         return self._format_transition_undisturbed(
-            project, pd.read_csv(str(project.transition_rules_undisturbed_path))
+            project, load_csv(str(project.transition_rules_undisturbed_path))
         )
 
     def _format_transition_undisturbed(self, project, transition_data):
@@ -582,7 +582,7 @@ class ProjectConverter:
 
         return transition_data[sorted_cols]
 
-    def _build_input_database(self, project, output_path, aidb_path=None):
+    def _build_input_database(self, project, output_path, aidb_path=None, locale="en-CA"):
         aidb_path = aidb_path or self._find_aidb_path(project)
         output_cbm_defaults_path = output_path.joinpath("cbm_defaults.db")
         if aidb_path.suffix == ".db":
@@ -591,9 +591,9 @@ class ProjectConverter:
             make_cbm_defaults(
                 {
                     "output_path": output_cbm_defaults_path,
-                    "default_locale": "en-CA",
-                    "locales": [{"id": 1, "code": "en-CA"}],
-                    "archive_index_data": [{"locale": "en-CA", "path": str(aidb_path)}],
+                    "default_locale": locale,
+                    "locales": [{"id": 1, "code": locale}],
+                    "archive_index_data": [{"locale": locale, "path": str(aidb_path)}],
                 }
             )
 
@@ -647,7 +647,9 @@ class ProjectConverter:
 
         return {str(row["name"]): int(row["code"]) for _, row in dist_types.iterrows()}
 
-    def _create_cbm4_config(self, project, output_path, spinup_disturbance_type=None):
+    def _create_cbm4_config(
+        self, project, output_path, spinup_disturbance_type=None, locale="en-CA"
+    ):
         default_inventory_values = {}
 
         cset_config_file = GCBMConfigurer.find_config_file(
@@ -688,6 +690,7 @@ class ProjectConverter:
 
         config = {
             "resolution": project.resolution,
+            "cbm_defaults_locale": locale,
             "cbm4_spatial_dataset": {
                 name: {
                     "dataset_name": name,
@@ -718,7 +721,7 @@ class ProjectConverter:
             1
         ))
 
-        events = pd.read_csv(project.rule_based_disturbances_path)
+        events = load_csv(project.rule_based_disturbances_path)
         if "transition" not in events:
             shutil.copyfile(
                 project.rule_based_disturbances_path,

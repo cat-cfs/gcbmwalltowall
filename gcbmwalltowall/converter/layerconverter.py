@@ -1,15 +1,12 @@
 from __future__ import annotations
-
 import logging
 from tempfile import TemporaryDirectory
-
-import pandas as pd
 from arrow_space.input.attribute_table_reader import InMemoryAttributeTableReader
 from arrow_space.input.raster_input_layer import RasterInputLayer, RasterInputSource
 from pandas import DataFrame
-
 from gcbmwalltowall.component.preparedproject import PreparedLayer
 from gcbmwalltowall.util.path import Path
+from gcbmwalltowall.util.encoding import load_csv
 
 
 class LayerConverter:
@@ -185,7 +182,7 @@ class RollbackInfoLayerConverter(LayerConverter):
         ]
 
     def _build_attribute_table(self, layer: PreparedLayer) -> DataFrame:
-        attribute_table = pd.read_csv(
+        attribute_table = load_csv(
             layer.path.with_suffix(".csv"),
             usecols=["id", "procedure_name", "procedure_description"]
         )

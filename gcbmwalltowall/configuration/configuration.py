@@ -1,11 +1,9 @@
 import json
 import site
 import sys
-
-import pandas as pd
-
 from gcbmwalltowall.util.encoding import load_json
 from gcbmwalltowall.util.path import Path
+from gcbmwalltowall.util.encoding import load_csv
 
 
 class Configuration(dict):
@@ -36,7 +34,7 @@ class Configuration(dict):
     def gcbm_disturbance_order(self):
         disturbance_order_file = self.gcbm_disturbance_order_path
         disturbance_order = (
-            list(pd.read_csv(disturbance_order_file, sep="\0", header=None)[0])
+            list(load_csv(disturbance_order_file, sep="\0", header=None)[0])
             if disturbance_order_file
             else None
         )

@@ -1,10 +1,9 @@
-from numbers import Number
-
 import pandas as pd
+from numbers import Number
 from mojadata.layer.dummylayer import DummyLayer
-
 from gcbmwalltowall.component.tileable import Tileable
 from gcbmwalltowall.util.path import Path
+from gcbmwalltowall.util.encoding import load_csv
 
 
 class Classifier(Tileable):
@@ -23,7 +22,7 @@ class Classifier(Tileable):
     def values(self):
         values_col_idx = self._find_values_col_index()
         unique_values = set(
-            pd.read_csv(self.values_path).iloc[:, values_col_idx].unique()
+            load_csv(self.values_path).iloc[:, values_col_idx].unique()
         )
 
         return unique_values
@@ -42,7 +41,7 @@ class Classifier(Tileable):
         if isinstance(self.values_col, Number):
             return self.values_col
 
-        classifier_data = pd.read_csv(self.values_path)
+        classifier_data = load_csv(self.values_path)
         if self.values_col:
             return classifier_data.columns.get_loc(self.values_col)
 
