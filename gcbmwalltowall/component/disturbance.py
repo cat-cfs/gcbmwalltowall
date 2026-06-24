@@ -452,12 +452,23 @@ class Disturbance(Tileable):
 
         # Check for the first attribute where all the unique values could be
         # interpreted as a disturbance year.
+        candidates = []
         for attribute, values in attribute_table.items():
             if any((v is not None for v in values)) and all(
                 (self._looks_like_disturbance_year(v) for v in values if v is not None)
             ):
-                logging.info(f"  using attribute: {attribute}")
-                return attribute
+                logging.info(f"  found candidate attribute: {attribute}")
+                candidates.append(attribute)
+        
+        if candidates:
+            if len(candidates) > 1:
+                raise RuntimeError(
+                    "Multiple candidate attributes found for year of disturbance in "
+                    f"{layer_path.name}: {candidates}. Attribute must be explicitly configured."
+                )
+            
+            logging.info(f"  using attribute: {candidates[0]}")
+            return candidates[0]
 
         # Then check if the disturbance year is parseable from the filename.
         year = self._try_parse_year(layer_path)

@@ -1,437 +1,39 @@
 from __future__ import annotations
-
 import logging
 import multiprocessing as mp
-import shutil
-import subprocess
-import sys
 from argparse import ArgumentParser, Namespace
-from dataclasses import dataclass
-from datetime import datetime
 from logging import FileHandler, StreamHandler
-from tempfile import TemporaryDirectory
-from typing import Any
-
-from psutil import virtual_memory
-from spatial_inventory_rollback.gcbm.merge import gcbm_merge, gcbm_merge_tile
-from spatial_inventory_rollback.gcbm.merge.gcbm_merge_input_db import (
-    replace_direct_attached_transition_rules,
-)
-
-from gcbmwalltowall.builder.projectbuilder import ProjectBuilder
-from gcbmwalltowall.component.preparedproject import PreparedProject
-from gcbmwalltowall.configuration.configuration import Configuration
-from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
-from gcbmwalltowall.project.projectfactory import ProjectFactory
 from gcbmwalltowall.util.path import Path
-
-
-class ArgBase(dict):
-
-    def __getattr__(self, key):
-        return self[key]
-
-    def __setattr__(self, key, value):
-        self[key] = value
-
-
-@dataclass
-class ConvertArgs(ArgBase):
-    project_path: str
-    output_path: str
-    aidb_path: str
-    spinup_disturbance_type: str
-    preserve_temp_files: bool
-    creation_options: dict
-    max_workers: int
-    chunk_size: int
-    tempdir: str
-    optimize_spinup: bool
-    include_rollback_info: bool
-    locale: str
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]):
-        return cls(
-            project_path=d["project_path"],
-            output_path=d["output_path"],
-            aidb_path=d.get("aidb_path", None),
-            spinup_disturbance_type=d.get("spinup_disturbance_type"),
-            preserve_temp_files=d.get("preserve_temp_files", False),
-            creation_options=d.get("creation_options", {}),
-            max_workers=d.get("max_workers", None),
-            chunk_size=d.get("chunk_size", None),
-            tempdir=d.get("tempdir", None),
-            optimize_spinup=d.get("optimize_spinup", False),
-            include_rollback_info=d.get("include_rollback_info", False),
-            locale=d.get("locale", "en-CA"),
-        )
-
-    @classmethod
-    def from_namespace(cls, ns: Namespace):
-        return cls(
-            project_path=ns.project_path,
-            output_path=ns.output_path,
-            aidb_path=getattr(ns, "aidb_path", None),
-            spinup_disturbance_type=getattr(ns, "spinup_disturbance_type"),
-            preserve_temp_files=getattr(ns, "preserve_temp_files", False),
-            creation_options=getattr(ns, "creation_options", {}),
-            max_workers=getattr(ns, "max_workers", None),
-            chunk_size=getattr(ns, "chunk_size", None),
-            tempdir=getattr(ns, "tempdir", None),
-            optimize_spinup=getattr(ns, "optimize_spinup", False),
-            include_rollback_info=getattr(ns, "include_rollback_info", False),
-            locale=getattr(ns, "locale", "en-CA"),
-        )
-
-
-@dataclass
-class BuildArgs(ArgBase):
-    config_path: str
-    output_path: str
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]):
-        return cls(
-            config_path=d["config_path"],
-            output_path=d["output_path"],
-        )
-
-    @classmethod
-    def from_namespace(cls, ns: Namespace):
-        return cls(
-            config_path=ns.config_path,
-            output_path=ns.output_path,
-        )
-
-
-@dataclass
-class PrepareArgs(ArgBase):
-    config_path: str
-    output_path: str
-    max_workers: int
-    max_mem_gb: int
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]):
-        return cls(
-            config_path=d["config_path"],
-            output_path=d.get("output_path", None),
-            max_workers=d.get("max_workers", None),
-            max_mem_gb=d.get("max_mem_gb", None),
-        )
-
-    @classmethod
-    def from_namespace(cls, ns: Namespace):
-        return cls(
-            config_path=ns.config_path,
-            output_path=getattr(ns, "output_path", None),
-            max_workers=getattr(ns, "max_workers", None),
-            max_mem_gb=getattr(ns, "max_mem_gb", None),
-        )
-
-
-@dataclass
-class MergeArgs(ArgBase):
-    config_path: str
-    project_paths: list[str]
-    output_path: str
-    include_index_layer: bool
-    max_mem_gb: int
-    tempdir: str
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]):
-        return cls(
-            config_path=d["config_path"],
-            project_paths=d["project_paths"],
-            output_path=d["output_path"],
-            include_index_layer=d["include_index_layer"],
-            max_mem_gb=d.get("max_mem_gb", None),
-            tempdir=d.get("tempdir", None),
-        )
-
-    @classmethod
-    def from_namespace(cls, ns: Namespace):
-        return cls(
-            config_path=ns.config_path,
-            project_paths=ns.project_paths,
-            output_path=ns.output_path,
-            include_index_layer=ns.include_index_layer,
-            max_mem_gb=getattr(ns, "max_mem_gb", None),
-            tempdir=getattr(ns, "tempdir", None),
-        )
-
-
-@dataclass
-class RunArgs(ArgBase):
-    host: str
-    project_path: str
-    config_path: str
-    end_year: int
-    title: str
-    compile_results_config: str
-    batch_limit: int
-    max_workers: int
-    engine: str
-    write_parameters: bool
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]):
-        return cls(
-            project_path=d["project_path"],
-            host=d.get("host", "local"),
-            config_path=d.get("config_path", None),
-            end_year=d.get("end_year", None),
-            title=d.get("title", None),
-            compile_results_config=d.get("compile_results_config", None),
-            batch_limit=d.get("batch_limit", None),
-            max_workers=d.get("max_workers", None),
-            engine=d.get("engine", "libcbm"),
-            write_parameters=d.get("write_parameters", False),
-        )
-
-    @classmethod
-    def from_namespace(cls, ns: Namespace):
-        return cls(
-            project_path=ns.project_path,
-            host=getattr(ns, "host", "local"),
-            config_path=getattr(ns, "config_path", None),
-            end_year=getattr(ns, "end_year", None),
-            title=getattr(ns, "title", None),
-            compile_results_config=getattr(ns, "compile_results_config", None),
-            batch_limit=getattr(ns, "batch_limit", None),
-            max_workers=getattr(ns, "max_workers", None),
-            engine=getattr(ns, "engine", "libcbm"),
-            write_parameters=getattr(ns, "write_parameters", False),
-        )
-
-
-def convert(args: ConvertArgs | dict):
-    # Guard against importing CBM4 dependencies until needed.
-    from gcbmwalltowall.converter.projectconverter import ProjectConverter
-
-    args = args if isinstance(args, ConvertArgs) else ConvertArgs.from_dict(args)
-    creation_options = args.creation_options or {}
-    creation_options["max_workers"] = args.max_workers
-    chunk_size = args.chunk_size
-    if chunk_size:
-        creation_options.update(
-            {
-                "chunk_options": {
-                    "chunk_x_size_max": chunk_size,
-                    "chunk_y_size_max": chunk_size,
-                }
-            }
-        )
-
-    project = PreparedProject(args.project_path, args.include_rollback_info)
-    logging.info(f"Converting {project.path} to CBM4")
-    converter = ProjectConverter(creation_options)
-    converter.convert(
-        project,
-        args.output_path,
-        args.aidb_path,
-        args.spinup_disturbance_type,
-        args.preserve_temp_files,
-        args.optimize_spinup,
-        args.locale,
-    )
+from gcbmwalltowall.application.command.convert import convert, ConvertArgs
+from gcbmwalltowall.application.command.build import build, BuildArgs
+from gcbmwalltowall.application.command.prepare import prepare, PrepareArgs
+from gcbmwalltowall.application.command.merge import merge, MergeArgs
+from gcbmwalltowall.application.command.run import run, RunArgs
+from gcbmwalltowall.application.command.clone import clone, CloneArgs
 
 
 def _convert(args: Namespace):
     convert(ConvertArgs.from_namespace(args))
 
 
-def build(args: BuildArgs | dict):
-    args = args if isinstance(args, BuildArgs) else BuildArgs.from_dict(args)
-    logging.info(f"Building {args.config_path}")
-    ProjectBuilder.build_from_file(args.config_path, args.output_path)
-
-
 def _build(args: Namespace):
     build(BuildArgs.from_namespace(args))
-
-
-def prepare(args: PrepareArgs | dict):
-    args = args if isinstance(args, PrepareArgs) else PrepareArgs.from_dict(args)
-    config = Configuration.load(args.config_path, args.output_path)
-    config["max_workers"] = args.max_workers
-    config["max_mem_gb"] = args.max_mem_gb
-    project = ProjectFactory().create(config)
-    logging.info(f"Preparing {project.name}")
-
-    project.tile()
-    project.create_input_database()
-    project.run_rollback()
-
-    extra_args = {
-        param: config.get(param)
-        for param in ("start_year", "end_year")
-        if config.get(param)
-    }
-
-    project.configure_gcbm(
-        config.gcbm_template_path, config.gcbm_disturbance_order, **extra_args
-    )
 
 
 def _prepare(args: Namespace):
     prepare(PrepareArgs.from_namespace(args))
 
 
-def merge(args: MergeArgs | dict):
-    args = args if isinstance(args, MergeArgs) else MergeArgs.from_dict(args)
-    with TemporaryDirectory() as tmp:
-        projects = [PreparedProject(path) for path in args.project_paths]
-        logging.info(
-            "Merging projects:\n{}".format("\n".join((str(p.path) for p in projects)))
-        )
-        inventories = [
-            project.prepare_merge(tmp, i) for i, project in enumerate(projects)
-        ]
-
-        output_path = Path(args.output_path)
-        merged_output_path = output_path.joinpath("layers", "merged")
-        tiled_output_path = output_path.joinpath("layers", "tiled")
-        db_output_path = output_path.joinpath("input_database")
-
-        shutil.rmtree(merged_output_path, ignore_errors=True)
-
-        start_year = min((project.start_year for project in projects))
-        end_year = max((project.end_year for project in projects))
-
-        max_mem_gb = args.max_mem_gb or (virtual_memory().available * 0.75 // 1024**3)
-        memory_limit = int(max_mem_gb * 1024)
-        merged_data = gcbm_merge.merge(
-            inventories,
-            str(merged_output_path),
-            str(db_output_path),
-            start_year,
-            memory_limit_MB=memory_limit,
-        )
-
-        gcbm_merge_tile.tile(
-            str(tiled_output_path), merged_data, inventories, args.include_index_layer
-        )
-
-        replace_direct_attached_transition_rules(
-            str(db_output_path.joinpath("gcbm_input.db")),
-            str(tiled_output_path.joinpath("transition_rules.csv")),
-        )
-
-        config = Configuration.load(args.config_path, args.output_path)
-        configurer = GCBMConfigurer(
-            [str(tiled_output_path)],
-            config.gcbm_template_path,
-            str(db_output_path.joinpath("gcbm_input.db")),
-            str(output_path.joinpath("gcbm_project")),
-            start_year,
-            end_year,
-            config.gcbm_disturbance_order,
-        )
-
-        configurer.configure()
-
-
 def _merge(args: Namespace):
     merge(MergeArgs.from_namespace(args))
 
 
-def run(args: RunArgs | dict):
-    args = args if isinstance(args, RunArgs) else RunArgs.from_dict(args)
-    project = PreparedProject(args.project_path)
-    run_type = "Queueing" if args.host == "cluster" else "Running"
-    logging.info(f"{run_type} project ({args.host}):\n{project.path}")
-
-    with project.temporary_new_end_year(args.end_year):
-        config = (
-            Configuration.load(args.config_path, args.project_path)
-            if args.config_path
-            else Configuration({}, "")
-        )
-
-        if args.host == "local":
-            cbm4_config_path = Path(args.project_path).joinpath("cbm4_config.json")
-            if cbm4_config_path.exists():
-                extra_kwargs: dict[str, Any] = dict()
-
-                match args.engine:
-                    case "libcbm":
-                        from gcbmwalltowall.runner import cbm4
-                    case "cbmspec":
-                        from gcbmwalltowall.runner import cbmspec as cbm4
-                    case "canfire":
-                        from gcbmwalltowall.runner import canfire as cbm4
-
-                        model = cbm4.get_single_matrix_cbmspec(cbm4_config_path)
-                        extra_kwargs["wrapped_cbmspec_model"] = model
-
-                    case _:
-                        raise RuntimeError(f"Unrecognized CBM4 engine: {args.engine}")
-
-                cbm4.run(
-                    str(cbm4_config_path),
-                    max_workers=args.max_workers,
-                    write_parameters=args.write_parameters,
-                    **extra_kwargs,
-                )
-            else:
-                logging.info(f"Using {config.resolve(config.gcbm_exe)}")
-                subprocess.run(
-                    [
-                        str(config.resolve(config.gcbm_exe)),
-                        "--config_file",
-                        "gcbm_config.cfg",
-                        "--config_provider",
-                        "provider_config.json",
-                    ],
-                    cwd=project.gcbm_config_path,
-                )
-        elif args.host == "cluster":
-            logging.info(f"Using {config.resolve(config.distributed_client)}")
-            project_name = config.get("project_name", project.path.stem)
-
-            run_args = [
-                sys.executable,
-                str(config.resolve(config.distributed_client)),
-                "--title",
-                datetime.now().strftime(
-                    f"gcbm_{args.title or project_name}_%Y%m%d_%H%M%S"
-                ),
-                "--gcbm-config",
-                str(project.gcbm_config_path.joinpath("gcbm_config.cfg")),
-                "--provider-config",
-                str(project.gcbm_config_path.joinpath("provider_config.json")),
-                "--study-area",
-                str(
-                    (project.rollback_layer_path or project.tiled_layer_path).joinpath(
-                        "study_area.json"
-                    )
-                ),
-                "--no-wait",
-            ]
-
-            compile_results_config = args.compile_results_config
-            if compile_results_config:
-                run_args.extend(
-                    [
-                        "--compile-results-config",
-                        Path(compile_results_config).absolute(),
-                    ]
-                )
-
-            batch_limit = args.batch_limit
-            if batch_limit:
-                run_args.extend(["--batch-limit", batch_limit])
-
-            subprocess.run(run_args, cwd=project.path)
-
-    logging.info(f"Finished {run_type.lower()} project ({args.host}):\n{project.path}")
-
-
-def _run(args: RunArgs):
+def _run(args: Namespace):
     run(RunArgs.from_namespace(args))
+
+
+def _clone(args: Namespace):
+    clone(CloneArgs.from_namespace(args))
 
 
 def cli():
@@ -559,7 +161,6 @@ def cli():
     convert_parser.add_argument(
         "--spinup_disturbance_type", help="override default spinup disturbance type"
     )
-
     convert_parser.add_argument(
         "--max_workers", type=int, help="max workers for CBM4 conversion"
     )
@@ -580,6 +181,28 @@ def cli():
     )
     convert_parser.add_argument(
         "--locale", help="locale code (e.g. fr-CA)", default="en-CA"
+    )
+
+    clone_parser = subparsers.add_parser(
+        "clone", help="Clone a CBM4 project, using the original as a base/cached run."
+    )
+    clone_parser.set_defaults(func=_clone, creation_options={})
+    clone_parser.add_argument(
+        "cbm4_config_path", help="path to base CBM4 project's cbm4_config.json"
+    )
+    clone_parser.add_argument(
+        "output_path", help="destination directory for cloned project"
+    )
+    clone_parser.add_argument(
+        "--start_year", type=int, help="start year of cloned project, up to 1 year past the end of the base project"
+    )
+    clone_parser.add_argument(
+        "--end_year", type=int, help="end year of cloned project"
+    )
+    clone_parser.add_argument(
+        "--include_disturbances",
+        action="store_true",
+        help="include disturbance data from base project",
     )
 
     args = parser.parse_args()

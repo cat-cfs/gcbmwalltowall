@@ -25,6 +25,7 @@ class Rollback:
         establishment_disturbance_type="Wildfire",
         disturbance_order=None,
         stand_replacing_lookup=None,
+        random_seed=None,
     ):
         self.age_distribution = Path(age_distribution)
         self.inventory_year = inventory_year
@@ -34,6 +35,7 @@ class Rollback:
         self.establishment_disturbance_type = establishment_disturbance_type
         self.disturbance_order = disturbance_order
         self.stand_replacing_lookup = stand_replacing_lookup
+        self.random_seed = random_seed
 
     def run(
         self,
@@ -93,8 +95,8 @@ class Rollback:
                 transition_rule_manager=transition_rule_manager,
                 memory_limit_MB=int(
                     max_mem_gb or (psutil.virtual_memory().available / 1024**3 / 4)
-                )
-                * 1024,
+                ) * 1024,
+                random_seed=self.random_seed,
             )
         )
 

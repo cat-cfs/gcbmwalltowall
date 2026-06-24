@@ -57,6 +57,7 @@ def run(
     write_parameters: bool = False,
     on_pre_spinup: Callable[[str]] | None = None,
     on_pre_simulation: Callable[[str]] | None = None,
+    end_year: int | None = None,
     **kwargs,
 ):
     json_config = kwargs.get("json_config") or load_config(cbm4_config_path, **kwargs)
@@ -161,7 +162,7 @@ def run(
         step_times.append(["pre-spinup callback", (time.time() - start)])
 
     start_year = json_config["start_year"]
-    end_year = json_config["end_year"]
+    end_year = end_year or json_config["end_year"]
     final_timestep = end_year - start_year + 1
     timesteps = list(range(1, final_timestep + 1))
     with tqdm(desc="Simulation", total=len(timesteps) + 1) as pbar:
