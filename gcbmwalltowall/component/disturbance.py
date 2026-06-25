@@ -440,7 +440,7 @@ class Disturbance(Tileable):
     def _get_disturbance_year_or_attribute(self, layer_path, attribute_table):
         logging.info(f"  checking for disturbance year in {layer_path.name}...")
         if self.year == "filename":
-            year = self._try_parse_year(layer_path.name)
+            year = self._try_parse_year(layer_path)
             if year is None:
                 raise RuntimeError(f"Year not parseable from filename in {layer_path}.")
 
@@ -471,7 +471,7 @@ class Disturbance(Tileable):
             return candidates[0]
 
         # Then check if the disturbance year is parseable from the filename.
-        year = self._try_parse_year(layer_path.name)
+        year = self._try_parse_year(layer_path)
         if year is None:
             raise RuntimeError(
                 f"No disturbance year configured or found in {layer_path}."
