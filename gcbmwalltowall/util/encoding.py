@@ -25,7 +25,7 @@ def load_csv(path: str | Path, **kwargs) -> pd.DataFrame:
     text = text.translate(sub_table)
 
     text_bytes = BytesIO(text.encode())
-    delim = Sniffer().sniff(text).delimiter
+    delim = Sniffer().sniff(text, ",;").delimiter
     decimal = "," if delim == ";" else "."
 
     return pd.read_csv(text_bytes, delimiter=delim, decimal=decimal, **kwargs)
