@@ -1,6 +1,6 @@
 import fnmatch
 import logging
-import re
+import json
 import sys
 from itertools import product
 
@@ -12,6 +12,7 @@ from mojadata.util import ogr
 from gcbmwalltowall.component.layer import Layer
 from gcbmwalltowall.component.tileable import Tileable
 from gcbmwalltowall.util.path import Path
+from gcbmwalltowall.util.yearparser import YearParser
 
 
 class Disturbance(Tileable):
@@ -427,22 +428,20 @@ class Disturbance(Tileable):
 
         return filter_value
 
-    def _try_parse_year(self, layer_path):
-        parse_result = re.findall(r"(\d{4})", str(layer_path.name))
-        if parse_result is not None:
-            try:
-                year = int(parse_result[-1])
-                logging.info(f"  using value from filename: {year}")
-                return year
-            except:
-                pass
-
     def _get_disturbance_year_or_attribute(self, layer_path, attribute_table):
         logging.info(f"  checking for disturbance year in {layer_path.name}...")
-        if self.year == "filename":
-            year = self._try_parse_year(layer_path)
+        if self.year is not None and "filename" in self.year:
+            parse_config = self.year.split(":")
+            if len(parse_config) == 1:
+                year = YearParser().try_parse_year(layer_path.name)
+            else:
+                parse_config = json.loads(parse_config[1])
+                year = YearParser(parse_config).try_parse_year(layer_path.name)
+
             if year is None:
                 raise RuntimeError(f"Year not parseable from filename in {layer_path}.")
+
+            logging.info(f"  using year from filename: {year}")
 
             return year
 
@@ -471,11 +470,13 @@ class Disturbance(Tileable):
             return candidates[0]
 
         # Then check if the disturbance year is parseable from the filename.
-        year = self._try_parse_year(layer_path)
+        year = YearParser().try_parse_year(layer_path.name)
         if year is None:
             raise RuntimeError(
                 f"No disturbance year configured or found in {layer_path}."
             )
+
+        logging.info(f"  using year from filename: {year}")
 
         return year
 
