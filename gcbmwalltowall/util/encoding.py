@@ -25,7 +25,12 @@ def load_csv(path: str | Path, **kwargs) -> pd.DataFrame:
     text = text.translate(sub_table)
 
     text_bytes = BytesIO(text.encode())
-    delim = Sniffer().sniff(text, ",;\n\r").delimiter
+    delim = (
+        Sniffer().sniff(text, ",;\n\r").delimiter
+        if "sep" not in kwargs
+        else None
+    )
+    
     decimal = "," if delim == ";" else "."
 
     return pd.read_csv(text_bytes, delimiter=delim, decimal=decimal, **kwargs)
