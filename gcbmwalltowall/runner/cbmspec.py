@@ -194,14 +194,36 @@ def run(
             cache_end_timestep = json_cache_config["end_year"] - start_year + 1
 
         with TemporaryDirectory() as tmp:
-            event_processor = EventProcessor.for_simulation(str(out_path.absolute()), tmp)
+            # Create a temporary working copy of the disturbance dataset to be used
+            # by both rule-based EventProcessor.
+            working_disturbance_ds_path = Path(tmp).joinpath("disturbance")
+            RasterIndexedDataset(
+                json_config["cbm4_spatial_dataset"]["disturbance"]["dataset_name"],
+                json_config["cbm4_spatial_dataset"]["disturbance"]["storage_type"],
+                json_config["cbm4_spatial_dataset"]["disturbance"]["path_or_uri"]
+            ).copy("disturbance", "local_storage", str(working_disturbance_ds_path))
+
+            working_disturbance_ds = RasterIndexedDataset(
+                "disturbance", "local_storage", str(working_disturbance_ds_path)
+            )
+
+            t0_event_processor = None
+            event_processor = EventProcessor.for_datasets(simulation_ds, working_disturbance_ds)
             for timestep in timesteps:
                 if timestep <= cache_end_timestep:
                     pbar.update()
                     continue
 
                 start = time.time()
-                disturbance_ds = event_processor.process_events_for_timestep(timestep)
+                if timestep - 1 == cache_end_timestep:
+                    t0_event_processor = EventProcessor.for_datasets(
+                        simulation_cache_ds, working_disturbance_ds
+                    )
+                    
+                    t0_event_processor.process_events_for_timestep(timestep)
+                else:
+                    event_processor.process_events_for_timestep(timestep)
+                
                 cbm4_spatial_runner.step_all(
                     model=step_model,
                     timestep=timestep,
@@ -209,7 +231,7 @@ def run(
                         simulation_cache_ds if timestep - 1 == cache_end_timestep
                         else simulation_ds
                     ),
-                    disturbance_event_dataset=disturbance_ds,
+                    disturbance_event_dataset=working_disturbance_ds,
                     simulation_output_dataset=simulation_ds,
                     parameter_dataset=step_spatial_parameter_ds,
                     area_unit_conversion=0.0001,
@@ -218,6 +240,9 @@ def run(
                 )
                 step_times.append([f"timestep_{timestep}", (time.time() - start)])
                 pbar.update()
+
+            if t0_event_processor is not None:
+                t0_event_processor.summarize(out_path.parent.joinpath("event_processor_summary_t0.csv"))
 
             event_processor.summarize(out_path.parent.joinpath("event_processor_summary.csv"))
             time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=step_times)
