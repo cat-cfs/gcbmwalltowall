@@ -99,6 +99,14 @@ class Disturbance(Tileable):
                     )
                 )
 
+        if not disturbance_layers:
+            logging.fatal(
+                f"Error scanning for disturbance layer pattern {self.pattern}: "
+                f"no matching files found"
+            )
+
+            sys.exit("Fatal error preparing disturbance layers")
+
         return disturbance_layers
 
     def _to_tiler_layer(self, layer_path, rule_manager, layer_kwargs, **kwargs):
