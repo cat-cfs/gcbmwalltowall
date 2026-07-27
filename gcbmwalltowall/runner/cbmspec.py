@@ -110,29 +110,39 @@ def run(
         json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"]
     ).parent
 
-    spinup_spatial_parameter_ds = (
-        cbm4_parameter_dataset_factory.spinup_parameter_dataset_create(
-            inventory_ds,
-            "spinup_parameters",
-            "local_storage",
-            str(out_path.joinpath("spinup_parameters")),
-            enable_cbm_cfs3_smoother=json_config.get("use_smoother", True),
-        )
-    )
-
-    if "increment_table" in spinup_model_config:
-        shutil.rmtree(out_path.joinpath(
-            "spinup_parameters", "spinup_parameters-table-increments"
-        ))
-        
-        spinup_spatial_parameter_ds.write_table(
-            "parameter_table_metadata",
-            spinup_spatial_parameter_ds.read_table_pandas(
-                "parameter_table_metadata",
-                filters=[("table_name", "!=", "increments")]
+    if json_cache_config is None:
+        start = time.time()
+        spinup_spatial_parameter_ds = (
+            cbm4_parameter_dataset_factory.spinup_parameter_dataset_create(
+                inventory_ds,
+                "spinup_parameters",
+                "local_storage",
+                str(out_path.joinpath("spinup_parameters")),
+                enable_cbm_cfs3_smoother=json_config.get("use_smoother", True),
             )
         )
 
+        if "increment_table" in spinup_model_config:
+            shutil.rmtree(out_path.joinpath(
+                "spinup_parameters", "spinup_parameters-table-increments"
+            ))
+            
+            spinup_spatial_parameter_ds.write_table(
+                "parameter_table_metadata",
+                spinup_spatial_parameter_ds.read_table_pandas(
+                    "parameter_table_metadata",
+                    filters=[("table_name", "!=", "increments")]
+                )
+            )
+
+        step_times.append(["create spinup parameter datasets", (time.time() - start)])
+
+        if on_pre_spinup is not None:
+            start = time.time()
+            on_pre_spinup(json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"])
+            step_times.append(["pre-spinup callback", (time.time() - start)])
+
+    start = time.time()
     step_spatial_parameter_ds = (
         cbm4_parameter_dataset_factory.step_parameter_dataset_create(
             inventory_ds,
@@ -155,11 +165,8 @@ def run(
                 filters=[("table_name", "!=", "increments")]
             )
         )
-
-    if on_pre_spinup is not None:
-        start = time.time()
-        on_pre_spinup(json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"])
-        step_times.append(["pre-spinup callback", (time.time() - start)])
+    
+    step_times.append(["create step parameter datasets", (time.time() - start)])
 
     start_year = json_config["start_year"]
     end_year = end_year or json_config["end_year"]
@@ -195,7 +202,7 @@ def run(
 
         with TemporaryDirectory() as tmp:
             # Create a temporary working copy of the disturbance dataset to be used
-            # by both rule-based EventProcessor.
+            # by rule-based EventProcessor.
             working_disturbance_ds_path = Path(tmp).joinpath("disturbance")
             RasterIndexedDataset(
                 json_config["cbm4_spatial_dataset"]["disturbance"]["dataset_name"],

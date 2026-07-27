@@ -124,7 +124,7 @@ def run(
 
         with TemporaryDirectory() as tmp:
             # Create a temporary working copy of the disturbance dataset to be used
-            # by both rule-based EventProcessor.
+            # by rule-based EventProcessor.
             working_disturbance_ds_path = Path(tmp).joinpath("disturbance")
             RasterIndexedDataset(
                 simulation_config["disturbance_dataset"]["dataset_name"],
