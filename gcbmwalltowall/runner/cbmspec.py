@@ -142,31 +142,38 @@ def run(
             on_pre_spinup(json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"])
             step_times.append(["pre-spinup callback", (time.time() - start)])
 
-    start = time.time()
-    step_spatial_parameter_ds = (
-        cbm4_parameter_dataset_factory.step_parameter_dataset_create(
-            inventory_ds,
-            "step_parameters",
-            "local_storage",
-            str(out_path.joinpath("step_parameters")),
-            enable_cbm_cfs3_smoother=json_config.get("use_smoother", True),
-        )
-    )
-
-    if "increment_table" in step_model_config:
-        shutil.rmtree(out_path.joinpath(
-            "step_parameters", "step_parameters-table-increments"
-        ))
-        
-        step_spatial_parameter_ds.write_table(
-            "parameter_table_metadata",
-            step_spatial_parameter_ds.read_table_pandas(
-                "parameter_table_metadata",
-                filters=[("table_name", "!=", "increments")]
+    if json_cache_config is None:
+        start = time.time()
+        step_spatial_parameter_ds = (
+            cbm4_parameter_dataset_factory.step_parameter_dataset_create(
+                inventory_ds,
+                "step_parameters",
+                "local_storage",
+                str(out_path.joinpath("step_parameters")),
+                enable_cbm_cfs3_smoother=json_config.get("use_smoother", True),
             )
         )
-    
-    step_times.append(["create step parameter datasets", (time.time() - start)])
+
+        if "increment_table" in step_model_config:
+            shutil.rmtree(out_path.joinpath(
+                "step_parameters", "step_parameters-table-increments"
+            ))
+            
+            step_spatial_parameter_ds.write_table(
+                "parameter_table_metadata",
+                step_spatial_parameter_ds.read_table_pandas(
+                    "parameter_table_metadata",
+                    filters=[("table_name", "!=", "increments")]
+                )
+            )
+        
+        step_times.append(["create step parameter datasets", (time.time() - start)])
+    else:
+        step_spatial_parameter_ds = RasterIndexedDataset(
+            "step_parameters",
+            json_cache_config["storage_type"],
+            str(Path(json_cache_config["path_or_uri"]).joinpath("..", "step_parameters")),
+        )
 
     start_year = json_config["start_year"]
     end_year = end_year or json_config["end_year"]
