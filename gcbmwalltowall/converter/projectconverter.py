@@ -187,6 +187,7 @@ class ProjectConverter:
                 inventory_df=inventory,
                 return_format="HardwoodAndSoftwoodLong",
                 cbm_defaults_db_path=str(cbm_defaults_path),
+                max_workers=self._creation_options.get("max_workers"),
             )
             
             transformed_yields = transformed_yields[transformed_yields["state.age"] != "?"]

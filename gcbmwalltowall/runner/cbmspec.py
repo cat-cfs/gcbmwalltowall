@@ -256,8 +256,8 @@ def run(
                 pbar.update()
 
             if t0_event_processor is not None:
-                t0_event_processor.summarize(out_path.parent.joinpath("event_processor_summary_t0.csv"))
+                t0_event_processor.summarize(out_path.joinpath("event_processor_summary_t0.csv"))
 
-            event_processor.summarize(out_path.parent.joinpath("event_processor_summary.csv"))
+            event_processor.summarize(out_path.joinpath("event_processor_summary.csv"))
             time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=step_times)
             time_profiling.to_csv(out_path.joinpath("profiling.csv"), index=False)
