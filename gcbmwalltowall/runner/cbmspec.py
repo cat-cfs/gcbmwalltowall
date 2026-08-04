@@ -115,6 +115,7 @@ def run(
         spinup_spatial_parameter_ds = (
             cbm4_parameter_dataset_factory.spinup_parameter_dataset_create(
                 inventory_ds,
+                working_disturbance_ds,
                 "spinup_parameters",
                 "local_storage",
                 str(out_path.joinpath("spinup_parameters")),
@@ -147,6 +148,7 @@ def run(
         step_spatial_parameter_ds = (
             cbm4_parameter_dataset_factory.step_parameter_dataset_create(
                 inventory_ds,
+                working_disturbance_ds,
                 "step_parameters",
                 "local_storage",
                 str(out_path.joinpath("step_parameters")),
