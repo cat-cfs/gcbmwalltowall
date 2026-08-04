@@ -73,6 +73,12 @@ def run(
         json_config["cbm4_spatial_dataset"]["inventory"]["path_or_uri"],
     )
 
+    disturbance_ds = RasterIndexedDataset(
+        json_config["cbm4_spatial_dataset"]["disturbance"]["dataset_name"],
+        json_config["cbm4_spatial_dataset"]["disturbance"]["storage_type"],
+        json_config["cbm4_spatial_dataset"]["disturbance"]["path_or_uri"]
+    )
+
     spinup_model_config = json_config.get("model_parameters", {}).get("spinup", {})
     step_model_config = json_config.get("model_parameters", {}).get("step", {})
     for model_config in (spinup_model_config, step_model_config):
@@ -115,7 +121,7 @@ def run(
         spinup_spatial_parameter_ds = (
             cbm4_parameter_dataset_factory.spinup_parameter_dataset_create(
                 inventory_ds,
-                working_disturbance_ds,
+                disturbance_ds,
                 "spinup_parameters",
                 "local_storage",
                 str(out_path.joinpath("spinup_parameters")),
@@ -148,7 +154,7 @@ def run(
         step_spatial_parameter_ds = (
             cbm4_parameter_dataset_factory.step_parameter_dataset_create(
                 inventory_ds,
-                working_disturbance_ds,
+                disturbance_ds,
                 "step_parameters",
                 "local_storage",
                 str(out_path.joinpath("step_parameters")),
@@ -213,12 +219,7 @@ def run(
             # Create a temporary working copy of the disturbance dataset to be used
             # by rule-based EventProcessor.
             working_disturbance_ds_path = Path(tmp).joinpath("disturbance")
-            RasterIndexedDataset(
-                json_config["cbm4_spatial_dataset"]["disturbance"]["dataset_name"],
-                json_config["cbm4_spatial_dataset"]["disturbance"]["storage_type"],
-                json_config["cbm4_spatial_dataset"]["disturbance"]["path_or_uri"]
-            ).copy("disturbance", "local_storage", str(working_disturbance_ds_path))
-
+            disturbance_ds.copy("disturbance", "local_storage", str(working_disturbance_ds_path))
             working_disturbance_ds = RasterIndexedDataset(
                 "disturbance", "local_storage", str(working_disturbance_ds_path)
             )
