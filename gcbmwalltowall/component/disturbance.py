@@ -443,7 +443,11 @@ class Disturbance(Tileable):
             if len(parse_config) == 1:
                 year = YearParser().try_parse_year(layer_path.name)
             else:
-                parse_config = json.loads(parse_config[1])
+                try:
+                    parse_config = json.loads(parse_config[1])
+                except:
+                    parse_config = parse_config[1]
+
                 year = YearParser(parse_config).try_parse_year(layer_path.name)
 
             if year is None:
