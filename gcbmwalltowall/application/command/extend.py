@@ -5,7 +5,9 @@ from dataclasses import dataclass
 from typing import Any
 from gcbmwalltowall.application.command.argbase import ArgBase
 from gcbmwalltowall.application.command.clone import clone
-from gcbmwalltowall.application.command.impl.disturbanceextender import DisturbanceExtender
+from gcbmwalltowall.application.command.impl.disturbanceextender import (
+    DisturbanceExtender,
+)
 from gcbmwalltowall.application.command.impl.cbm4project import CBM4Project
 
 
@@ -39,18 +41,20 @@ def extend(args: ExtendArgs | dict):
     args = args if isinstance(args, ExtendArgs) else ExtendArgs.from_dict(args)
     cbm4_config_path = args.cbm4_config_path
     if args.output_path:
-        clone({
-            "config_path": str(cbm4_config_path),
-            "output_path": str(args.output_path),
-            "include_disturbances": True,
-            "use_cache": args.use_cache,
-        })
+        clone(
+            {
+                "config_path": str(cbm4_config_path),
+                "output_path": str(args.output_path),
+                "include_disturbances": True,
+                "use_cache": args.use_cache,
+            }
+        )
 
         cbm4_config_path = Path(args.output_path).joinpath("cbm4_config.json")
 
         # todo: after processing, determine cache end year based on earliest timestep
         # of additional disturbances and write to config.
-    
+
     cbm4_project = CBM4Project(cbm4_config_path)
     disturbance_extender = DisturbanceExtender(cbm4_project)
-    disturbance_extender.tile_and_add(args.disturbance_config_path)
+    disturbance_extender.add_from_walltowall_config(args.disturbance_config_path)

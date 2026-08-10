@@ -1,12 +1,13 @@
-import json
 import pandas as pd
-from pathlib import Path
 from typing import Literal
 from arrow_space.flattened_coordinate_dataset import FlattenedCoordinateDataset
-from arrow_space.raster_indexed_dataset import RasterIndexedDataset
 from libcbm.model.cbm.cbm_defaults_reference import CBMDefaultsReference
-from cbm4.app.spatial.gcbm_input.timestep_interpreter import YearOffsetTimestepInterpreter
-from gcbmwalltowall.application.command.impl.disturbanceformatter import DisturbanceFormatter
+from cbm4.app.spatial.gcbm_input.timestep_interpreter import (
+    YearOffsetTimestepInterpreter,
+)
+from gcbmwalltowall.application.command.impl.disturbanceformatter import (
+    DisturbanceFormatter,
+)
 from gcbmwalltowall.application.command.impl.cbm4project import CBM4Project
 
 
@@ -31,7 +32,9 @@ class DisturbanceReader:
         transition_offset = cbm4_project.get_max_transition_id()
         cbm_defaults_ref = CBMDefaultsReference(str(cbm4_project.cbm_defaults_path))
         timestep_interpreter = YearOffsetTimestepInterpreter(cbm4_project.t0_year)
-        disturbance_formatter = DisturbanceFormatter(cbm_defaults_ref, timestep_interpreter)
+        disturbance_formatter = DisturbanceFormatter(
+            cbm_defaults_ref, timestep_interpreter
+        )
 
         return cls(
             walltowall_disturbance_dataset,
@@ -89,11 +92,11 @@ class DisturbanceReader:
 
         disturbance_attrs = self._dataset.get_attributes(layer_name)
         assert disturbance_attrs is not None
-        disturbance_data = pd.merge(
-            disturbances, disturbance_attrs, left_on=layer_name, right_on="id"
-        ).dropna(
-            subset=["year", "disturbance_type"]
-        ).rename(columns={"transition": "disturbed_transition_id"})
+        disturbance_data = (
+            pd.merge(disturbances, disturbance_attrs, left_on=layer_name, right_on="id")
+            .dropna(subset=["year", "disturbance_type"])
+            .rename(columns={"transition": "disturbed_transition_id"})
+        )
 
         self._disturbance_formatter.format(disturbance_data)
 

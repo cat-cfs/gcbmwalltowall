@@ -39,7 +39,7 @@ class CBM4Project:
     def chunk_size(self) -> tuple[int, int]:
         return (
             self._inventory_dataset.chunks[0].x_size,
-            self._inventory_dataset.chunks[0].y_size
+            self._inventory_dataset.chunks[0].y_size,
         )
 
     @property
@@ -52,9 +52,9 @@ class CBM4Project:
             if self._disturbance_dataset.table_exists(table_name):
                 max_transition_id = max(
                     max_transition_id,
-                    self._disturbance_dataset.read_table_pandas(
-                        table_name
-                    )["id"].astype("int").max()
+                    self._disturbance_dataset.read_table_pandas(table_name)["id"]
+                    .astype("int")
+                    .max(),
                 )
 
         return max_transition_id
@@ -68,11 +68,14 @@ class CBM4Project:
             self._inventory_dataset.raster_index_table_name
         )
 
-        export_data = inv_data.join(
-            inv_ri_data, on=["chunk_index", "index", "cohort_index"]
-        ).select(
-            "chunk_index", "raster_index"
-        ).unique().with_columns(bbox=1).collect().to_pandas()
+        export_data = (
+            inv_data.join(inv_ri_data, on=["chunk_index", "index", "cohort_index"])
+            .select("chunk_index", "raster_index")
+            .unique()
+            .with_columns(bbox=1)
+            .collect()
+            .to_pandas()
+        )
 
         exporter = GeoTiffExporter(self._inventory_dataset)
         exporter.write_data(export_data)
@@ -86,5 +89,5 @@ class CBM4Project:
         return RasterIndexedDataset(
             dataset_config["dataset_name"],
             dataset_config["storage_type"],
-            str(self._cbm4_config.resolve(dataset_config["path_or_uri"]))
+            str(self._cbm4_config.resolve(dataset_config["path_or_uri"])),
         )

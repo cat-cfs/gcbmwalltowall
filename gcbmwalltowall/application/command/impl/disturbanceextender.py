@@ -1,7 +1,6 @@
 import logging
 import json
 import pandas as pd
-import numba as nb
 import numpy as np
 from dataclasses import dataclass
 from tempfile import TemporaryDirectory
@@ -14,7 +13,9 @@ from arrow_space import flattened_coordinate_dataset
 from arrow_space.flattened_coordinate_dataset import FlattenedCoordinateDataset
 from arrow_space.flattened_coordinate_dataset import InputLayerCollection
 from cbm4.app.spatial.gcbm_input.disturbance_event_sorter import ListBasedSorter
-from cbm4.app.spatial.gcbm_input.gcbm_disturbance_preprocessor import normalize_sort_order
+from cbm4.app.spatial.gcbm_input.gcbm_disturbance_preprocessor import (
+    normalize_sort_order,
+)
 from gcbmwalltowall.application.command.impl.cbm4project import CBM4Project
 from gcbmwalltowall.application.command.impl.disturbancereader import DisturbanceReader
 from gcbmwalltowall.project.projectfactory import ProjectFactory
@@ -37,19 +38,19 @@ class DisturbanceExtender:
         self._cbm4_project = cbm4_project
         self._temp_dir = TemporaryDirectory()
 
-    def tile_and_add(
+    def add_from_walltowall_config(
         self,
         disturbance_config_path: str | Path,
     ):
-        tiled_output_path = Path(self._temp_dir.name).joinpath(
-            "tiled_disturbances"
-        )
+        tiled_output_path = Path(self._temp_dir.name).joinpath("tiled_disturbances")
 
         self._tile_disturbances(disturbance_config_path, tiled_output_path)
+        self.add_from_study_area(Path(tiled_output_path).joinpath("study_area.json"))
 
+    def add_from_study_area(self, study_area_path: str | Path):
         x_chunk_size, y_chunk_size = self._cbm4_project.chunk_size
         walltowall_disturbance_ds = self._make_walltowall_disturbance_dataset(
-            Path(tiled_output_path).joinpath("study_area.json"),
+            study_area_path,
             Path(self._temp_dir.name).joinpath("addon_disturbances"),
             {
                 "chunk_options": {
@@ -114,16 +115,14 @@ class DisturbanceExtender:
 
             base_disturbance_ds.write(disturbance_data)
             base_disturbance_ds.write(
-                raster_index_data,
-                base_disturbance_ds.raster_index_table_name
+                raster_index_data, base_disturbance_ds.raster_index_table_name
             )
 
         for table_name, transition_data in reader.read_transitions().items():
             all_transition_data = (
-                pd.concat((
-                    base_disturbance_ds.read_table_pandas(table_name),
-                    transition_data
-                ))
+                pd.concat(
+                    (base_disturbance_ds.read_table_pandas(table_name), transition_data)
+                )
                 if base_disturbance_ds.table_exists(table_name)
                 else transition_data
             ).astype(
@@ -135,7 +134,6 @@ class DisturbanceExtender:
                     all_transition_data.loc[all_transition_data[col].isna(), col] = "?"
 
             base_disturbance_ds.write_table(table_name, all_transition_data)
-
 
     def _tile_disturbances(
         self, disturbance_config_path: str | Path, output_path: str | Path
@@ -175,9 +173,7 @@ class DisturbanceExtender:
                 )
 
             tiler.tile(layers, str(output_path))
-            rule_manager.write_rules(
-                str(output_path.joinpath("transition_rules.csv"))
-            )
+            rule_manager.write_rules(str(output_path.joinpath("transition_rules.csv")))
 
         logging.info("Finished tiling")
 
