@@ -20,6 +20,10 @@ class CBM4Project:
         )
 
     @property
+    def config_path(self) -> Path:
+        return self._cbm4_config_path
+
+    @property
     def inventory_dataset(self) -> RasterIndexedDataset:
         return self._inventory_dataset
 

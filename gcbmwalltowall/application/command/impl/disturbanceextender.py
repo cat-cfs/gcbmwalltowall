@@ -9,6 +9,7 @@ from typing import Any
 from gcbmwalltowall.configuration.configuration import Configuration
 from gcbmwalltowall.converter.layerconverter import DefaultLayerConverter
 from gcbmwalltowall.component.preparedproject import PreparedLayer
+from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from arrow_space import flattened_coordinate_dataset
 from arrow_space.flattened_coordinate_dataset import FlattenedCoordinateDataset
 from arrow_space.flattened_coordinate_dataset import InputLayerCollection
@@ -34,8 +35,9 @@ class _Classifier:
 
 class DisturbanceExtender:
 
-    def __init__(self, cbm4_project: CBM4Project):
+    def __init__(self, cbm4_project: CBM4Project, use_cache: bool = True):
         self._cbm4_project = cbm4_project
+        self._use_cache = use_cache
         self._temp_dir = TemporaryDirectory()
 
     def add_from_walltowall_config(
@@ -64,11 +66,20 @@ class DisturbanceExtender:
             self._cbm4_project, walltowall_disturbance_ds
         )
 
+        min_addon_year = 0
         base_disturbance_ds = self._cbm4_project.disturbance_dataset
         for chunk_index, _ in enumerate(walltowall_disturbance_ds.chunks):
             logging.info(f"Processing chunk {chunk_index}")
             filters = [[("chunk_index", "=", chunk_index)]]
             disturbance_data = reader.read_disturbances(filters)
+            if disturbance_data is not None:
+                min_chunk_year = disturbance_data["year"].min().item()
+                min_addon_year = (
+                    min(min_addon_year, min_chunk_year)
+                    if min_addon_year
+                    else min_chunk_year
+                )
+
             base_disturbance_data = base_disturbance_ds.read_pandas(filters=filters)
             if base_disturbance_data is not None and not base_disturbance_data.empty:
                 if disturbance_data is None or disturbance_data.empty:
@@ -134,6 +145,24 @@ class DisturbanceExtender:
                     all_transition_data.loc[all_transition_data[col].isna(), col] = "?"
 
             base_disturbance_ds.write_table(table_name, all_transition_data)
+
+        max_disturbance_year = (
+            base_disturbance_ds.read_polars().select("year").max().collect().item()
+        )
+
+        with GCBMConfigurer.update_json_file(
+            self._cbm4_project.config_path
+        ) as cbm4_config:
+            cbm4_config["end_year"] = max(cbm4_config["end_year"], max_disturbance_year)
+
+            if self._use_cache:
+                cache_config = cbm4_config.get("cache")
+                if cache_config:
+                    cache_config["end_year"] = min(
+                        cache_config["end_year"], min_addon_year - 1
+                    )
+            else:
+                cbm4_config.pop("cache", None)
 
     def _tile_disturbances(
         self, disturbance_config_path: str | Path, output_path: str | Path

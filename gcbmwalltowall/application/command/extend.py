@@ -52,9 +52,6 @@ def extend(args: ExtendArgs | dict):
 
         cbm4_config_path = Path(args.output_path).joinpath("cbm4_config.json")
 
-        # todo: after processing, determine cache end year based on earliest timestep
-        # of additional disturbances and write to config.
-
     cbm4_project = CBM4Project(cbm4_config_path)
-    disturbance_extender = DisturbanceExtender(cbm4_project)
+    disturbance_extender = DisturbanceExtender(cbm4_project, args.use_cache)
     disturbance_extender.add_from_walltowall_config(args.disturbance_config_path)
