@@ -10,6 +10,7 @@ from gcbmwalltowall.application.command.prepare import prepare, PrepareArgs
 from gcbmwalltowall.application.command.merge import merge, MergeArgs
 from gcbmwalltowall.application.command.run import run, RunArgs
 from gcbmwalltowall.application.command.clone import clone, CloneArgs
+from gcbmwalltowall.application.command.extend import extend, ExtendArgs
 
 
 def _convert(args: Namespace):
@@ -34,6 +35,10 @@ def _run(args: Namespace):
 
 def _clone(args: Namespace):
     clone(CloneArgs.from_namespace(args))
+
+
+def _extend(args: Namespace):
+    extend(ExtendArgs.from_namespace(args))
 
 
 def cli():
@@ -203,6 +208,32 @@ def cli():
         "--include_disturbances",
         action="store_true",
         help="include disturbance data from base project",
+    )
+    clone_parser.add_argument(
+        "--no_cache",
+        action="store_false",
+        help="do not use base project as a cache",
+        dest="use_cache",
+    )
+
+    extend_parser = subparsers.add_parser(
+        "extend", help="Extend a CBM4 project with additional disturbances from a walltowall config file fragment."
+    )
+    extend_parser.set_defaults(func=_extend)
+    extend_parser.add_argument(
+        "cbm4_config_path", help="path to base CBM4 project's cbm4_config.json"
+    )
+    extend_parser.add_argument(
+        "disturbance_config_path", help="path to walltowall config file fragment containing a 'disturbances' section"
+    )
+    extend_parser.add_argument(
+        "--output_path", help="destination directory for extended project, or omit to modify in-place"
+    )
+    extend_parser.add_argument(
+        "--no_cache",
+        action="store_false",
+        help="do not use base project as a cache",
+        dest="use_cache",
     )
 
     args = parser.parse_args()
