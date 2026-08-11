@@ -56,8 +56,11 @@ class DisturbanceReader:
 
         if disturbance_data is not None:
             for col in ("undisturbed_transition_id", "disturbed_transition_id"):
+                if col not in disturbance_data:
+                    continue
+
                 disturbance_data.loc[
-                    disturbance_data[col] != -1, col
+                    disturbance_data[col] > 0, col
                 ] += self._transition_offset
 
         return disturbance_data

@@ -45,7 +45,6 @@ class DisturbanceExtender:
         disturbance_config_path: str | Path,
     ):
         tiled_output_path = Path(self._temp_dir.name).joinpath("tiled_disturbances")
-
         self._tile_disturbances(disturbance_config_path, tiled_output_path)
         self.add_from_study_area(Path(tiled_output_path).joinpath("study_area.json"))
 
