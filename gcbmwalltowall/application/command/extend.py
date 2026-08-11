@@ -5,10 +5,6 @@ from dataclasses import dataclass
 from typing import Any
 from gcbmwalltowall.application.command.argbase import ArgBase
 from gcbmwalltowall.application.command.clone import clone
-from gcbmwalltowall.application.command.impl.disturbanceextender import (
-    DisturbanceExtender,
-)
-from gcbmwalltowall.application.command.impl.cbm4project import CBM4Project
 
 
 @dataclass
@@ -38,6 +34,11 @@ class ExtendArgs(ArgBase):
 
 
 def extend(args: ExtendArgs | dict):
+    from gcbmwalltowall.application.command.impl.cbm4project import CBM4Project
+    from gcbmwalltowall.application.command.impl.disturbanceextender import (
+        DisturbanceExtender,
+    )
+
     args = args if isinstance(args, ExtendArgs) else ExtendArgs.from_dict(args)
     cbm4_config_path = args.cbm4_config_path
     if args.output_path:

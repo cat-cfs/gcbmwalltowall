@@ -1,5 +1,4 @@
 import gcbmwalltowall
-import pandas as pd
 from pathlib import Path
 from pytest import fixture
 from unittest.mock import create_autospec
