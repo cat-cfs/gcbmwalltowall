@@ -17,6 +17,11 @@ class DisturbanceFormatter:
         }
 
     def format(self, disturbance_events: pd.DataFrame):
+        disturbance_events.dropna(subset=["year", "disturbance_type"], inplace=True)
+        disturbance_events.rename(
+            columns={"transition": "disturbed_transition_id"}, inplace=True
+        )
+
         for attr, default in {
             "disturbance_id": -1,
             "disturbance_order": -1,

@@ -1,4 +1,5 @@
 import gcbmwalltowall
+import pandas as pd
 from pathlib import Path
 from pytest import fixture
 from unittest.mock import create_autospec
@@ -20,8 +21,15 @@ def extra_disturbances_dataset() -> FlattenedCoordinateDataset:
 
 @fixture
 def disturbance_formatter() -> DisturbanceFormatter:
+    def format_fn(df: pd.DataFrame):
+        df.rename(
+            columns={"transition": "disturbed_transition_id"},
+            inplace=True
+        )
+
     formatter = create_autospec(DisturbanceFormatter)
-    formatter.format.side_effect = lambda x: x
+    formatter.format.side_effect = format_fn
+
     return formatter
     
 

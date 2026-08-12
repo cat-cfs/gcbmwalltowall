@@ -54,15 +54,6 @@ class DisturbanceReader:
             else:
                 disturbance_data = pd.concat((disturbance_data, layer_data))
 
-        if disturbance_data is not None:
-            for col in ("undisturbed_transition_id", "disturbed_transition_id"):
-                if col not in disturbance_data:
-                    continue
-
-                disturbance_data.loc[
-                    disturbance_data[col] > 0, col
-                ] += self._transition_offset
-
         return disturbance_data
 
     def read_transitions(
@@ -95,13 +86,18 @@ class DisturbanceReader:
 
         disturbance_attrs = self._dataset.get_attributes(layer_name)
         assert disturbance_attrs is not None
-        disturbance_data = (
-            pd.merge(disturbances, disturbance_attrs, left_on=layer_name, right_on="id")
-            .dropna(subset=["year", "disturbance_type"])
-            .rename(columns={"transition": "disturbed_transition_id"})
-        )
+        self._disturbance_formatter.format(disturbance_attrs)
+        for col in ("undisturbed_transition_id", "disturbed_transition_id"):
+            if col not in disturbance_attrs:
+                continue
 
-        self._disturbance_formatter.format(disturbance_data)
+            disturbance_attrs.loc[
+                disturbance_attrs[col] > 0, col
+            ] += self._transition_offset
+
+        disturbance_data = pd.merge(
+            disturbances, disturbance_attrs, left_on=layer_name, right_on="id"
+        )
 
         return disturbance_data[
             [col for col in disturbance_data.columns if col not in ("id", layer_name)]

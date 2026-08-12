@@ -69,32 +69,36 @@ class DisturbanceExtender:
         base_disturbance_ds = self._cbm4_project.disturbance_dataset
         for chunk_index, _ in enumerate(walltowall_disturbance_ds.chunks):
             logging.info(f"Processing chunk {chunk_index}")
-            filters = [[("chunk_index", "=", chunk_index)]]
-            disturbance_data = reader.read_disturbances(filters)
-            if disturbance_data is not None:
-                min_chunk_year = disturbance_data["year"].min().item()
-                min_addon_year = (
-                    min(min_addon_year, min_chunk_year)
-                    if min_addon_year
-                    else min_chunk_year
-                )
-
-            base_disturbance_data = base_disturbance_ds.read_pandas(filters=filters)
-            if base_disturbance_data is not None and not base_disturbance_data.empty:
-                if disturbance_data is None or disturbance_data.empty:
-                    disturbance_data = base_disturbance_data
-                else:
-                    disturbance_data = pd.concat(
-                        (
-                            disturbance_data,
-                            base_disturbance_ds.as_flattened(base_disturbance_data),
-                        )
-                    )
-
+            logging.info("  reading addon disturbances")
+            chunk_filter = ("chunk_index", "=", chunk_index)
+            disturbance_data = reader.read_disturbances(filters=[[chunk_filter]])
             if disturbance_data is None or disturbance_data.empty:
                 logging.info(f"  no disturbance data - skipping")
                 continue
 
+            min_chunk_year = disturbance_data["year"].min().item()
+            min_addon_year = (
+                min(min_addon_year, min_chunk_year)
+                if min_addon_year
+                else min_chunk_year
+            )
+
+            logging.info("  reading base disturbances")
+            addon_timesteps = disturbance_data["timestep"].drop_duplicates().to_list()
+            timestep_filter = ("timestep", "in", addon_timesteps)
+            base_disturbance_data = base_disturbance_ds.read_pandas(
+                filters=[[chunk_filter, timestep_filter]]
+            )
+
+            if base_disturbance_data is not None and not base_disturbance_data.empty:
+                disturbance_data = pd.concat(
+                    (
+                        disturbance_data,
+                        base_disturbance_ds.as_flattened(base_disturbance_data),
+                    )
+                )
+
+            logging.info("  reconciling disturbances")
             sorter = ListBasedSorter(self._cbm4_project.disturbance_order)
             disturbance_data["sort_value"] = disturbance_data[
                 "default_disturbance_type_id"
