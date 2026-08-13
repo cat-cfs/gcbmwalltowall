@@ -187,6 +187,7 @@ class ProjectConverter:
                 inventory_df=inventory,
                 return_format="HardwoodAndSoftwoodLong",
                 cbm_defaults_db_path=str(cbm_defaults_path),
+                max_workers=self._creation_options.get("max_workers"),
             )
             
             transformed_yields = transformed_yields[transformed_yields["state.age"] != "?"]
@@ -210,7 +211,7 @@ class ProjectConverter:
             ["gcid", "state.age"] + [c for c in transformed_yields.columns if "increment" in c]
         ].rename(
             columns={"state.age": "age"}
-        ).to_csv(output_path.joinpath("spinup_yields.csv"), index=False)
+        ).to_parquet(output_path.joinpath("spinup_yields.parquet"), index=False)
 
         # Match the initial inventory (spinup) state to the spinup gcids using the
         # same classifier set matching as the model.
@@ -251,7 +252,7 @@ class ProjectConverter:
             str(output_path.joinpath("cbm4_config.json"))
         ) as cbm4_config:
             cbm4_config["model_parameters"] = {
-                "spinup": {"increment_table": "spinup_yields.csv"}
+                "spinup": {"increment_table": "spinup_yields.parquet"}
             }
 
         shutil.rmtree(preprocess_config["inventory_dataset"]["path_or_uri"])

@@ -1,26 +1,11 @@
-import shutil
-from pathlib import Path
-
-from gcbmwalltowall.runner.cbmspec import load_config, run  # type: ignore
-
-standalone_project_path = Path(__file__).parent.joinpath("resources", "standalone")
-results_dir = Path(__file__).parent.joinpath("run_results")
+from gcbmwalltowall.runner.cbmspec import load_config, run
 
 
-def test_load_config():
-    json_config = load_config(
-        str(standalone_project_path.joinpath("cbm4_config.json")),
-    )
-
+def test_load_config(cbm4_config_path):
+    json_config = load_config(str(cbm4_config_path))
     assert isinstance(json_config, dict)
 
 
-def test_run_cbmspec():
-    dst = results_dir.joinpath("test_run_cbmspec")
-    if dst.exists():
-        shutil.rmtree(dst)
-
-    project = Path(shutil.copytree(standalone_project_path, dst))
-    cbm4_config_path = str(project.joinpath("cbm4_config.json"))
-
+def test_run_cbmspec(cbm4_project_copy):
+    cbm4_config_path = str(cbm4_project_copy.joinpath("cbm4_config.json"))
     run(cbm4_config_path)

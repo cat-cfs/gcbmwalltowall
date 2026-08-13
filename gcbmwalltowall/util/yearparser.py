@@ -35,7 +35,7 @@ class YearParser:
         if len(matches) > 1:
             pattern = self._pattern or self._yyyy_pattern
             logging.fatal(
-                "Multiple yyyy-format candidates found for pattern {pattern} "
+                f"Multiple yyyy-format candidates found for pattern {pattern} "
                 f"in {text}"
             )
 
