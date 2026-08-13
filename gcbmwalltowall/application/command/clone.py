@@ -16,6 +16,7 @@ class CloneArgs(ArgBase):
     start_year: int
     end_year: int
     include_disturbances: bool
+    use_cache: bool
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]):
@@ -25,6 +26,7 @@ class CloneArgs(ArgBase):
             start_year=d.get("start_year", None),
             end_year=d.get("end_year", None),
             include_disturbances=d.get("include_disturbances", False),
+            use_cache=d.get("use_cache", True),
         )
 
     @classmethod
@@ -35,6 +37,7 @@ class CloneArgs(ArgBase):
             start_year=getattr(ns, "start_year", None),
             end_year=getattr(ns, "end_year", None),
             include_disturbances=getattr(ns, "include_disturbances", False),
+            use_cache=getattr(ns, "use_cache", True),
         )
 
 
@@ -71,24 +74,28 @@ def clone(args: CloneArgs | dict):
             copy_raster_index_data=False,
         )
 
+    for project_file in config.config_path.glob("*.*"):
+        shutil.copyfile(project_file, config.resolve_working(project_file.name))
+
     clone_cbm4_config_path = config.resolve_working("cbm4_config.json")
     shutil.copyfile(args.cbm4_config_path, clone_cbm4_config_path)
     with GCBMConfigurer.update_json_file(clone_cbm4_config_path) as cbm4_config:
         cbm4_config["cbm4_spatial_dataset"]["inventory"]["path_or_uri"] = "inventory"
         cbm4_config["cbm4_spatial_dataset"]["disturbance"]["path_or_uri"] = "disturbance"
         cbm4_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"] = "simulation"
-        cbm4_config["cache"] = {
-            "dataset_name": "simulation",
-            "storage_type": "local_storage",
-            "path_or_uri": os.path.relpath(
-                config.resolve(config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"]),
-                clone_cbm4_config_path.parent
-            ),
-            "end_year": (
-                (args["start_year"] - 1) if args.get("start_year") is not None
-                else config["end_year"]
-            )
-        }
+        if args.use_cache:
+            cbm4_config["cache"] = {
+                "dataset_name": "simulation",
+                "storage_type": "local_storage",
+                "path_or_uri": os.path.relpath(
+                    config.resolve(config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"]),
+                    clone_cbm4_config_path.parent
+                ),
+                "end_year": (
+                    (args["start_year"] - 1) if args.get("start_year") is not None
+                    else config["end_year"]
+                )
+            }
 
         if args.end_year is not None:
             cbm4_config["end_year"] = args.end_year

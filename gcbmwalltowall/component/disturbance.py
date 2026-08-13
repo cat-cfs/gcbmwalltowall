@@ -63,6 +63,9 @@ class Disturbance(Tileable):
 
     def to_tiler_layer(self, rule_manager, **kwargs):
         pattern_root = self.pattern.absolute().parent
+        while "*" in pattern_root.name:
+            pattern_root = pattern_root.parent
+
         if not pattern_root.exists():
             logging.fatal(
                 f"Error scanning for disturbance layer pattern {self.pattern}: "
@@ -72,7 +75,8 @@ class Disturbance(Tileable):
             sys.exit("Fatal error preparing disturbance layers")
 
         disturbance_layers = []
-        for layer_path in pattern_root.glob(self.pattern.name):
+        pattern_glob = str(self.pattern.relative_to(pattern_root))
+        for layer_path in pattern_root.glob(pattern_glob):
             if layer_path.suffix == ".gdb" and self.layers:
                 sublayers = self.layers
                 if isinstance(sublayers, str):
@@ -419,10 +423,18 @@ class Disturbance(Tileable):
         return transition_rule, spatial_classifier_transition
 
     def _make_tiler_name(self, layer_path, *args):
+        # strip _moja in case of retiling previously tiled layers
         return (
-            "_".join([self.name, layer_path.stem, *(str(a) for a in args if a is not None)])
+            "_".join([
+                self.name,
+                layer_path.stem.replace("_moja", ""),
+                *(str(a) for a in args if a is not None)
+            ])
             if self.name
-            else "_".join([layer_path.stem, *(str(a) for a in args if a is not None)])
+            else "_".join([
+                layer_path.stem.replace("_moja", ""),
+                *(str(a) for a in args if a is not None)
+            ])
         )
 
     def _parse_filter_value(self, filter_value):
@@ -443,7 +455,11 @@ class Disturbance(Tileable):
             if len(parse_config) == 1:
                 year = YearParser().try_parse_year(layer_path.name)
             else:
-                parse_config = json.loads(parse_config[1])
+                try:
+                    parse_config = json.loads(parse_config[1])
+                except:
+                    parse_config = parse_config[1]
+                    
                 year = YearParser(parse_config).try_parse_year(layer_path.name)
 
             if year is None:

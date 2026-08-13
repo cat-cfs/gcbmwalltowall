@@ -1,0 +1,8 @@
+{
+    "disturbances": {
+        "layers/disturbances.shp": {
+            "age_after": 0,
+            "regen_delay": 0
+        }
+    }
+}
