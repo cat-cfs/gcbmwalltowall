@@ -149,7 +149,6 @@ def run(
             on_pre_spinup(json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"])
             step_times.append(["pre-spinup callback", (time.time() - start)])
 
-    if json_cache_config is None:
         start = time.time()
         step_spatial_parameter_ds = (
             cbm4_parameter_dataset_factory.step_parameter_dataset_create(
