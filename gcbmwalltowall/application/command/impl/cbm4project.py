@@ -208,7 +208,7 @@ class CBM4Project:
         for table_name in self._disturbance_dataset.list_tables():
             output_ds.write_table(
                 table_name,
-                self._disturbance_dataset.read_table_pyarrow(table_name)
+                self._disturbance_dataset.read_table_pandas(table_name)
             )
 
         for _, file_or_dir_name in self._disturbance_dataset.list_files_and_dirs():
