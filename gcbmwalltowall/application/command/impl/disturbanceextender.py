@@ -1,6 +1,10 @@
 import logging
 import json
+import multiprocessing
 import pandas as pd
+from tqdm import tqdm
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from traceback import format_exc
 from dataclasses import dataclass
 from tempfile import TemporaryDirectory
 from pathlib import Path
@@ -17,6 +21,7 @@ from arrow_space import flattened_coordinate_dataset
 from arrow_space.flattened_coordinate_dataset import FlattenedCoordinateDataset
 from arrow_space.flattened_coordinate_dataset import InputLayerCollection
 from arrow_space.input.flattened_coordinate_input_layer import FlattenedCoordinateInputLayer
+from arrow_space.raster_indexed_dataset import RasterIndexedDataset
 from mojadata.cleanup import cleanup
 from mojadata.gdaltiler2d import GdalTiler2D
 from mojadata.layer.gcbm.transitionrulemanager import SharedTransitionRuleManager
@@ -34,9 +39,10 @@ class _Classifier:
 
 class DisturbanceExtender:
 
-    def __init__(self, cbm4_project: CBM4Project, use_cache: bool = True):
+    def __init__(self, cbm4_project: CBM4Project, use_cache: bool = True, max_workers: int | None = None):
         self._cbm4_project = cbm4_project
         self._use_cache = use_cache
+        self._max_workers = max_workers
         self._temp_dir = TemporaryDirectory()
 
     def add_from_walltowall_config(
@@ -92,8 +98,45 @@ class DisturbanceExtender:
         )
 
         partitions = gcbm_input_reader.get_cohort_partition_values(0)
-        for partition_value in partitions:
-            preprocessor.process_partition(0, partition_value, processed_disturbances)
+        if self._max_workers == 1:
+            for partition in tqdm(
+                partitions,
+                desc="Extending disturbances",
+                total=len(partitions)
+            ):
+                self._preprocess_disturbance_partition(
+                    preprocessor, partition, processed_disturbances
+                )
+        else:
+            workers = min(
+                self._max_workers or multiprocessing.cpu_count(),
+                len(partitions)
+            )
+
+            with ProcessPoolExecutor(
+                max_workers=workers,
+                mp_context=multiprocessing.get_context("spawn"),
+            ) as executor:
+                futures = []
+                for partition in partitions:
+                    futures.append(
+                        executor.submit(
+                            self._preprocess_disturbance_partition,
+                            preprocessor,
+                            partition,
+                            processed_disturbances,
+                        )
+                    )
+
+                with tqdm(
+                    desc="Extending disturbances",
+                    total=len(futures)
+                ) as pbar:
+                    for future_result in as_completed(futures):
+                        err = future_result.result()
+                        if err:
+                            raise ValueError(err)
+                        pbar.update()
 
         max_disturbance_year = int(
             processed_disturbances.read_polars().select("year").max().collect().item()
@@ -111,6 +154,18 @@ class DisturbanceExtender:
                     )
             else:
                 cbm4_config.pop("cache", None)
+
+    def _preprocess_disturbance_partition(
+        self,
+        preprocessor: GCBMDisturbancePreprocessor,
+        partition: dict[str, Any],
+        out_dataset: RasterIndexedDataset,
+    ):
+        try:
+            preprocessor.process_partition(0, partition, out_dataset)
+            return ""
+        except Exception:
+            return format_exc()
 
     def _tile_disturbances(
         self,

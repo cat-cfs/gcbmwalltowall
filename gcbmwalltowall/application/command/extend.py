@@ -13,6 +13,7 @@ class ExtendArgs(ArgBase):
     disturbance_config_path: str
     output_path: str
     use_cache: bool
+    max_workers: int
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]):
@@ -21,6 +22,7 @@ class ExtendArgs(ArgBase):
             disturbance_config_path=d["disturbance_config_path"],
             output_path=d.get("output_path", None),
             use_cache=d.get("use_cache", True),
+            max_workers=d.get("max_workers", None),
         )
 
     @classmethod
@@ -30,6 +32,7 @@ class ExtendArgs(ArgBase):
             disturbance_config_path=ns.disturbance_config_path,
             output_path=getattr(ns, "output_path", None),
             use_cache=getattr(ns, "use_cache", True),
+            max_workers=getattr(ns, "max_workers", None),
         )
 
 
@@ -54,5 +57,5 @@ def extend(args: ExtendArgs | dict):
         cbm4_config_path = Path(args.output_path).joinpath("cbm4_config.json")
 
     cbm4_project = CBM4Project(cbm4_config_path)
-    disturbance_extender = DisturbanceExtender(cbm4_project, args.use_cache)
+    disturbance_extender = DisturbanceExtender(cbm4_project, args.use_cache, args.max_workers)
     disturbance_extender.add_from_walltowall_config(args.disturbance_config_path)
