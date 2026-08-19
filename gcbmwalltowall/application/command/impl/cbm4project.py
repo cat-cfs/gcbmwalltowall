@@ -1,4 +1,6 @@
 import pandas as pd
+import numpy as np
+from collections import defaultdict
 from tempfile import TemporaryDirectory
 from typing import Any
 from pathlib import Path
@@ -104,20 +106,19 @@ class CBM4Project:
         return self._bbox_path
 
     def extract_flattened_disturbances(self) -> FlattenedCoordinateDataset:
-        disturbance_read_cols = list(
-            set(self._disturbance_dataset.get_layer_names())
-            - {"disturbance_id", "timestep", "default_disturbance_type_id", "disturbance_order"}
-        )
-
         flat_layers = []
+        split_partitions = defaultdict(list)
         for partition in self._disturbance_dataset.get_partition_values():
+            split_key = (partition["timestep"], partition["disturbance_order"])
+            split_partitions[split_key].append(partition["chunk_index"])
+
+        for (timestep, disturbance_order), chunks in split_partitions.items():
             # Need to split original disturbance dataset up into a dataset per
-            # partition: GCBMDisturbancePreprocessor expects dataset-wide unique
+            # timestep and disturbance order and make each chunk's index/id
+            # unique: GCBMDisturbancePreprocessor expects dataset-wide unique
             # pixel values mapped to an attribute table. "index" will be the
             # pixel value, but it is only unique within a partition.
-            read_filters = [[k, "=", v] for k, v in partition.items()]
-            partition_name_part = "_".join((str(v) for v in partition.values()))
-            out_ds_name = f"base_disturbance_{partition_name_part}"
+            out_ds_name = f"base_disturbance_{timestep}_{disturbance_order}"
             split_output_ds = self._disturbance_dataset.create_new(
                 out_ds_name,
                 "local_storage",
@@ -129,22 +130,40 @@ class CBM4Project:
                     "tag": ["disturbance"],
                 }),
             )
-            
-            data = self._disturbance_dataset.read_pandas(
-                filters=read_filters,
-                read_cols=disturbance_read_cols,
-            )
 
-            data["id"] = data["index"]
-            split_output_ds.write(data)
-            split_output_ds.write(
-                self._disturbance_dataset.read_pandas(
+            index_offset = 0
+            for chunk in chunks:
+                read_filters = [
+                    ["timestep", "=", timestep],
+                    ["disturbance_order", "=", disturbance_order],
+                    ["chunk_index", "=", chunk]
+                ]
+
+                data = self._disturbance_dataset.read_pandas(
+                    filters=read_filters,
+                )
+
+                if data.empty:
+                    continue
+
+                data["index"] += index_offset
+                data["id"] = data["index"]
+                split_output_ds.write(data)
+
+                raster_index_data = self._disturbance_dataset.read_pandas(
                     self._disturbance_dataset.raster_index_table_name,
                     filters=read_filters,
-                    read_cols=["chunk_index", "index", "raster_index"]
-                ),
-                split_output_ds.raster_index_table_name
-            )
+                    read_cols=["timestep", "chunk_index", "index", "raster_index"]
+                )
+
+                raster_index_data["index"] += index_offset
+
+                split_output_ds.write(
+                    raster_index_data,
+                    split_output_ds.raster_index_table_name
+                )
+
+                index_offset = data["id"].max() + 1
 
             flat_output_ds_path = str(
                 Path(self._temp_dir.name).joinpath(f"{out_ds_name}_flat")

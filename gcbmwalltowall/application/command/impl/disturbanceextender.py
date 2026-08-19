@@ -9,96 +9,27 @@ from gcbmwalltowall.configuration.configuration import Configuration
 from gcbmwalltowall.converter.layerconverter import DefaultLayerConverter
 from gcbmwalltowall.component.preparedproject import PreparedLayer
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
+from gcbmwalltowall.application.command.impl.cbm4project import CBM4Project
+from gcbmwalltowall.project.projectfactory import ProjectFactory
+from gcbmwalltowall.component.inputdatabase import InputDatabase
+from gcbmwalltowall.application.command.impl.gcbmdisturbanceinputreader import GCBMDisturbanceInputReader
 from arrow_space import flattened_coordinate_dataset
 from arrow_space.flattened_coordinate_dataset import FlattenedCoordinateDataset
 from arrow_space.flattened_coordinate_dataset import InputLayerCollection
 from arrow_space.input.flattened_coordinate_input_layer import FlattenedCoordinateInputLayer
-from cbm4.app.spatial.gcbm_input.disturbance_event_sorter import ListBasedSorter
-from cbm4.app.spatial.gcbm_input.gcbm_disturbance_preprocessor import (
-    GCBMDisturbancePreprocessor,
-    GCBMInputReader,
-)
-from gcbmwalltowall.application.command.impl.cbm4project import CBM4Project
-from gcbmwalltowall.project.projectfactory import ProjectFactory
-from gcbmwalltowall.component.inputdatabase import InputDatabase
 from mojadata.cleanup import cleanup
 from mojadata.gdaltiler2d import GdalTiler2D
 from mojadata.layer.gcbm.transitionrulemanager import SharedTransitionRuleManager
 from mojadata.boundingbox import BoundingBox
 from mojadata.layer.rasterlayer import RasterLayer
-from cbm4.app.spatial.gcbm_input.timestep_interpreter import (
-    YearOffsetTimestepInterpreter,
-)
+from cbm4.app.spatial.gcbm_input.timestep_interpreter import YearOffsetTimestepInterpreter
+from cbm4.app.spatial.gcbm_input.disturbance_event_sorter import ListBasedSorter
+from cbm4.app.spatial.gcbm_input.gcbm_disturbance_preprocessor import GCBMDisturbancePreprocessor
 
 
 @dataclass
 class _Classifier:
     name: str
-
-
-class GCBMDisturbanceInputReader(GCBMInputReader):
-
-    def __init__(
-        self,
-        gcbm_disturbance_dataset: FlattenedCoordinateDataset,
-        cbm4_defaults_path: str,
-        cbm4_defaults_locale: str,
-    ):
-        self._temp_dir = TemporaryDirectory()
-        self._gcbm_disturbance_dataset = gcbm_disturbance_dataset
-        self._cbm_defaults_path = cbm4_defaults_path
-        self._cbm_defaults_locale = cbm4_defaults_locale
-        self._input_datasets_by_cohort = {0: gcbm_disturbance_dataset}
-        self._disturbance_type_map = self._get_disturbance_map()
-        self._disturbance_layer_names = self._get_disturbance_layer_names()
-
-    @property
-    def transition_rules_disturbed(self) -> pd.DataFrame | None:
-        return self._read_table("transition_rules_disturbed")
-
-    @property
-    def transition_rules_undisturbed(self) -> pd.DataFrame | None:
-        return self._read_table("transition_rules_undisturbed")
-
-    @property
-    def transitions_disturbed(self) -> pd.DataFrame | None:
-        return self._read_table("transitions_disturbed")
-
-    @property
-    def transitions_undisturbed(self) -> pd.DataFrame | None:
-        return self._read_table("transitions_undisturbed")
-
-    @property
-    def cohort_filter(self) -> pd.DataFrame | None:
-        return self._read_table("cohort_filter")
-
-    @property
-    def cohort_sort(self) -> pd.DataFrame | None:
-        return self._read_table("cohort_sort")
-
-    @property
-    def rule_based_disturbances(self) -> pd.DataFrame | None:
-        return self._read_table("events")
-
-    @property
-    def disturbance_rules_path(self) -> str:
-        disturbance_rules_path = "null"
-        if self._gcbm_disturbance_dataset.file_or_dir_exists("disturbance_rules"):
-            disturbance_rules_path = str(
-                Path(self._temp_dir.name).joinpath("disturbance_rules.json")
-            )
-
-            self._gcbm_disturbance_dataset.extract_file_or_dir(
-                "disturbance_rules", disturbance_rules_path
-            )
-
-        return disturbance_rules_path
-
-    def _read_table(self, table_name: str) -> pd.DataFrame | None:
-        if not self._gcbm_disturbance_dataset.table_exists(table_name):
-            return None
-
-        return self._gcbm_disturbance_dataset.read_table_pandas(table_name)
 
 
 class DisturbanceExtender:
@@ -129,16 +60,16 @@ class DisturbanceExtender:
             },
         )
 
-        min_addon_year = pd.concat(
+        min_addon_year = int(pd.concat(
             (
                 addon_disturbance_ds.get_attributes(layer)
                 for layer in addon_disturbance_ds.get_layer_names()
             )
-        )["year"].min()
+        )["year"].min())
 
-        base_flattened_disturbance_ds = self._cbm4_project.extract_flattened_disturbances()
+        base_flattened_disturbances = self._cbm4_project.extract_flattened_disturbances()
         all_flattened_disturbances = self._merge_flattened_disturbances(
-            base_flattened_disturbance_ds, addon_disturbance_ds
+            base_flattened_disturbances, addon_disturbance_ds
         )
 
         gcbm_input_reader = GCBMDisturbanceInputReader(
@@ -164,7 +95,7 @@ class DisturbanceExtender:
         for partition_value in partitions:
             preprocessor.process_partition(0, partition_value, processed_disturbances)
 
-        max_disturbance_year = (
+        max_disturbance_year = int(
             processed_disturbances.read_polars().select("year").max().collect().item()
         )
 
@@ -273,7 +204,6 @@ class DisturbanceExtender:
 
             dataset.meta.write_attribute_table(layer_name, attribute_table)
 
-
         for transition_table, transition_fn in (
             ("transitions_disturbed", "transition_rules.csv"),
             ("transitions_undisturbed", "undisturbed_transition_rules.csv"),
@@ -338,5 +268,10 @@ class DisturbanceExtender:
                         all_transition_data.loc[all_transition_data[col].isna(), col] = "?"
 
                 output_ds.write_table(transition_table, all_transition_data)
+
+        for _, file_or_dir_name in self._cbm4_project.disturbance_dataset.list_files_and_dirs():
+            extracted_path = str(Path(self._temp_dir.name).joinpath(file_or_dir_name))
+            self._cbm4_project._disturbance_dataset.extract_file_or_dir(file_or_dir_name, extracted_path)
+            output_ds.write_file_or_dir(file_or_dir_name, extracted_path)
 
         return output_ds
