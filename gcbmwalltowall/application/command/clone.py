@@ -84,18 +84,39 @@ def clone(args: CloneArgs | dict):
         cbm4_config["cbm4_spatial_dataset"]["disturbance"]["path_or_uri"] = "disturbance"
         cbm4_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"] = "simulation"
         if args.use_cache:
+            # Cache rules: if the start_year is explicitly specified and is within the
+            # parent project's simulation period, use the parent project as the cache,
+            # otherwise use the parent project's cache if available.
+            cache_end_year = (
+                (args["start_year"] - 1) if args.get("start_year") is not None
+                else config["end_year"]
+            )
+
+            parent_cache_config = config.get("cache")
+            use_previous_cache = (
+                (cache_end_year <= parent_cache_config["end_year"]) if parent_cache_config
+                else False
+            )
+
+            cache_path = (
+                os.path.relpath(
+                    config.resolve(parent_cache_config["path_or_uri"]),
+                    clone_cbm4_config_path.parent
+                ) if use_previous_cache
+                else os.path.relpath(
+                    config.resolve(config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"]),
+                    clone_cbm4_config_path.parent
+                )
+            )
+
             cbm4_config["cache"] = {
                 "dataset_name": "simulation",
                 "storage_type": "local_storage",
-                "path_or_uri": os.path.relpath(
-                    config.resolve(config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"]),
-                    clone_cbm4_config_path.parent
-                ),
-                "end_year": (
-                    (args["start_year"] - 1) if args.get("start_year") is not None
-                    else config["end_year"]
-                )
+                "path_or_uri": cache_path,
+                "end_year": cache_end_year,
             }
+        else:
+            cbm4_config.pop("cache", None)
 
         if args.end_year is not None:
             cbm4_config["end_year"] = args.end_year
