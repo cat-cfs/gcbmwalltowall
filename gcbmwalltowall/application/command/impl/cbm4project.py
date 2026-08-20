@@ -54,7 +54,7 @@ class CBM4Project:
 
     @property
     def cbm_defaults_locale(self) -> str:
-        return self._cbm4_config["cbm_defaults_locale"]
+        return self._cbm4_config.get("cbm_defaults_locale", "en-CA")
 
     @property
     def chunk_size(self) -> tuple[int, int]:
