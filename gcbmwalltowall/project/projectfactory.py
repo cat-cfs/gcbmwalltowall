@@ -273,6 +273,12 @@ class ProjectFactory:
                     )
 
                 extended_attribute_table = dist_config.get("extended_attribute_table")
+
+                # Backwards compatibility for walltowall configs using "filters" instead
+                # of "attribute_filters".
+                if "filters" in dist_config and "attribute_filters" not in dist_config:
+                    dist_config["attribute_filters"] = dist_config.pop("filters")
+                
                 disturbances.append(
                     Disturbance(
                         config.resolve(dist_config.get("pattern", pattern_or_name)),

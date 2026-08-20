@@ -1,7 +1,16 @@
+import pandas as pd
+import numpy as np
+from collections import defaultdict
 from tempfile import TemporaryDirectory
+from typing import Any
 from pathlib import Path
 from arrow_space.raster_indexed_dataset import RasterIndexedDataset
 from arrow_space.operations.export.geotiff_export import GeoTiffExporter
+from arrow_space.operations.dataset_conversion.raster_indexed_dataset_conversion import to_single_layer_flattened_dataset
+from arrow_space.flattened_coordinate_dataset import FlattenedCoordinateDataset
+from arrow_space.flattened_coordinate_dataset import InputLayerCollection
+from arrow_space.input.flattened_coordinate_input_layer import FlattenedCoordinateInputLayer
+from arrow_space import flattened_coordinate_dataset
 from gcbmwalltowall.configuration.configuration import Configuration
 
 
@@ -28,6 +37,10 @@ class CBM4Project:
         return self._inventory_dataset
 
     @property
+    def disturbance_dataset_config(self) -> dict[str, Any]:
+        return self._get_dataset_config("disturbance")
+
+    @property
     def disturbance_dataset(self) -> RasterIndexedDataset:
         return self._disturbance_dataset
 
@@ -38,6 +51,10 @@ class CBM4Project:
     @property
     def cbm_defaults_path(self) -> Path:
         return self._cbm_defaults_path
+
+    @property
+    def cbm_defaults_locale(self) -> str:
+        return self._cbm4_config["cbm_defaults_locale"]
 
     @property
     def chunk_size(self) -> tuple[int, int]:
@@ -63,7 +80,7 @@ class CBM4Project:
 
         return max_transition_id
 
-    def extract_bounding_box(self) -> str:
+    def extract_bounding_box(self) -> Path:
         if self._bbox_path is not None:
             return self._bbox_path
 
@@ -84,14 +101,151 @@ class CBM4Project:
         exporter = GeoTiffExporter(self._inventory_dataset)
         exporter.write_data(export_data)
         exporter.write_geotiff(self._temp_dir.name, "GTiff")
-        self._bbox_path = str(Path(self._temp_dir.name).joinpath("bbox.tiff"))
+        self._bbox_path = Path(self._temp_dir.name).joinpath("bbox.tiff")
 
         return self._bbox_path
 
+    def extract_flattened_disturbances(self) -> FlattenedCoordinateDataset:
+        flat_layers = []
+        split_partitions = defaultdict(list)
+        for partition in self._disturbance_dataset.get_partition_values():
+            split_key = (partition["timestep"], partition["disturbance_order"])
+            split_partitions[split_key].append(partition["chunk_index"])
+
+        for (timestep, disturbance_order), chunks in split_partitions.items():
+            # Need to split original disturbance dataset up into a dataset per
+            # timestep and disturbance order and make each chunk's index/id
+            # unique: GCBMDisturbancePreprocessor expects dataset-wide unique
+            # pixel values mapped to an attribute table. "index" will be the
+            # pixel value, but it is only unique within a partition.
+            out_ds_name = f"base_disturbance_{timestep}_{disturbance_order}"
+            split_output_ds = self._disturbance_dataset.create_new(
+                out_ds_name,
+                "local_storage",
+                str(Path(self._temp_dir.name).joinpath(out_ds_name)),
+                copy_raster_index_data=False,
+                partitions={"chunk_index": "int32"},
+                tags=pd.DataFrame({
+                    "layer_name": [out_ds_name],
+                    "tag": ["disturbance"],
+                }),
+            )
+
+            index_offset = 0
+            for chunk in chunks:
+                read_filters = [
+                    ["timestep", "=", timestep],
+                    ["disturbance_order", "=", disturbance_order],
+                    ["chunk_index", "=", chunk]
+                ]
+
+                data = self._disturbance_dataset.read_pandas(
+                    filters=read_filters,
+                )
+
+                if data.empty:
+                    continue
+
+                data["index"] += index_offset
+                data["id"] = data["index"]
+                split_output_ds.write(data)
+
+                raster_index_data = self._disturbance_dataset.read_pandas(
+                    self._disturbance_dataset.raster_index_table_name,
+                    filters=read_filters,
+                    read_cols=["timestep", "chunk_index", "index", "raster_index"]
+                )
+
+                raster_index_data["index"] += index_offset
+
+                split_output_ds.write(
+                    raster_index_data,
+                    split_output_ds.raster_index_table_name
+                )
+
+                index_offset = data["id"].max() + 1
+
+            flat_output_ds_path = str(
+                Path(self._temp_dir.name).joinpath(f"{out_ds_name}_flat")
+            )
+
+            flat_output_ds = to_single_layer_flattened_dataset(
+                out_ds_name,
+                "local_storage",
+                flat_output_ds_path,
+                split_output_ds,
+                [
+                    "id", "year", "disturbance_type", "disturbed_transition_id",
+                    "undisturbed_transition_id", "sort_id", "filter_id", "proportion"
+                ]
+            )
+
+            flat_output_ds.meta.write_tags(pd.DataFrame(
+                {"layer_name": [out_ds_name], "tag": ["disturbance"]}
+            ))
+
+            # Re-instantiate the dataset to ensure "disturbance" metadata tag
+            # is refreshed.
+            flat_layers.append(
+                FlattenedCoordinateDataset(
+                    flat_output_ds.name, "local_storage", flat_output_ds_path
+                )
+            )
+
+        output_layer_collection = InputLayerCollection(
+            [
+                FlattenedCoordinateInputLayer(
+                    layer,
+                    layer.get_layer_names(),
+                )
+                for layer in flat_layers
+            ]
+        )
+
+        output_ds = flattened_coordinate_dataset.create(
+            output_layer_collection,
+            "disturbance",
+            "local_storage",
+            str(Path(self._temp_dir.name).joinpath("merged_disturbances")),
+            creation_options={
+                "chunk_options": {
+                    "chunk_x_size_max": self._disturbance_dataset.chunks[0].x_size,
+                    "chunk_y_size_max": self._disturbance_dataset.chunks[0].y_size,
+                },
+            }
+        )
+
+        # Drop unwanted columns that are hard to remove before this point.
+        for layer_name in output_ds.get_layer_names():
+            attribute_table = output_ds.meta.get_attribute_table(layer_name).drop(
+                columns=["chunk_index", "index"]
+            )
+
+            output_ds.meta.write_attribute_table(layer_name, attribute_table)
+
+        for table_name in self._disturbance_dataset.list_tables():
+            output_ds.write_table(
+                table_name,
+                self._disturbance_dataset.read_table_pandas(table_name)
+            )
+
+        for _, file_or_dir_name in self._disturbance_dataset.list_files_and_dirs():
+            extracted_path = str(Path(self._temp_dir.name).joinpath(file_or_dir_name))
+            self._disturbance_dataset.extract_file_or_dir(file_or_dir_name, extracted_path)
+            output_ds.write_file_or_dir(file_or_dir_name, extracted_path)
+
+        return output_ds
+
+    def _get_dataset_config(self, name: str) -> dict[str, Any]:
+        config = self._cbm4_config["cbm4_spatial_dataset"][name].copy()
+        config["path_or_uri"] = str(self._cbm4_config.resolve(config["path_or_uri"]))
+
+        return config
+
     def _get_dataset(self, name: str) -> RasterIndexedDataset:
-        dataset_config = self._cbm4_config["cbm4_spatial_dataset"][name]
+        dataset_config = self._get_dataset_config(name)
         return RasterIndexedDataset(
             dataset_config["dataset_name"],
             dataset_config["storage_type"],
-            str(self._cbm4_config.resolve(dataset_config["path_or_uri"])),
+            dataset_config["path_or_uri"],
         )

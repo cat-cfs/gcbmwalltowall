@@ -1,7 +1,10 @@
 import logging
 import json
+import multiprocessing
 import pandas as pd
-import numpy as np
+from tqdm import tqdm
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from traceback import format_exc
 from dataclasses import dataclass
 from tempfile import TemporaryDirectory
 from pathlib import Path
@@ -10,22 +13,23 @@ from gcbmwalltowall.configuration.configuration import Configuration
 from gcbmwalltowall.converter.layerconverter import DefaultLayerConverter
 from gcbmwalltowall.component.preparedproject import PreparedLayer
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
+from gcbmwalltowall.application.command.impl.cbm4project import CBM4Project
+from gcbmwalltowall.project.projectfactory import ProjectFactory
+from gcbmwalltowall.component.inputdatabase import InputDatabase
+from gcbmwalltowall.application.command.impl.gcbmdisturbanceinputreader import GCBMDisturbanceInputReader
 from arrow_space import flattened_coordinate_dataset
 from arrow_space.flattened_coordinate_dataset import FlattenedCoordinateDataset
 from arrow_space.flattened_coordinate_dataset import InputLayerCollection
-from cbm4.app.spatial.gcbm_input.disturbance_event_sorter import ListBasedSorter
-from cbm4.app.spatial.gcbm_input.gcbm_disturbance_preprocessor import (
-    normalize_sort_order,
-)
-from gcbmwalltowall.application.command.impl.cbm4project import CBM4Project
-from gcbmwalltowall.application.command.impl.disturbancereader import DisturbanceReader
-from gcbmwalltowall.project.projectfactory import ProjectFactory
-from gcbmwalltowall.component.inputdatabase import InputDatabase
+from arrow_space.input.flattened_coordinate_input_layer import FlattenedCoordinateInputLayer
+from arrow_space.raster_indexed_dataset import RasterIndexedDataset
 from mojadata.cleanup import cleanup
 from mojadata.gdaltiler2d import GdalTiler2D
 from mojadata.layer.gcbm.transitionrulemanager import SharedTransitionRuleManager
 from mojadata.boundingbox import BoundingBox
 from mojadata.layer.rasterlayer import RasterLayer
+from cbm4.app.spatial.gcbm_input.timestep_interpreter import YearOffsetTimestepInterpreter
+from cbm4.app.spatial.gcbm_input.disturbance_event_sorter import ListBasedSorter
+from cbm4.app.spatial.gcbm_input.gcbm_disturbance_preprocessor import GCBMDisturbancePreprocessor
 
 
 @dataclass
@@ -35,9 +39,10 @@ class _Classifier:
 
 class DisturbanceExtender:
 
-    def __init__(self, cbm4_project: CBM4Project, use_cache: bool = True):
+    def __init__(self, cbm4_project: CBM4Project, use_cache: bool = True, max_workers: int | None = None):
         self._cbm4_project = cbm4_project
         self._use_cache = use_cache
+        self._max_workers = max_workers
         self._temp_dir = TemporaryDirectory()
 
     def add_from_walltowall_config(
@@ -50,7 +55,7 @@ class DisturbanceExtender:
 
     def add_from_study_area(self, study_area_path: str | Path):
         x_chunk_size, y_chunk_size = self._cbm4_project.chunk_size
-        walltowall_disturbance_ds = self._make_walltowall_disturbance_dataset(
+        addon_disturbance_ds = self._make_walltowall_disturbance_dataset(
             study_area_path,
             Path(self._temp_dir.name).joinpath("addon_disturbances"),
             {
@@ -61,103 +66,86 @@ class DisturbanceExtender:
             },
         )
 
-        reader = DisturbanceReader.starting_from(
-            self._cbm4_project, walltowall_disturbance_ds
+        min_addon_year = int(pd.concat(
+            (
+                addon_disturbance_ds.get_attributes(layer)
+                for layer in addon_disturbance_ds.get_layer_names()
+            )
+        )["year"].min())
+
+        base_flattened_disturbances = self._cbm4_project.extract_flattened_disturbances()
+        all_flattened_disturbances = self._merge_flattened_disturbances(
+            base_flattened_disturbances, addon_disturbance_ds
         )
 
-        min_addon_year = 0
-        base_disturbance_ds = self._cbm4_project.disturbance_dataset
-        for chunk_index, _ in enumerate(walltowall_disturbance_ds.chunks):
-            logging.info(f"Processing chunk {chunk_index}")
-            logging.info("  reading addon disturbances")
-            chunk_filter = ("chunk_index", "=", chunk_index)
-            disturbance_data = reader.read_disturbances(filters=[[chunk_filter]])
-            if disturbance_data is None or disturbance_data.empty:
-                logging.info(f"  no disturbance data - skipping")
-                continue
+        gcbm_input_reader = GCBMDisturbanceInputReader(
+            all_flattened_disturbances,
+            str(self._cbm4_project.cbm_defaults_path),
+            self._cbm4_project.cbm_defaults_locale
+        )
 
-            min_chunk_year = disturbance_data["year"].min().item()
-            min_addon_year = (
-                min(min_addon_year, min_chunk_year)
-                if min_addon_year
-                else min_chunk_year
+        preprocessor = GCBMDisturbancePreprocessor(
+            YearOffsetTimestepInterpreter(self._cbm4_project.t0_year),
+            ListBasedSorter(self._cbm4_project.disturbance_order + [0]),
+            gcbm_input_reader,
+        )
+
+        out_ds_config = self._cbm4_project.disturbance_dataset_config
+        processed_disturbances = preprocessor.create_output_dataset(
+            out_ds_config["dataset_name"],
+            out_ds_config["storage_type"],
+            out_ds_config["path_or_uri"],
+        )
+
+        partitions = gcbm_input_reader.get_cohort_partition_values(0)
+        if self._max_workers == 1:
+            for partition in tqdm(
+                partitions,
+                desc="Extending disturbances",
+                total=len(partitions)
+            ):
+                self._preprocess_disturbance_partition(
+                    preprocessor, partition, processed_disturbances
+                )
+        else:
+            workers = min(
+                self._max_workers or multiprocessing.cpu_count(),
+                len(partitions)
             )
 
-            logging.info("  reading base disturbances")
-            addon_timesteps = disturbance_data["timestep"].drop_duplicates().to_list()
-            timestep_filter = ("timestep", "in", addon_timesteps)
-            base_disturbance_data = base_disturbance_ds.read_pandas(
-                filters=[[chunk_filter, timestep_filter]]
-            )
-
-            if base_disturbance_data is not None and not base_disturbance_data.empty:
-                disturbance_data = pd.concat(
-                    (
-                        disturbance_data,
-                        base_disturbance_ds.as_flattened(base_disturbance_data),
+            with ProcessPoolExecutor(
+                max_workers=workers,
+                mp_context=multiprocessing.get_context("spawn"),
+            ) as executor:
+                futures = []
+                for partition in partitions:
+                    futures.append(
+                        executor.submit(
+                            self._preprocess_disturbance_partition,
+                            preprocessor,
+                            partition,
+                            processed_disturbances,
+                        )
                     )
-                )
 
-            logging.info("  reconciling disturbances")
-            sorter = ListBasedSorter(self._cbm4_project.disturbance_order)
-            disturbance_data["sort_value"] = disturbance_data[
-                "default_disturbance_type_id"
-            ].map(sorter.get_sort_value)
+                with tqdm(
+                    desc="Extending disturbances",
+                    total=len(futures)
+                ) as pbar:
+                    for future_result in as_completed(futures):
+                        err = future_result.result()
+                        if err:
+                            raise ValueError(err)
+                        pbar.update()
 
-            disturbance_data.sort_values(
-                by=["raster_index", "timestep", "sort_value"],
-                ignore_index=True,
-                inplace=True,
-            )
-
-            disturbance_data["disturbance_order"] = normalize_sort_order(
-                disturbance_data["raster_index"].to_numpy(),
-                disturbance_data["timestep"].to_numpy(),
-            )
-
-            disturbance_data.drop(
-                ["index", "disturbance_id", "sort_value"], axis=1, inplace=True
-            )
-
-            disturbance_data, raster_index_data = base_disturbance_ds.as_raster_indexed(
-                disturbance_data
-            )
-
-            disturbance_data["disturbance_id"] = np.arange(
-                start=1, stop=len(disturbance_data) + 1
-            )
-
-            base_disturbance_ds.write(disturbance_data)
-            base_disturbance_ds.write(
-                raster_index_data, base_disturbance_ds.raster_index_table_name
-            )
-
-        for table_name, transition_data in reader.read_transitions().items():
-            all_transition_data = (
-                pd.concat(
-                    (base_disturbance_ds.read_table_pandas(table_name), transition_data)
-                )
-                if base_disturbance_ds.table_exists(table_name)
-                else transition_data
-            ).astype(
-                {"id": "str", "state.age": "str", "state.regeneration_delay": "str"}
-            )
-
-            for col in all_transition_data.columns:
-                if col.startswith("classifiers.") or col == "state.age":
-                    all_transition_data.loc[all_transition_data[col].isna(), col] = "?"
-
-            base_disturbance_ds.write_table(table_name, all_transition_data)
-
-        max_disturbance_year = (
-            base_disturbance_ds.read_polars().select("year").max().collect().item()
+        max_disturbance_year = int(
+            processed_disturbances.read_polars().select("year").max().collect().item()
         )
 
         with GCBMConfigurer.update_json_file(
             self._cbm4_project.config_path
         ) as cbm4_config:
             cbm4_config["end_year"] = max(cbm4_config["end_year"], max_disturbance_year)
-
             if self._use_cache:
                 cache_config = cbm4_config.get("cache")
                 if cache_config:
@@ -167,8 +155,22 @@ class DisturbanceExtender:
             else:
                 cbm4_config.pop("cache", None)
 
+    def _preprocess_disturbance_partition(
+        self,
+        preprocessor: GCBMDisturbancePreprocessor,
+        partition: dict[str, Any],
+        out_dataset: RasterIndexedDataset,
+    ):
+        try:
+            preprocessor.process_partition(0, partition, out_dataset)
+            return ""
+        except Exception:
+            return format_exc()
+
     def _tile_disturbances(
-        self, disturbance_config_path: str | Path, output_path: str | Path
+        self,
+        disturbance_config_path: str | Path,
+        output_path: str | Path,
     ):
         output_path = Path(output_path)
         disturbance_config = Configuration.load(disturbance_config_path)
@@ -188,7 +190,7 @@ class DisturbanceExtender:
         rule_manager = mgr.TransitionRuleManager()
         with cleanup():
             logging.info("Starting up tiler...")
-            bbox_path = self._cbm4_project.extract_bounding_box()
+            bbox_path = str(self._cbm4_project.extract_bounding_box())
             bbox = BoundingBox(RasterLayer(bbox_path), preprocessed=True)
             tiler = GdalTiler2D(bbox, use_bounding_box_resolution=True)
             layers = []
@@ -225,7 +227,14 @@ class DisturbanceExtender:
             if "disturbance" in layer.get("tags", [])
         ]
 
-        converter = DefaultLayerConverter()
+        transition_offset = self._cbm4_project.get_max_transition_id()
+        converter = DefaultLayerConverter(
+            attribute_modifiers={
+                "transition": lambda v: v + transition_offset,
+                "transition_undisturbed": lambda v: v + transition_offset,
+            }
+        )
+
         dataset_input = InputLayerCollection(converter.convert(layers))
         dataset = flattened_coordinate_dataset.create(
             dataset_input,
@@ -235,6 +244,21 @@ class DisturbanceExtender:
             creation_options or {},
         )
 
+        # Clean up the attribute table for compatibility with existing CBM4
+        # disturbances.
+        for layer_name in dataset.get_layer_names():
+            attribute_table = dataset.meta.get_attribute_table(layer_name).rename(
+                columns={
+                    "transition": "disturbed_transition_id",
+                    "transition_undisturbed": "undisturbed_transition_id",
+                }
+            )
+
+            if "proportion" not in attribute_table:
+                attribute_table["proportion"] = 1.0
+
+            dataset.meta.write_attribute_table(layer_name, attribute_table)
+
         for transition_table, transition_fn in (
             ("transitions_disturbed", "transition_rules.csv"),
             ("transitions_undisturbed", "undisturbed_transition_rules.csv"),
@@ -242,16 +266,67 @@ class DisturbanceExtender:
             transitions_path = study_area_dir.joinpath(transition_fn)
             if transitions_path.exists():
                 transitions = pd.read_csv(transitions_path)
+                transitions["id"] += transition_offset
                 col_renames = {
                     "regen_delay": "state.regeneration_delay",
                     "age_after": "state.age",
                 }
 
                 for col in transitions.columns:
-                    if col not in ("id", "regen_delay", "age_after"):
+                    if col not in ("id", "regen_delay", "age_after") and "." not in col:
                         col_renames[col] = f"classifiers.{col}"
 
                 transitions.rename(columns=col_renames, inplace=True)
                 dataset.write_table(transition_table, transitions)
 
         return dataset
+
+    def _merge_flattened_disturbances(
+        self, *datasets: FlattenedCoordinateDataset
+    ) -> FlattenedCoordinateDataset:
+        output_ds = flattened_coordinate_dataset.create(
+            InputLayerCollection(
+                [
+                    FlattenedCoordinateInputLayer(
+                        ds,
+                        ds.get_layer_names(),
+                    )
+                    for ds in datasets
+                ]
+            ),
+            "disturbance",
+            "local_storage",
+            str(Path(self._temp_dir.name).joinpath("merged_extended_disturbances")),
+            creation_options={
+                "chunk_options": {
+                    "chunk_x_size_max": datasets[0].chunks[0].x_size,
+                    "chunk_y_size_max": datasets[0].chunks[0].y_size,
+                },
+            }
+        )
+
+        output_ds.meta.write_tags(pd.DataFrame({
+            "layer_name": output_ds.get_layer_names(),
+            "tag": "disturbance"
+        }))
+
+        for transition_table in ("transitions_disturbed", "transitions_undisturbed"):
+            transition_data = []
+            for ds in datasets:
+                if ds.table_exists(transition_table):
+                    transition_data.append(ds.read_table_pandas(transition_table))
+
+            if transition_data:
+                all_transition_data = pd.concat(transition_data).astype(str)
+                for col in all_transition_data.columns:
+                    if col.startswith("classifiers.") or col == "state.age":
+                        all_transition_data.loc[all_transition_data[col].isna(), col] = "?"
+
+                output_ds.write_table(transition_table, all_transition_data)
+
+        for _, file_or_dir_name in self._cbm4_project.disturbance_dataset.list_files_and_dirs():
+            extracted_path = str(Path(self._temp_dir.name).joinpath(file_or_dir_name))
+            self._cbm4_project._disturbance_dataset.extract_file_or_dir(file_or_dir_name, extracted_path)
+            output_ds.write_file_or_dir(file_or_dir_name, extracted_path)
+
+        return output_ds

@@ -1,6 +1,8 @@
 from __future__ import annotations
 import logging
 from tempfile import TemporaryDirectory
+from typing import Callable
+from arrow_space.input.attribute_table_reader import AttributeTableReader
 from arrow_space.input.attribute_table_reader import InMemoryAttributeTableReader
 from arrow_space.input.raster_input_layer import RasterInputLayer, RasterInputSource
 from pandas import DataFrame
@@ -47,9 +49,15 @@ class DelegatingLayerConverter(LayerConverter):
 
 class DefaultLayerConverter(LayerConverter):
 
-    def __init__(self, name_remappings: dict[str, str] = None, *args, **kwargs):
+    def __init__(
+        self,
+        name_remappings: dict[str, str] | None = None,
+        attribute_modifiers: dict[str, Callable] | None = None,
+        *args, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self._name_remappings = name_remappings or {}
+        self._attribute_modifiers = attribute_modifiers or {}
         self._non_parameter_layers = [
             "admin_boundary",
             "eco_boundary",
@@ -86,7 +94,7 @@ class DefaultLayerConverter(LayerConverter):
             for layer in layers
         ]
 
-    def _build_attribute_table(self, layer: PreparedLayer) -> DataFrame:
+    def _build_attribute_table(self, layer: PreparedLayer) -> AttributeTableReader | None:
         gcbm_attribute_table = layer.tiler_metadata.get("attributes")
         if not gcbm_attribute_table:
             return None
@@ -95,15 +103,22 @@ class DefaultLayerConverter(LayerConverter):
         for att_id, att_value in gcbm_attribute_table.items():
             row = {"id": int(att_id)}
             if isinstance(att_value, dict):
-                row.update({k: v for k, v in att_value.items() if k != "conditions"})
+                for k, v in att_value.items():
+                    if k == "conditions":
+                        continue
+
+                    modifier = self._attribute_modifiers.get(k)
+                    v = modifier(v) if modifier else v
+                    row[k] = v
             else:
-                row.update({"value": att_value})
+                modifier = self._attribute_modifiers.get(layer.name)
+                row.update({"value": modifier(att_value) if modifier else att_value})
 
             rows.append(row)
 
         return InMemoryAttributeTableReader(DataFrame(rows))
 
-    def _get_tags(self, layer: PreparedLayer) -> list[str]:
+    def _get_tags(self, layer: PreparedLayer) -> list[str] | None:
         layer_name = self._name_remappings.get(layer.name, layer.name)
         has_tags = len(layer.study_area_metadata.get("tags", [])) > 0
         if has_tags or layer_name in self._non_parameter_layers:
