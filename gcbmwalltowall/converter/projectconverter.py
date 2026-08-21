@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from tempfile import TemporaryDirectory
 from typing import Any
 from gcbmwalltowall.component.preparedproject import PreparedProject
+from gcbmwalltowall.converter.rulebasedeventconverter import RuleBasedEventConverter
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.converter.layerconverter import (
     DefaultLayerConverter,
@@ -722,50 +723,16 @@ class ProjectConverter:
             1
         ))
 
-        events = load_csv(project.rule_based_disturbances_path)
-        if "transition" not in events:
-            shutil.copyfile(
-                project.rule_based_disturbances_path,
-                temp_dir.joinpath(project.rule_based_disturbances_path.name)
-            )
-
-            return transitions
-
-        events.loc[events["transition"].isna(), "disturbed_transition_id"] = -1
-        events.loc[~events["transition"].isna(), "disturbed_transition_id"] = (
-            np.arange(len(events[~events["transition"].isna()]))
-            + next_transition_id
-        )
-
-        event_transitions = pd.DataFrame(
-            {"id": row["disturbed_transition_id"], **json.loads(row["transition"])}
-            for _, row in
-            events.loc[
-                ~events["transition"].isna(),
-                ["disturbed_transition_id", "transition"]
-            ].iterrows()
-        )
-
-        all_transitions = pd.concat(
-            [transitions, event_transitions]
-        )
-
-        for col in all_transitions.columns:
-            if col.startswith("classifiers.") or col == "state.age":
-                all_transitions.loc[all_transitions[col].isna(), col] = "?"
-            elif col == "state.regeneration_delay":
-                all_transitions.loc[all_transitions[col].isna(), col] = 0
-
-        all_transitions = all_transitions.astype({
-            "id": "int",
-            "state.regeneration_delay": "int",
-        })
-
-        events.drop(
-            columns="transition"
-        ).astype({"disturbed_transition_id": "int"}).to_csv(
+        converter = RuleBasedEventConverter(next_transition_id)
+        events, event_transitions = converter.convert(project.rule_based_disturbances_path)
+        events.to_csv(
             temp_dir.joinpath(project.rule_based_disturbances_path.name),
             index=False
         )
         
+        if event_transitions is None:
+            return transitions
+
+        all_transitions = pd.concat([transitions, event_transitions])
+
         return all_transitions

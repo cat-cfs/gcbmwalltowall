@@ -221,7 +221,7 @@ class CBM4Project:
 
         x_chunk_size = self._disturbance_dataset.chunks[0].x_size
         y_chunk_size = self._disturbance_dataset.chunks[0].y_size
-        est_mem_per_worker = len(flat_layers) * (x_chunk_size * y_chunk_size) * 64
+        est_mem_per_worker = len(flat_layers) * (x_chunk_size * y_chunk_size) * 8
         max_workers = self._get_max_workers(est_mem_per_worker)
         output_ds = flattened_coordinate_dataset.create(
             output_layer_collection,

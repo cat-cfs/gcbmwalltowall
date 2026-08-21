@@ -110,7 +110,17 @@ class DisturbanceExtender:
         )
 
         partitions = gcbm_input_reader.get_cohort_partition_values(0)
-        if self._max_workers == 1:
+
+        est_mem_per_worker = len(
+            all_flattened_disturbances.get_layer_names()
+        ) * (x_chunk_size * y_chunk_size) * 16 * 4
+
+        workers = min(
+            self._get_max_workers(est_mem_per_worker),
+            len(partitions)
+        )
+
+        if workers < 2:
             for partition in tqdm(
                 partitions,
                 desc="Extending disturbances",
@@ -120,15 +130,6 @@ class DisturbanceExtender:
                     preprocessor, partition, processed_disturbances
                 )
         else:
-            est_mem_per_worker = len(
-                all_flattened_disturbances.get_layer_names()
-            ) * (x_chunk_size * y_chunk_size) * 64
-
-            workers = min(
-                self._get_max_workers(est_mem_per_worker),
-                len(partitions)
-            )
-
             with ProcessPoolExecutor(
                 max_workers=workers,
                 mp_context=multiprocessing.get_context("spawn"),
@@ -280,7 +281,7 @@ class DisturbanceExtender:
         creation_options = creation_options or {}
         x_chunk_size = creation_options.get("x_chunk_size", 2500)
         y_chunk_size = creation_options.get("y_chunk_size", 2500)
-        est_mem_per_worker = len(layers) * (x_chunk_size * y_chunk_size) * 64
+        est_mem_per_worker = len(layers) * (x_chunk_size * y_chunk_size) * 8
         creation_options["max_workers"] = self._get_max_workers(est_mem_per_worker)
         dataset_input = InputLayerCollection(converter.convert(layers))
         dataset = flattened_coordinate_dataset.create(
@@ -334,7 +335,7 @@ class DisturbanceExtender:
         n_layers = sum((len(ds.get_layer_names()) for ds in datasets))
         x_chunk_size = datasets[0].chunks[0].x_size
         y_chunk_size = datasets[0].chunks[0].y_size
-        est_mem_per_worker = n_layers * (x_chunk_size * y_chunk_size) * 64
+        est_mem_per_worker = n_layers * (x_chunk_size * y_chunk_size) * 8
         max_workers = self._get_max_workers(est_mem_per_worker)
         output_ds = flattened_coordinate_dataset.create(
             InputLayerCollection(
