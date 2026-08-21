@@ -84,7 +84,10 @@ class DisturbanceExtender:
 
         base_flattened_disturbances = self._cbm4_project.extract_flattened_disturbances()
         all_flattened_disturbances = self._merge_flattened_disturbances(
-            base_flattened_disturbances, addon_disturbance_ds
+            *[
+                ds for ds in (base_flattened_disturbances, addon_disturbance_ds)
+                if ds is not None
+            ]
         )
 
         gcbm_input_reader = GCBMDisturbanceInputReader(

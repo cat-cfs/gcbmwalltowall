@@ -119,7 +119,7 @@ class CBM4Project:
 
         return self._bbox_path
 
-    def extract_flattened_disturbances(self) -> FlattenedCoordinateDataset:
+    def extract_flattened_disturbances(self) -> FlattenedCoordinateDataset | None:
         flat_layers = []
         split_partitions = defaultdict(list)
         for partition in self._disturbance_dataset.get_partition_values():
@@ -206,6 +206,9 @@ class CBM4Project:
                 )
             )
 
+        if not flat_layers:
+            return None
+        
         output_layer_collection = InputLayerCollection(
             [
                 FlattenedCoordinateInputLayer(
