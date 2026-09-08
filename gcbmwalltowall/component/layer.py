@@ -56,6 +56,12 @@ class Layer(Tileable):
         kwargs.update(self.tiler_kwargs)
         lookup_table = self._load_lookup_table()
         if self.is_raster:
+            if self.attributes and not lookup_table:
+                raise RuntimeError(
+                    f"Attribute {self.attributes} specified for raster layer at "
+                    f"'{self.path}', but no lookup table found"
+                )
+
             return RasterLayer(
                 str(self.path.absolute()),
                 name=self.name,

@@ -35,6 +35,15 @@ class RasterAttributeTable(AttributeTable):
         filters: dict[str, Any | list[Any]] = None,
     ) -> dict[str, Any]:
         selected_attributes = self._get_selected_attributes(attributes)
+        missing_attributes = [
+            attr for attr in selected_attributes if attr not in self._data
+        ]
+
+        if missing_attributes:
+            raise RuntimeError(
+                f"Attributes configured but not found in {self.path}: {missing_attributes}"
+            )
+
         tiler_attributes = (
             selected_attributes
             if isinstance(attributes, dict)
