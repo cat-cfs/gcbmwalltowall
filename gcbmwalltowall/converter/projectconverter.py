@@ -377,17 +377,17 @@ class ProjectConverter:
             components = (
                 pd.read_sql(
                     """
-                SELECT
-                    gcc.id AS growth_curve_component_id, c.name AS classifier_name,
-                    cv.value AS classifier_value
-                FROM growth_curve_component gcc
-                INNER JOIN growth_curve_classifier_value gccv
-                    ON gcc.growth_curve_id = gccv.growth_curve_id
-                INNER JOIN classifier_value cv
-                    ON gccv.classifier_value_id = cv.id
-                INNER JOIN classifier c
-                    ON cv.classifier_id = c.id
-                """,
+                    SELECT
+                        gcc.id AS growth_curve_component_id, c.name AS classifier_name,
+                        cv.value AS classifier_value
+                    FROM growth_curve_component gcc
+                    INNER JOIN growth_curve_classifier_value gccv
+                        ON gcc.growth_curve_id = gccv.growth_curve_id
+                    INNER JOIN classifier_value cv
+                        ON gccv.classifier_value_id = cv.id
+                    INNER JOIN classifier c
+                        ON cv.classifier_id = c.id
+                    """,
                     conn,
                 )
                 .pivot(index="growth_curve_component_id", columns="classifier_name")

@@ -16,6 +16,7 @@ from gcbmwalltowall.converter.layerconverter import DefaultLayerConverter
 from gcbmwalltowall.component.preparedproject import PreparedLayer
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.application.command.impl.cbm4project import CBM4Project
+from gcbmwalltowall.converter.rulebasedeventconverter import RuleBasedEventConverter
 from gcbmwalltowall.project.projectfactory import ProjectFactory
 from gcbmwalltowall.component.inputdatabase import InputDatabase
 from gcbmwalltowall.application.command.impl.gcbmdisturbanceinputreader import GCBMDisturbanceInputReader
@@ -59,14 +60,22 @@ class DisturbanceExtender:
         disturbance_config_path: str | Path,
     ):
         tiled_output_path = Path(self._temp_dir.name).joinpath("tiled_disturbances")
-        self._tile_disturbances(disturbance_config_path, tiled_output_path)
-        self.add_from_study_area(Path(tiled_output_path).joinpath("study_area.json"))
+        rule_based_disturbance_paths = self._prepare_disturbances(disturbance_config_path, tiled_output_path)
+        self.add_from_study_area(
+            Path(tiled_output_path).joinpath("study_area.json"),
+            rule_based_disturbance_paths
+        )
 
-    def add_from_study_area(self, study_area_path: str | Path):
+    def add_from_study_area(
+        self,
+        study_area_path: str | Path,
+        rule_based_disturbance_paths: list[str | Path] | None = None,
+    ):
         x_chunk_size, y_chunk_size = self._cbm4_project.chunk_size
         addon_disturbance_ds = self._make_walltowall_disturbance_dataset(
             study_area_path,
             Path(self._temp_dir.name).joinpath("addon_disturbances"),
+            rule_based_disturbance_paths,
             {
                 "chunk_options": {
                     "chunk_x_size_max": x_chunk_size,
@@ -210,11 +219,11 @@ class DisturbanceExtender:
         except Exception:
             return format_exc()
 
-    def _tile_disturbances(
+    def _prepare_disturbances(
         self,
         disturbance_config_path: str | Path,
         output_path: str | Path,
-    ):
+    ) -> list[str | Path]:
         output_path = Path(output_path)
         disturbance_config = Configuration.load(disturbance_config_path)
         input_db = InputDatabase(self._cbm4_project.cbm_defaults_path, "", None)
@@ -224,7 +233,7 @@ class DisturbanceExtender:
             if "classifier" in self._cbm4_project.inventory_dataset.get_tags(l)
         ]
 
-        disturbances, rule_based_disturbances = ProjectFactory()._create_disturbances(
+        disturbances, rule_based_disturbance_paths = ProjectFactory()._create_disturbances(
             disturbance_config, classifiers, input_db
         )
 
@@ -254,10 +263,13 @@ class DisturbanceExtender:
 
         logging.info("Finished tiling")
 
+        return rule_based_disturbance_paths
+
     def _make_walltowall_disturbance_dataset(
         self,
         study_area_path: str | Path,
         output_path: str | Path,
+        rule_based_disturbance_paths: list[str | Path] | None = None,
         creation_options: dict[str, Any] | None = None,
     ) -> FlattenedCoordinateDataset:
         study_area_dir = Path(study_area_path).parent
@@ -307,6 +319,7 @@ class DisturbanceExtender:
 
             dataset.meta.write_attribute_table(layer_name, attribute_table)
 
+        max_transition_id = transition_offset
         for transition_table, transition_fn in (
             ("transitions_disturbed", "transition_rules.csv"),
             ("transitions_undisturbed", "undisturbed_transition_rules.csv"),
@@ -315,6 +328,7 @@ class DisturbanceExtender:
             if transitions_path.exists():
                 transitions = pd.read_csv(transitions_path)
                 transitions["id"] += transition_offset
+                max_transition_id = max(transition_offset, transitions["id"].max())
                 col_renames = {
                     "regen_delay": "state.regeneration_delay",
                     "age_after": "state.age",
@@ -326,6 +340,24 @@ class DisturbanceExtender:
 
                 transitions.rename(columns=col_renames, inplace=True)
                 dataset.write_table(transition_table, transitions)
+
+        if rule_based_disturbance_paths:
+            rule_based_event_converter = RuleBasedEventConverter(max_transition_id + 1)
+            rule_based_events, rule_based_event_transitions = rule_based_event_converter.convert(
+                *rule_based_disturbance_paths
+            )
+
+            dataset.write_table("events", rule_based_events)
+            if rule_based_event_transitions is not None:
+                transition_table = "transitions_disturbed"
+                existing_transitions = (
+                    dataset.read_table_pandas(transition_table)
+                    if dataset.table_exists(transition_table)
+                    else None
+                )
+
+                all_transitions = pd.concat((existing_transitions, rule_based_event_transitions))
+                dataset.write_table(transition_table, all_transitions)
 
         return dataset
 
@@ -382,6 +414,24 @@ class DisturbanceExtender:
             extracted_path = str(Path(self._temp_dir.name).joinpath(file_or_dir_name))
             self._cbm4_project._disturbance_dataset.extract_file_or_dir(file_or_dir_name, extracted_path)
             output_ds.write_file_or_dir(file_or_dir_name, extracted_path)
+
+        rule_based_events = []
+        for ds in datasets:
+            if ds.table_exists("events"):
+                events = ds.read_table_pandas("events")
+                rule_based_events.append(events)
+
+        if rule_based_events:
+            merged_rule_based_events = pd.concat(rule_based_events)
+            event_id_counts = merged_rule_based_events.value_counts("event_id")
+            duplicate_event_ids = event_id_counts[event_id_counts > 1].keys().to_list()
+            if duplicate_event_ids:
+                raise RuntimeError(
+                    "Duplicate event_ids found when merging rule-based events:"
+                    f" {duplicate_event_ids}"
+                )
+
+            output_ds.write_table("events", merged_rule_based_events)
 
         return output_ds
 
