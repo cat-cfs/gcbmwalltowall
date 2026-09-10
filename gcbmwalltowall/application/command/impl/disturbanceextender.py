@@ -1,7 +1,9 @@
 import logging
 import json
 import multiprocessing
+import os
 import pandas as pd
+import psutil
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from traceback import format_exc
@@ -14,6 +16,7 @@ from gcbmwalltowall.converter.layerconverter import DefaultLayerConverter
 from gcbmwalltowall.component.preparedproject import PreparedLayer
 from gcbmwalltowall.configuration.gcbmconfigurer import GCBMConfigurer
 from gcbmwalltowall.application.command.impl.cbm4project import CBM4Project
+from gcbmwalltowall.converter.rulebasedeventconverter import RuleBasedEventConverter
 from gcbmwalltowall.project.projectfactory import ProjectFactory
 from gcbmwalltowall.component.inputdatabase import InputDatabase
 from gcbmwalltowall.application.command.impl.gcbmdisturbanceinputreader import GCBMDisturbanceInputReader
@@ -39,10 +42,17 @@ class _Classifier:
 
 class DisturbanceExtender:
 
-    def __init__(self, cbm4_project: CBM4Project, use_cache: bool = True, max_workers: int | None = None):
+    def __init__(
+        self,
+        cbm4_project: CBM4Project,
+        use_cache: bool = True,
+        max_workers: int | None = None,
+        parent_cbm4_project: CBM4Project | None = None,
+    ):
         self._cbm4_project = cbm4_project
         self._use_cache = use_cache
         self._max_workers = max_workers
+        self._parent_cbm4_project = parent_cbm4_project
         self._temp_dir = TemporaryDirectory()
 
     def add_from_walltowall_config(
@@ -50,19 +60,27 @@ class DisturbanceExtender:
         disturbance_config_path: str | Path,
     ):
         tiled_output_path = Path(self._temp_dir.name).joinpath("tiled_disturbances")
-        self._tile_disturbances(disturbance_config_path, tiled_output_path)
-        self.add_from_study_area(Path(tiled_output_path).joinpath("study_area.json"))
+        rule_based_disturbance_paths = self._prepare_disturbances(disturbance_config_path, tiled_output_path)
+        self.add_from_study_area(
+            Path(tiled_output_path).joinpath("study_area.json"),
+            rule_based_disturbance_paths
+        )
 
-    def add_from_study_area(self, study_area_path: str | Path):
+    def add_from_study_area(
+        self,
+        study_area_path: str | Path,
+        rule_based_disturbance_paths: list[str | Path] | None = None,
+    ):
         x_chunk_size, y_chunk_size = self._cbm4_project.chunk_size
         addon_disturbance_ds = self._make_walltowall_disturbance_dataset(
             study_area_path,
             Path(self._temp_dir.name).joinpath("addon_disturbances"),
+            rule_based_disturbance_paths,
             {
                 "chunk_options": {
                     "chunk_x_size_max": x_chunk_size,
                     "chunk_y_size_max": y_chunk_size,
-                }
+                },
             },
         )
 
@@ -75,7 +93,10 @@ class DisturbanceExtender:
 
         base_flattened_disturbances = self._cbm4_project.extract_flattened_disturbances()
         all_flattened_disturbances = self._merge_flattened_disturbances(
-            base_flattened_disturbances, addon_disturbance_ds
+            *[
+                ds for ds in (base_flattened_disturbances, addon_disturbance_ds)
+                if ds is not None
+            ]
         )
 
         gcbm_input_reader = GCBMDisturbanceInputReader(
@@ -98,7 +119,17 @@ class DisturbanceExtender:
         )
 
         partitions = gcbm_input_reader.get_cohort_partition_values(0)
-        if self._max_workers == 1:
+
+        est_mem_per_worker = len(
+            all_flattened_disturbances.get_layer_names()
+        ) * (x_chunk_size * y_chunk_size) * 16 * 4
+
+        workers = min(
+            self._get_max_workers(est_mem_per_worker),
+            len(partitions)
+        )
+
+        if workers < 2:
             for partition in tqdm(
                 partitions,
                 desc="Extending disturbances",
@@ -108,11 +139,6 @@ class DisturbanceExtender:
                     preprocessor, partition, processed_disturbances
                 )
         else:
-            workers = min(
-                self._max_workers or multiprocessing.cpu_count(),
-                len(partitions)
-            )
-
             with ProcessPoolExecutor(
                 max_workers=workers,
                 mp_context=multiprocessing.get_context("spawn"),
@@ -146,12 +172,38 @@ class DisturbanceExtender:
             self._cbm4_project.config_path
         ) as cbm4_config:
             cbm4_config["end_year"] = max(cbm4_config["end_year"], max_disturbance_year)
-            if self._use_cache:
-                cache_config = cbm4_config.get("cache")
-                if cache_config:
-                    cache_config["end_year"] = min(
-                        cache_config["end_year"], min_addon_year - 1
+            cache_config = cbm4_config.get("cache")
+            if self._use_cache and cache_config:
+                # Cache rules: if calculated cache end year is within the parent project's
+                # simulation period, use the parent project as the cache, otherwise use
+                # the parent project's cache if available.
+                cache_end_year = min(
+                    cache_config["end_year"], min_addon_year - 1
+                )
+
+                parent_cache_config = (
+                    self._parent_cbm4_project.cache_config if self._parent_cbm4_project
+                    else None
+                )
+
+                use_previous_cache = (
+                    (cache_end_year <= parent_cache_config["end_year"]) if parent_cache_config
+                    else False
+                )
+
+                if use_previous_cache:
+                    cache_path = os.path.relpath(
+                        parent_cache_config["path_or_uri"],
+                        self._cbm4_project.config_path.parent
                     )
+
+                    cbm4_config["cache"] = {
+                        "dataset_name": "simulation",
+                        "storage_type": "local_storage",
+                        "path_or_uri": cache_path,
+                    }
+
+                cbm4_config["cache"]["end_year"] = cache_end_year
             else:
                 cbm4_config.pop("cache", None)
 
@@ -167,11 +219,11 @@ class DisturbanceExtender:
         except Exception:
             return format_exc()
 
-    def _tile_disturbances(
+    def _prepare_disturbances(
         self,
         disturbance_config_path: str | Path,
         output_path: str | Path,
-    ):
+    ) -> list[str | Path]:
         output_path = Path(output_path)
         disturbance_config = Configuration.load(disturbance_config_path)
         input_db = InputDatabase(self._cbm4_project.cbm_defaults_path, "", None)
@@ -181,7 +233,7 @@ class DisturbanceExtender:
             if "classifier" in self._cbm4_project.inventory_dataset.get_tags(l)
         ]
 
-        disturbances, rule_based_disturbances = ProjectFactory()._create_disturbances(
+        disturbances, rule_based_disturbance_paths = ProjectFactory()._create_disturbances(
             disturbance_config, classifiers, input_db
         )
 
@@ -211,10 +263,13 @@ class DisturbanceExtender:
 
         logging.info("Finished tiling")
 
+        return rule_based_disturbance_paths
+
     def _make_walltowall_disturbance_dataset(
         self,
         study_area_path: str | Path,
         output_path: str | Path,
+        rule_based_disturbance_paths: list[str | Path] | None = None,
         creation_options: dict[str, Any] | None = None,
     ) -> FlattenedCoordinateDataset:
         study_area_dir = Path(study_area_path).parent
@@ -235,6 +290,11 @@ class DisturbanceExtender:
             }
         )
 
+        creation_options = creation_options or {}
+        x_chunk_size = creation_options.get("x_chunk_size", 2500)
+        y_chunk_size = creation_options.get("y_chunk_size", 2500)
+        est_mem_per_worker = len(layers) * (x_chunk_size * y_chunk_size) * 8
+        creation_options["max_workers"] = self._get_max_workers(est_mem_per_worker)
         dataset_input = InputLayerCollection(converter.convert(layers))
         dataset = flattened_coordinate_dataset.create(
             dataset_input,
@@ -259,6 +319,7 @@ class DisturbanceExtender:
 
             dataset.meta.write_attribute_table(layer_name, attribute_table)
 
+        max_transition_id = transition_offset
         for transition_table, transition_fn in (
             ("transitions_disturbed", "transition_rules.csv"),
             ("transitions_undisturbed", "undisturbed_transition_rules.csv"),
@@ -267,6 +328,7 @@ class DisturbanceExtender:
             if transitions_path.exists():
                 transitions = pd.read_csv(transitions_path)
                 transitions["id"] += transition_offset
+                max_transition_id = max(transition_offset, transitions["id"].max())
                 col_renames = {
                     "regen_delay": "state.regeneration_delay",
                     "age_after": "state.age",
@@ -279,11 +341,34 @@ class DisturbanceExtender:
                 transitions.rename(columns=col_renames, inplace=True)
                 dataset.write_table(transition_table, transitions)
 
+        if rule_based_disturbance_paths:
+            rule_based_event_converter = RuleBasedEventConverter(max_transition_id + 1)
+            rule_based_events, rule_based_event_transitions = rule_based_event_converter.convert(
+                *rule_based_disturbance_paths
+            )
+
+            dataset.write_table("events", rule_based_events)
+            if rule_based_event_transitions is not None:
+                transition_table = "transitions_disturbed"
+                existing_transitions = (
+                    dataset.read_table_pandas(transition_table)
+                    if dataset.table_exists(transition_table)
+                    else None
+                )
+
+                all_transitions = pd.concat((existing_transitions, rule_based_event_transitions))
+                dataset.write_table(transition_table, all_transitions)
+
         return dataset
 
     def _merge_flattened_disturbances(
         self, *datasets: FlattenedCoordinateDataset
     ) -> FlattenedCoordinateDataset:
+        n_layers = sum((len(ds.get_layer_names()) for ds in datasets))
+        x_chunk_size = datasets[0].chunks[0].x_size
+        y_chunk_size = datasets[0].chunks[0].y_size
+        est_mem_per_worker = n_layers * (x_chunk_size * y_chunk_size) * 8
+        max_workers = self._get_max_workers(est_mem_per_worker)
         output_ds = flattened_coordinate_dataset.create(
             InputLayerCollection(
                 [
@@ -302,6 +387,7 @@ class DisturbanceExtender:
                     "chunk_x_size_max": datasets[0].chunks[0].x_size,
                     "chunk_y_size_max": datasets[0].chunks[0].y_size,
                 },
+                "max_workers": max_workers,
             }
         )
 
@@ -329,4 +415,33 @@ class DisturbanceExtender:
             self._cbm4_project._disturbance_dataset.extract_file_or_dir(file_or_dir_name, extracted_path)
             output_ds.write_file_or_dir(file_or_dir_name, extracted_path)
 
+        rule_based_events = []
+        for ds in datasets:
+            if ds.table_exists("events"):
+                events = ds.read_table_pandas("events")
+                rule_based_events.append(events)
+
+        if rule_based_events:
+            merged_rule_based_events = pd.concat(rule_based_events)
+            event_id_counts = merged_rule_based_events.value_counts("event_id")
+            duplicate_event_ids = event_id_counts[event_id_counts > 1].keys().to_list()
+            if duplicate_event_ids:
+                raise RuntimeError(
+                    "Duplicate event_ids found when merging rule-based events:"
+                    f" {duplicate_event_ids}"
+                )
+
+            output_ds.write_table("events", merged_rule_based_events)
+
         return output_ds
+
+    def _get_max_workers(self, bytes_per_worker: int) -> int:
+        available_mem = psutil.virtual_memory().total * 0.8
+        max_workers = min(
+            self._max_workers or multiprocessing.cpu_count(),
+            int(
+                available_mem // bytes_per_worker
+            ),
+        )
+
+        return max_workers

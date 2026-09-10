@@ -44,6 +44,7 @@ def extend(args: ExtendArgs | dict):
 
     args = args if isinstance(args, ExtendArgs) else ExtendArgs.from_dict(args)
     cbm4_config_path = args.cbm4_config_path
+    parent_cbm4_project = None
     if args.output_path:
         clone(
             {
@@ -54,8 +55,14 @@ def extend(args: ExtendArgs | dict):
             }
         )
 
-        cbm4_config_path = Path(args.output_path).joinpath("cbm4_config.json")
+        working_cbm4_config_path = Path(args.output_path).joinpath("cbm4_config.json")
+        working_cbm4_project = CBM4Project(working_cbm4_config_path)
+        parent_cbm4_project = CBM4Project(cbm4_config_path)
+    else:
+        working_cbm4_project = CBM4Project(cbm4_config_path)
 
-    cbm4_project = CBM4Project(cbm4_config_path)
-    disturbance_extender = DisturbanceExtender(cbm4_project, args.use_cache, args.max_workers)
+    disturbance_extender = DisturbanceExtender(
+        working_cbm4_project, args.use_cache, args.max_workers, parent_cbm4_project
+    )
+
     disturbance_extender.add_from_walltowall_config(args.disturbance_config_path)

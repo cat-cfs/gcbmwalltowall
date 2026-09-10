@@ -1,5 +1,6 @@
+import psutil
+import multiprocessing
 import pandas as pd
-import numpy as np
 from collections import defaultdict
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -39,6 +40,19 @@ class CBM4Project:
     @property
     def disturbance_dataset_config(self) -> dict[str, Any]:
         return self._get_dataset_config("disturbance")
+
+    @property
+    def cache_config(self) -> dict[str, Any] | None:
+        cache_config = self._cbm4_config.get("cache")
+        if not cache_config:
+            return None
+
+        cache_config = cache_config.copy()
+        cache_config["path_or_uri"] = str(
+            self._cbm4_config.resolve(cache_config["path_or_uri"])
+        )
+
+        return cache_config
 
     @property
     def disturbance_dataset(self) -> RasterIndexedDataset:
@@ -105,7 +119,7 @@ class CBM4Project:
 
         return self._bbox_path
 
-    def extract_flattened_disturbances(self) -> FlattenedCoordinateDataset:
+    def extract_flattened_disturbances(self) -> FlattenedCoordinateDataset | None:
         flat_layers = []
         split_partitions = defaultdict(list)
         for partition in self._disturbance_dataset.get_partition_values():
@@ -192,6 +206,9 @@ class CBM4Project:
                 )
             )
 
+        if not flat_layers:
+            return None
+        
         output_layer_collection = InputLayerCollection(
             [
                 FlattenedCoordinateInputLayer(
@@ -202,6 +219,10 @@ class CBM4Project:
             ]
         )
 
+        x_chunk_size = self._disturbance_dataset.chunks[0].x_size
+        y_chunk_size = self._disturbance_dataset.chunks[0].y_size
+        est_mem_per_worker = len(flat_layers) * (x_chunk_size * y_chunk_size) * 8
+        max_workers = self._get_max_workers(est_mem_per_worker)
         output_ds = flattened_coordinate_dataset.create(
             output_layer_collection,
             "disturbance",
@@ -212,6 +233,7 @@ class CBM4Project:
                     "chunk_x_size_max": self._disturbance_dataset.chunks[0].x_size,
                     "chunk_y_size_max": self._disturbance_dataset.chunks[0].y_size,
                 },
+                "max_workers": max_workers,
             }
         )
 
@@ -249,3 +271,14 @@ class CBM4Project:
             dataset_config["storage_type"],
             dataset_config["path_or_uri"],
         )
+
+    def _get_max_workers(self, bytes_per_worker: int) -> int:
+        available_mem = psutil.virtual_memory().total * 0.8
+        max_workers = min(
+            multiprocessing.cpu_count(),
+            int(
+                available_mem // bytes_per_worker
+            ),
+        )
+
+        return max_workers
