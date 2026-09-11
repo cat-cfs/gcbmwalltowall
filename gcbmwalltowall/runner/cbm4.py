@@ -74,6 +74,7 @@ def load_config(
             ),
             "max_workers": max_workers,
             "use_smoother": json_config.get("use_smoother", True),
+            "allow_multiple_transitions": json_config.get("allow_multiple_transitions", False),
         }
         for i, timestep in enumerate(range(sim_start_timestep, sim_end_timestep + 1))
     ]

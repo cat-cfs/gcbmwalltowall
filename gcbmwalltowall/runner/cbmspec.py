@@ -253,6 +253,7 @@ def run(
                     area_unit_conversion=0.0001,
                     max_workers=max_workers,
                     write_parameters=write_parameters,
+                    allow_multiple_transitions=json_config.get("allow_multiple_transitions", False),
                 )
                 step_times.append([f"timestep_{timestep}", (time.time() - start)])
                 pbar.update()
