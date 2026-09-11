@@ -20,6 +20,8 @@ class ConvertArgs(ArgBase):
     tempdir: str
     optimize_spinup: bool
     include_rollback_info: bool
+    locale: str
+    allow_multiple_transitions: bool
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]):
@@ -35,6 +37,8 @@ class ConvertArgs(ArgBase):
             tempdir=d.get("tempdir", None),
             optimize_spinup=d.get("optimize_spinup", False),
             include_rollback_info=d.get("include_rollback_info", False),
+            locale=d.get("locale", "en-CA"),
+            allow_multiple_transitions=d.get("allow_multiple_transitions", False),
         )
 
     @classmethod
@@ -51,6 +55,8 @@ class ConvertArgs(ArgBase):
             tempdir=getattr(ns, "tempdir", None),
             optimize_spinup=getattr(ns, "optimize_spinup", False),
             include_rollback_info=getattr(ns, "include_rollback_info", False),
+            locale=getattr(ns, "locale", "en-CA"),
+            allow_multiple_transitions=getattr(ns, "allow_multiple_transitions", False),
         )
 
 
@@ -81,5 +87,7 @@ def convert(args: ConvertArgs | dict):
         args.aidb_path,
         args.spinup_disturbance_type,
         args.preserve_temp_files,
-        args.optimize_spinup
+        args.optimize_spinup,
+        args.locale,
+        args.allow_multiple_transitions,
     )

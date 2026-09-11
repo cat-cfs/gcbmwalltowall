@@ -51,6 +51,7 @@ class ProjectConverter:
         preserve_temp_files=False,
         optimize_spinup=False,
         locale="en-CA",
+        allow_multiple_transitions=False,
     ):
         with TemporaryDirectory() as temp_path:
             temp_dir = Path(temp_path)
@@ -116,8 +117,9 @@ class ProjectConverter:
             ]
 
             cbm4_config = self._create_cbm4_config(
-                project, output_path, spinup_disturbance_type, locale
+                project, output_path, spinup_disturbance_type, locale, allow_multiple_transitions
             )
+            
             layer_converter = DelegatingLayerConverter(subconverters)
             self._convert_spatial_data(layer_converter, project, temp_dir)
             preprocess_config = {
@@ -650,7 +652,7 @@ class ProjectConverter:
         return {str(row["name"]): int(row["code"]) for _, row in dist_types.iterrows()}
 
     def _create_cbm4_config(
-        self, project, output_path, spinup_disturbance_type=None, locale="en-CA"
+        self, project, output_path, spinup_disturbance_type=None, locale="en-CA", allow_multiple_transitions=False,
     ):
         default_inventory_values = {}
 
@@ -705,6 +707,7 @@ class ProjectConverter:
             "start_year": project.start_year,
             "end_year": project.end_year,
             "use_smoother": project.use_smoother,
+            "allow_multiple_transitions": allow_multiple_transitions,
             "disturbance_order": self._load_disturbance_order(project),
         }
 

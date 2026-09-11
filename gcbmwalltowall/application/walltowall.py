@@ -187,6 +187,11 @@ def cli():
     convert_parser.add_argument(
         "--locale", help="locale code (e.g. fr-CA)", default="en-CA"
     )
+    convert_parser.add_argument(
+        "--allow_multiple_transitions",
+        action="store_true",
+        help="allow rule-based on top of direct-attached transitions",
+    )
 
     clone_parser = subparsers.add_parser(
         "clone", help="Clone a CBM4 project, using the original as a base/cached run."
