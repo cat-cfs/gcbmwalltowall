@@ -84,14 +84,15 @@ class DisturbanceExtender:
             },
         )
 
-        min_addon_year = int(pd.concat(
+        addon_attributes = pd.concat(
             (
                 addon_disturbance_ds.get_attributes(layer)
                 for layer in addon_disturbance_ds.get_layer_names()
             )
-        )["year"].min())
+        )
 
-        base_flattened_disturbances = self._cbm4_project.extract_flattened_disturbances()
+        addon_years = {int(year) for year in addon_attributes["year"]}
+        base_flattened_disturbances = self._cbm4_project.extract_flattened_disturbances(addon_years)
         all_flattened_disturbances = self._merge_flattened_disturbances(
             *[
                 ds for ds in (base_flattened_disturbances, addon_disturbance_ds)
@@ -111,11 +112,19 @@ class DisturbanceExtender:
             gcbm_input_reader,
         )
 
+        # Write output in two phases to ensure consistent schema with
+        # original disturbance dataset.
         out_ds_config = self._cbm4_project.disturbance_dataset_config
-        processed_disturbances = preprocessor.create_output_dataset(
+        original_disturbances = RasterIndexedDataset(
             out_ds_config["dataset_name"],
             out_ds_config["storage_type"],
             out_ds_config["path_or_uri"],
+        )
+
+        processed_disturbances = preprocessor.create_output_dataset(
+            out_ds_config["dataset_name"],
+            out_ds_config["storage_type"],
+            os.path.join(self._temp_dir.name, "processed_disturbances"),
         )
 
         partitions = gcbm_input_reader.get_cohort_partition_values(0)
@@ -164,21 +173,55 @@ class DisturbanceExtender:
                             raise ValueError(err)
                         pbar.update()
 
-        max_disturbance_year = int(
-            processed_disturbances.read_polars().select("year").max().collect().item()
+        # Overwrite the original disturbance dataset with the newly merged data,
+        # ensuring a consistent schema between the two.
+        processed_cols = list(processed_disturbances.get_data_types().keys())
+        t0_year = self._cbm4_project.t0_year
+        for partition in original_disturbances.get_partition_values():
+            if t0_year + partition["timestep"] in addon_years:
+                continue
+            
+            original_dist_year_data = original_disturbances.read_pandas(
+                filters=[[k, "=", v] for k, v in partition.items()],
+            )
+
+            for col in processed_cols:
+                if col not in original_dist_year_data:
+                    original_dist_year_data[col] = None
+
+            processed_disturbances.write(original_dist_year_data[processed_cols])
+            del original_dist_year_data
+
+            processed_disturbances.write(
+                original_disturbances.read_pandas(
+                    original_disturbances.raster_index_table_name,
+                    filters=[[k, "=", v] for k, v in partition.items()]
+                ),
+                processed_disturbances.raster_index_table_name
+            )
+
+        max_disturbance_year = max(
+            (t0_year + p["timestep"] for p in processed_disturbances.get_partition_values())
+        )
+
+        del original_disturbances
+        processed_disturbances.copy(
+            out_ds_config["dataset_name"],
+            out_ds_config["storage_type"],
+            out_ds_config["path_or_uri"],
         )
 
         with GCBMConfigurer.update_json_file(
             self._cbm4_project.config_path
         ) as cbm4_config:
-            cbm4_config["end_year"] = max(cbm4_config["end_year"], max_disturbance_year)
+            cbm4_config["end_year"] = str(max(cbm4_config["end_year"], max_disturbance_year))
             cache_config = cbm4_config.get("cache")
             if self._use_cache and cache_config:
                 # Cache rules: if calculated cache end year is within the parent project's
                 # simulation period, use the parent project as the cache, otherwise use
                 # the parent project's cache if available.
                 cache_end_year = min(
-                    cache_config["end_year"], min_addon_year - 1
+                    cache_config["end_year"], min(addon_years) - 1
                 )
 
                 parent_cache_config = (

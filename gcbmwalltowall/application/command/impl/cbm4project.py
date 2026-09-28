@@ -3,7 +3,7 @@ import multiprocessing
 import pandas as pd
 from collections import defaultdict
 from tempfile import TemporaryDirectory
-from typing import Any
+from typing import Any, Collection
 from pathlib import Path
 from arrow_space.raster_indexed_dataset import RasterIndexedDataset
 from arrow_space.operations.export.geotiff_export import GeoTiffExporter
@@ -119,10 +119,18 @@ class CBM4Project:
 
         return self._bbox_path
 
-    def extract_flattened_disturbances(self) -> FlattenedCoordinateDataset | None:
+    def extract_flattened_disturbances(
+        self, years: Collection[int] | None = None
+    ) -> FlattenedCoordinateDataset | None:
         flat_layers = []
         split_partitions = defaultdict(list)
+        t0_year = self.t0_year
         for partition in self._disturbance_dataset.get_partition_values():
+            if years:
+                partition_year = t0_year + partition["timestep"]
+                if partition_year not in years:
+                    continue
+
             split_key = (partition["timestep"], partition["disturbance_order"])
             split_partitions[split_key].append(partition["chunk_index"])
 
