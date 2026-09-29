@@ -214,7 +214,7 @@ class DisturbanceExtender:
         with GCBMConfigurer.update_json_file(
             self._cbm4_project.config_path
         ) as cbm4_config:
-            cbm4_config["end_year"] = str(max(cbm4_config["end_year"], max_disturbance_year))
+            cbm4_config["end_year"] = int(max(cbm4_config["end_year"], max_disturbance_year))
             cache_config = cbm4_config.get("cache")
             if self._use_cache and cache_config:
                 # Cache rules: if calculated cache end year is within the parent project's
