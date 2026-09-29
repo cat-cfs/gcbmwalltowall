@@ -61,8 +61,11 @@ class RuleBasedEventConverter:
             events = events.drop(columns="transition").astype(
                 {"disturbed_transition_id": "int"}
             )
-            
-            self._next_transition_id = int(transitions["id"].max() + 1)
+
+            max_merged_transition_id = transitions["id"].max()
+            if not np.isnan(max_merged_transition_id):
+                self._next_transition_id = int(max_merged_transition_id + 1)
+    
             event_data.append(events)
             transition_data.append(transitions)
 
