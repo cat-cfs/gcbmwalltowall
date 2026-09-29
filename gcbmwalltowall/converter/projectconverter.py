@@ -52,6 +52,7 @@ class ProjectConverter:
         optimize_spinup=False,
         locale="en-CA",
         allow_multiple_transitions=False,
+        enable_spinup_disturbance_sequences=False,
     ):
         with TemporaryDirectory() as temp_path:
             temp_dir = Path(temp_path)
@@ -148,6 +149,7 @@ class ProjectConverter:
                     "default_inventory_values"
                 ),
                 "max_workers": self._creation_options.get("max_workers"),
+                "enable_spinup_disturbance_sequences": enable_spinup_disturbance_sequences,
             }
 
             for extra_data_file in (
