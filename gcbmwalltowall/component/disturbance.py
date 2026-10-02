@@ -257,6 +257,7 @@ class Disturbance(Tileable):
                         if filter_id in attribute_table
                         else filter_id
                     ),
+                    tags=self.layer_kwargs.get("tags"),
                 )
             )
         else:
@@ -313,6 +314,7 @@ class Disturbance(Tileable):
                             if filter_id in tiler_attributes
                             else filter_id
                         ),
+                        tags=self.layer_kwargs.get("tags"),
                     )
                 )
             else:
@@ -388,6 +390,7 @@ class Disturbance(Tileable):
                                 if filter_id in tiler_attributes
                                 else filter_id
                             ),
+                            tags=self.layer_kwargs.get("tags"),
                         )
                     )
 
@@ -450,7 +453,7 @@ class Disturbance(Tileable):
 
     def _get_disturbance_year_or_attribute(self, layer_path, attribute_table):
         logging.info(f"  checking for disturbance year in {layer_path.name}...")
-        if self.year is not None and "filename" in self.year:
+        if self.year is not None and isinstance(self.year, str) and "filename" in self.year:
             parse_config = self.year.split(":")
             if len(parse_config) == 1:
                 year = YearParser().try_parse_year(layer_path.name)

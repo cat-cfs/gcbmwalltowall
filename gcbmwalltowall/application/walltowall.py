@@ -192,6 +192,11 @@ def cli():
         action="store_true",
         help="allow rule-based on top of direct-attached transitions",
     )
+    convert_parser.add_argument(
+        "--enable_spinup_disturbance_sequences",
+        action="store_true",
+        help="allow spinup last-pass disturbance timeseries",
+    )
 
     clone_parser = subparsers.add_parser(
         "clone", help="Clone a CBM4 project, using the original as a base/cached run."

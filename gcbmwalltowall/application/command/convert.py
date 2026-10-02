@@ -22,6 +22,7 @@ class ConvertArgs(ArgBase):
     include_rollback_info: bool
     locale: str
     allow_multiple_transitions: bool
+    enable_spinup_disturbance_sequences: bool
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]):
@@ -39,6 +40,7 @@ class ConvertArgs(ArgBase):
             include_rollback_info=d.get("include_rollback_info", False),
             locale=d.get("locale", "en-CA"),
             allow_multiple_transitions=d.get("allow_multiple_transitions", False),
+            enable_spinup_disturbance_sequences=d.get("enable_spinup_disturbance_sequences", False),
         )
 
     @classmethod
@@ -57,6 +59,7 @@ class ConvertArgs(ArgBase):
             include_rollback_info=getattr(ns, "include_rollback_info", False),
             locale=getattr(ns, "locale", "en-CA"),
             allow_multiple_transitions=getattr(ns, "allow_multiple_transitions", False),
+            enable_spinup_disturbance_sequences=getattr(ns, "enable_spinup_disturbance_sequences", False)
         )
 
 
@@ -90,4 +93,5 @@ def convert(args: ConvertArgs | dict):
         args.optimize_spinup,
         args.locale,
         args.allow_multiple_transitions,
+        args.enable_spinup_disturbance_sequences,
     )
