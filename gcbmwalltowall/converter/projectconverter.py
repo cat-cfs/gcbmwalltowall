@@ -348,7 +348,6 @@ class ProjectConverter:
             for base_layer in base_arrowspace_layers:
                 if (
                     "historic_disturbance" in base_layer.tags
-                    or "last_pass_disturbance" in base_layer.tags
                     or base_layer.name in cohort_layer_names
                 ):
                     continue
