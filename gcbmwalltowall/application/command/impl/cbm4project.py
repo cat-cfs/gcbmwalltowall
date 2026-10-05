@@ -112,7 +112,7 @@ class CBM4Project:
             .to_pandas()
         )
 
-        exporter = GeoTiffExporter(self._inventory_dataset)
+        exporter = GeoTiffExporter(self._inventory_dataset, align_with_source=True)
         exporter.write_data(export_data)
         exporter.write_geotiff(self._temp_dir.name, "GTiff")
         self._bbox_path = Path(self._temp_dir.name).joinpath("bbox.tiff")
