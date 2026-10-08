@@ -1,12 +1,10 @@
 from __future__ import annotations
-
 import json
 import os
 import shutil
 import time
 from tempfile import TemporaryDirectory
 from typing import Any, Callable
-
 import pandas as pd
 from arrow_space.raster_indexed_dataset import RasterIndexedDataset
 from cbm4.app.spatial.spatial_cbm4 import cbm4_spatial_runner
@@ -14,8 +12,18 @@ from cbm4.app.spatial.event_handler.event_processor import EventProcessor
 from cbmspec_cbm3.models import cbmspec_cbm3_single_matrix
 from cbmspec_cbm3.parameters.cbm_defaults import cbm4_parameter_dataset_factory
 from tqdm import tqdm
-
 from gcbmwalltowall.util.path import Path
+
+
+class CBMDefaultsRef:
+
+    def __init__(self, inventory_ds: RasterIndexedDataset):
+        if inventory_ds.file_or_dir_exists("cbm_defaults"):
+            self._tmp = TemporaryDirectory()
+            self.path = Path(self._tmp.name).joinpath("cbm_defaults.db")
+            inventory_ds.extract_file_or_dir("cbm_defaults", str(self.path))
+        else:
+            self.path = None
 
 
 def load_config(cbm4_config_path: str | Path, **kwargs) -> dict[str, Any]:
@@ -33,22 +41,6 @@ def load_config(cbm4_config_path: str | Path, **kwargs) -> dict[str, Any]:
         cache_config["path_or_uri"] = absolute_path
 
     return json_config
-
-
-def create_model(inventory_ds: RasterIndexedDataset, **model_kwargs) -> Any:
-    with TemporaryDirectory() as tmp:
-        cbm_defaults_path = Path(tmp).joinpath("cbm_defaults.db")
-        try:
-            inventory_ds.extract_file_or_dir("cbm_defaults", str(cbm_defaults_path))
-        except:
-            pass
-
-        cbmspec_cbm3_single_matrix_model = cbmspec_cbm3_single_matrix.model_create(
-            str(cbm_defaults_path) if cbm_defaults_path.exists() else None,
-            **model_kwargs
-        )
-
-    return cbmspec_cbm3_single_matrix_model
 
 
 def run(
@@ -79,9 +71,12 @@ def run(
         json_config["cbm4_spatial_dataset"]["disturbance"]["path_or_uri"]
     )
 
+    cbm_defaults = CBMDefaultsRef(inventory_ds)
     spinup_model_config = json_config.get("model_parameters", {}).get("spinup", {})
     step_model_config = json_config.get("model_parameters", {}).get("step", {})
     for model_config in (spinup_model_config, step_model_config):
+        model_config["cbm_defaults_path"] = str(cbm_defaults.path)
+        model_config["locale"] = json_config.get("cbm_defaults_locale", "en-CA")
         increment_table_rel_path = model_config.get("increment_table")
         if increment_table_rel_path:
             increment_table_abs_path = os.path.join(
@@ -91,13 +86,12 @@ def run(
 
             model_config["increment_table"] = increment_table_abs_path
 
-    spinup_model = create_model(
-        inventory_ds,
+
+    spinup_model = cbmspec_cbm3_single_matrix.model_create(
         **json_config.get("model_parameters", {}).get("spinup", {})
     )
 
-    step_model = json_config.get("cbmspec_model") or create_model(
-        inventory_ds,
+    step_model = json_config.get("cbmspec_model") or cbmspec_cbm3_single_matrix.model_create(
         **json_config.get("model_parameters", {}).get("step", {})
     )
 
@@ -224,7 +218,16 @@ def run(
             )
 
             t0_event_processor = None
-            event_processor = EventProcessor.for_datasets(simulation_ds, working_disturbance_ds)
+            event_processor = EventProcessor.for_datasets(
+                simulation_ds,
+                working_disturbance_ds,
+                cbmspec_model_config={
+                    "package_name": "cbmspec",
+                    "factory_function": "cbmspec_cbm3.models.cbmspec_cbm3_single_matrix.model_create",
+                    "factory_parameters": step_model_config
+                }
+            )
+            
             for timestep in timesteps:
                 if timestep <= cache_end_timestep:
                     pbar.update()
@@ -233,7 +236,13 @@ def run(
                 start = time.time()
                 if timestep - 1 == cache_end_timestep:
                     t0_event_processor = EventProcessor.for_datasets(
-                        simulation_cache_ds, working_disturbance_ds
+                        simulation_cache_ds,
+                        working_disturbance_ds,
+                        cbmspec_model_config={
+                            "package_name": "cbmspec",
+                            "factory_function": "cbmspec_cbm3.models.cbmspec_cbm3_single_matrix.model_create",
+                            "factory_parameters": step_model_config
+                        }
                     )
                     
                     t0_event_processor.process_events_for_timestep(timestep)
