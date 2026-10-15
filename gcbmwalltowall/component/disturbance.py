@@ -36,6 +36,7 @@ class Disturbance(Tileable):
         sort_id=None,
         filter_id=None,
         extended_attribute_table=None,
+        enable_merge=None,
         **layer_kwargs,
     ):
         self.pattern = Path(pattern)
@@ -59,6 +60,7 @@ class Disturbance(Tileable):
         self.sort_id = sort_id
         self.filter_id = filter_id
         self.extended_attribute_table = Path(extended_attribute_table) if extended_attribute_table else None
+        self.enable_merge = enable_merge
         self.layer_kwargs = layer_kwargs or {}
 
     def to_tiler_layer(self, rule_manager, **kwargs):
@@ -153,6 +155,9 @@ class Disturbance(Tileable):
         filter_id = self._get_configured_or_default(
             attribute_table, "filter_id", self.filter_id
         )
+        enable_merge = self._get_configured_or_default(
+            attribute_table, "enable_merge", self.enable_merge
+        )
 
         transition_tiler_attributes = []
         if transition_disturbed:
@@ -174,7 +179,7 @@ class Disturbance(Tileable):
         tiler_attributes = {
             attr: attr
             for attr in (
-                [year, disturbance_type, proportion, area_basis, sort_id, filter_id]
+                [year, disturbance_type, proportion, area_basis, sort_id, filter_id, enable_merge]
                 + transition_tiler_attributes
                 + self.metadata_attributes
             )
@@ -257,6 +262,11 @@ class Disturbance(Tileable):
                         if filter_id in attribute_table
                         else filter_id
                     ),
+                    enable_merge=(
+                        Attribute(enable_merge)
+                        if enable_merge in attribute_table
+                        else enable_merge
+                    ),
                     tags=self.layer_kwargs.get("tags"),
                 )
             )
@@ -313,6 +323,11 @@ class Disturbance(Tileable):
                             Attribute(filter_id)
                             if filter_id in tiler_attributes
                             else filter_id
+                        ),
+                        enable_merge=(
+                            Attribute(enable_merge)
+                            if enable_merge in tiler_attributes
+                            else enable_merge
                         ),
                         tags=self.layer_kwargs.get("tags"),
                     )
@@ -389,6 +404,11 @@ class Disturbance(Tileable):
                                 Attribute(filter_id)
                                 if filter_id in tiler_attributes
                                 else filter_id
+                            ),
+                            enable_merge=(
+                                Attribute(enable_merge)
+                                if enable_merge in tiler_attributes
+                                else enable_merge
                             ),
                             tags=self.layer_kwargs.get("tags"),
                         )
