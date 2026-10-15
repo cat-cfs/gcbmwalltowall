@@ -88,11 +88,11 @@ def run(
 
 
     spinup_model = cbmspec_cbm3_single_matrix.model_create(
-        **json_config.get("model_parameters", {}).get("spinup", {})
+        **spinup_model_config
     )
 
     step_model = json_config.get("cbmspec_model") or cbmspec_cbm3_single_matrix.model_create(
-        **json_config.get("model_parameters", {}).get("step", {})
+        **step_model_config
     )
 
     step_times = []
