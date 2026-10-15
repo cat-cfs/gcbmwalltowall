@@ -36,6 +36,7 @@ class ProjectFactory:
         "area_basis",
         "sort_id",
         "filter_id",
+        "enable_merge",
         "extended_attribute_table",
     }
 
@@ -296,6 +297,7 @@ class ProjectFactory:
                         area_basis=dist_config.get("area_basis"),
                         sort_id=dist_config.get("sort_id"),
                         filter_id=dist_config.get("filter_id"),
+                        enable_merge=dist_config.get("enable_merge"),
                         extended_attribute_table=(
                             config.resolve(extended_attribute_table) if extended_attribute_table else None
                         ),
