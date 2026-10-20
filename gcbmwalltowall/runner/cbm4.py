@@ -67,7 +67,6 @@ def load_config(
             "simulation_output_dataset": json_config["cbm4_spatial_dataset"][
                 "simulation"
             ],
-            "area_unit_conversion": 0.0001,  # ha/m^2
             "cbm_defaults_locale": json_config.get("cbm_defaults_locale", "en-CA"),
             "disturbance_output_reporting_cols": json_config.get(
                 "disturbance_output_reporting_cols"

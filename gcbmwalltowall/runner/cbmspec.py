@@ -259,7 +259,6 @@ def run(
                     disturbance_event_dataset=working_disturbance_ds,
                     simulation_output_dataset=simulation_ds,
                     parameter_dataset=step_spatial_parameter_ds,
-                    area_unit_conversion=0.0001,
                     max_workers=max_workers,
                     write_parameters=write_parameters,
                     allow_multiple_transitions=json_config.get("allow_multiple_transitions", False),

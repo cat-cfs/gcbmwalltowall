@@ -143,7 +143,6 @@ class ProjectConverter:
                     "type": "list",
                     "sort_order": cbm4_config["disturbance_order"],
                 },
-                "area_unit_conversion": 0.0001,  # ha/m^2
                 "cbm_defaults_locale": cbm4_config.get("cbm_defaults_locale", "en-CA"),
                 "default_inventory_values": cbm4_config.get(
                     "default_inventory_values"
