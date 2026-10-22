@@ -9,7 +9,7 @@ class GCBMDisturbanceInputReader(GCBMInputReader):
 
     def __init__(
         self,
-        gcbm_disturbance_dataset: FlattenedCoordinateDataset,
+        gcbm_disturbance_dataset: FlattenedCoordinateDataset | None,
         cbm4_defaults_path: str,
         cbm4_defaults_locale: str,
     ):
@@ -17,7 +17,11 @@ class GCBMDisturbanceInputReader(GCBMInputReader):
         self._gcbm_disturbance_dataset = gcbm_disturbance_dataset
         self._cbm_defaults_path = cbm4_defaults_path
         self._cbm_defaults_locale = cbm4_defaults_locale
-        self._input_datasets_by_cohort = {0: gcbm_disturbance_dataset}
+        self._input_datasets_by_cohort = (
+            {0: gcbm_disturbance_dataset} if gcbm_disturbance_dataset is not None
+            else {}
+        )
+        
         self._disturbance_type_map = self._get_disturbance_map()
         self._disturbance_layer_names = self._get_disturbance_layer_names()
 
@@ -52,6 +56,9 @@ class GCBMDisturbanceInputReader(GCBMInputReader):
     @property
     def disturbance_rules_path(self) -> str:
         disturbance_rules_path = "null"
+        if self._gcbm_disturbance_dataset is None:
+            return disturbance_rules_path
+
         if self._gcbm_disturbance_dataset.file_or_dir_exists("disturbance_rules"):
             disturbance_rules_path = str(
                 Path(self._temp_dir.name).joinpath("disturbance_rules.json")
@@ -64,6 +71,9 @@ class GCBMDisturbanceInputReader(GCBMInputReader):
         return disturbance_rules_path
 
     def _read_table(self, table_name: str) -> pd.DataFrame | None:
+        if self._gcbm_disturbance_dataset is None:
+            return None
+
         if not self._gcbm_disturbance_dataset.table_exists(table_name):
             return None
 

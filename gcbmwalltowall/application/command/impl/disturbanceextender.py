@@ -71,11 +71,63 @@ class DisturbanceExtender:
         study_area_path: str | Path,
         rule_based_disturbance_paths: list[str | Path] | None = None,
     ):
+        min_new_dist_year = None
+        max_new_dist_year = None
+        if Path(study_area_path).exists():
+            min_year, max_year = self._add_spatial_disturbances(study_area_path)
+            min_new_dist_year = min_year
+            max_new_dist_year = max_year
+
+        if rule_based_disturbance_paths:
+            min_year, max_year = self._add_rule_based_disturbances(rule_based_disturbance_paths)
+            min_new_dist_year = min(min_new_dist_year, min_year) if min_new_dist_year else min_year
+            max_new_dist_year = max(max_new_dist_year, max_year) if max_new_dist_year else max_year
+
+        if not (min_new_dist_year and max_new_dist_year):
+            return
+
+        with GCBMConfigurer.update_json_file(self._cbm4_project.config_path) as cbm4_config:
+            cbm4_config["end_year"] = int(max(cbm4_config["end_year"], max_new_dist_year))
+            cache_config = cbm4_config.get("cache")
+            if self._use_cache and cache_config:
+                # Cache rules: if calculated cache end year is within the parent project's
+                # simulation period, use the parent project as the cache, otherwise use
+                # the parent project's cache if available.
+                cache_end_year = min(
+                    cache_config["end_year"], min_new_dist_year - 1
+                )
+
+                parent_cache_config = (
+                    self._parent_cbm4_project.cache_config if self._parent_cbm4_project
+                    else None
+                )
+
+                use_previous_cache = (
+                    (cache_end_year <= parent_cache_config["end_year"]) if parent_cache_config
+                    else False
+                )
+
+                if use_previous_cache:
+                    cache_path = os.path.relpath(
+                        parent_cache_config["path_or_uri"],
+                        self._cbm4_project.config_path.parent
+                    )
+
+                    cbm4_config["cache"] = {
+                        "dataset_name": "simulation",
+                        "storage_type": "local_storage",
+                        "path_or_uri": cache_path,
+                    }
+
+                cbm4_config["cache"]["end_year"] = cache_end_year
+            else:
+                cbm4_config.pop("cache", None)
+
+    def _add_spatial_disturbances(self, study_area_path: str | Path) -> tuple[int, int]:
         x_chunk_size, y_chunk_size = self._cbm4_project.chunk_size
         addon_disturbance_ds = self._make_walltowall_disturbance_dataset(
             study_area_path,
             Path(self._temp_dir.name).joinpath("addon_disturbances"),
-            rule_based_disturbance_paths,
             {
                 "chunk_options": {
                     "chunk_x_size_max": x_chunk_size,
@@ -211,44 +263,80 @@ class DisturbanceExtender:
             out_ds_config["path_or_uri"],
         )
 
-        with GCBMConfigurer.update_json_file(
-            self._cbm4_project.config_path
-        ) as cbm4_config:
-            cbm4_config["end_year"] = int(max(cbm4_config["end_year"], max_disturbance_year))
-            cache_config = cbm4_config.get("cache")
-            if self._use_cache and cache_config:
-                # Cache rules: if calculated cache end year is within the parent project's
-                # simulation period, use the parent project as the cache, otherwise use
-                # the parent project's cache if available.
-                cache_end_year = min(
-                    cache_config["end_year"], min(addon_years) - 1
+        return min(addon_years), max_disturbance_year
+
+    def _add_rule_based_disturbances(
+        self,
+        rule_based_disturbance_paths: list[str | Path],
+    ) -> tuple[int, int]:
+        max_transition_id = self._cbm4_project.get_max_transition_id()
+        rule_based_event_converter = RuleBasedEventConverter(max_transition_id + 1)
+        disturbances, transitions = rule_based_event_converter.convert(
+            *rule_based_disturbance_paths
+        )
+
+        gcbm_input_reader = GCBMDisturbanceInputReader(
+            None,
+            str(self._cbm4_project.cbm_defaults_path),
+            self._cbm4_project.cbm_defaults_locale
+        )
+
+        disturbances["default_disturbance_type_id"] = disturbances[
+            "disturbance_type"
+        ].map(gcbm_input_reader.disturbance_type_map)
+
+        unmapped_dist_loc = disturbances[
+            "default_disturbance_type_id"
+        ].isnull()
+        
+        if unmapped_dist_loc.any():
+            unmapped = (
+                disturbances["disturbance_type"]
+                .loc[unmapped_dist_loc]
+                .drop_duplicates()
+            )
+            raise ValueError(
+                f"disturbance types not defined in cbm_defaults {unmapped}"
+            )
+
+        timestep_interpreter = YearOffsetTimestepInterpreter(self._cbm4_project.t0_year)
+        disturbances["timestep"] = disturbances["year"].map(
+            lambda year: timestep_interpreter.get_timestep({"year": year})
+        )
+
+        disturbance_dataset = self._cbm4_project.disturbance_dataset
+        if disturbance_dataset.table_exists("events"):
+            disturbances = pd.concat((
+                disturbances, disturbance_dataset.read_table_pandas("events")
+            ))
+
+            event_id_counts = disturbances.value_counts("event_id")
+            duplicate_event_ids = event_id_counts[event_id_counts > 1].keys().to_list()
+            if duplicate_event_ids:
+                raise RuntimeError(
+                    "Duplicate event_ids found when merging rule-based events:"
+                    f" {duplicate_event_ids}"
                 )
 
-                parent_cache_config = (
-                    self._parent_cbm4_project.cache_config if self._parent_cbm4_project
-                    else None
-                )
+        disturbance_dataset.write_table("events", disturbances)
+        if transitions is not None:
+            transition_table = "transitions_disturbed"
+            existing_transitions = (
+                disturbance_dataset.read_table_pandas(transition_table)
+                if disturbance_dataset.table_exists(transition_table)
+                else None
+            )
 
-                use_previous_cache = (
-                    (cache_end_year <= parent_cache_config["end_year"]) if parent_cache_config
-                    else False
-                )
+            all_transitions = pd.concat((existing_transitions, transitions)).astype({
+                "id": "str",
+                "state.age": "str",
+                "state.regeneration_delay": "int",
+            })
 
-                if use_previous_cache:
-                    cache_path = os.path.relpath(
-                        parent_cache_config["path_or_uri"],
-                        self._cbm4_project.config_path.parent
-                    )
+            disturbance_dataset.write_table(transition_table, all_transitions)
 
-                    cbm4_config["cache"] = {
-                        "dataset_name": "simulation",
-                        "storage_type": "local_storage",
-                        "path_or_uri": cache_path,
-                    }
-
-                cbm4_config["cache"]["end_year"] = cache_end_year
-            else:
-                cbm4_config.pop("cache", None)
+        return disturbances["year"].min(), disturbances["year"].max()
+        
 
     def _preprocess_disturbance_partition(
         self,
@@ -276,35 +364,36 @@ class DisturbanceExtender:
             if "classifier" in self._cbm4_project.inventory_dataset.get_tags(l)
         ]
 
-        disturbances, rule_based_disturbance_paths = ProjectFactory()._create_disturbances(
+        spatial_disturbances, rule_based_disturbance_paths = ProjectFactory()._create_disturbances(
             disturbance_config, classifiers, input_db
         )
 
-        mgr = SharedTransitionRuleManager()
-        mgr.start()
-        rule_manager = mgr.TransitionRuleManager()
-        with cleanup():
-            logging.info("Starting up tiler...")
-            bbox_path = str(self._cbm4_project.extract_bounding_box())
-            bbox = BoundingBox(RasterLayer(bbox_path), preprocessed=True)
-            tiler = GdalTiler2D(bbox, use_bounding_box_resolution=True)
-            layers = []
-            for disturbance in disturbances:
-                logging.info(f"Preparing {disturbance.name or disturbance.pattern}")
-                layer = disturbance.to_tiler_layer(rule_manager)
-                if isinstance(layer, list):
-                    layers.extend(layer)
-                else:
-                    layers.append(layer)
+        if spatial_disturbances:
+            mgr = SharedTransitionRuleManager()
+            mgr.start()
+            rule_manager = mgr.TransitionRuleManager()
+            with cleanup():
+                logging.info("Starting up tiler...")
+                bbox_path = str(self._cbm4_project.extract_bounding_box())
+                bbox = BoundingBox(RasterLayer(bbox_path), preprocessed=True)
+                tiler = GdalTiler2D(bbox, use_bounding_box_resolution=True)
+                layers = []
+                for disturbance in spatial_disturbances:
+                    logging.info(f"Preparing {disturbance.name or disturbance.pattern}")
+                    layer = disturbance.to_tiler_layer(rule_manager)
+                    if isinstance(layer, list):
+                        layers.extend(layer)
+                    else:
+                        layers.append(layer)
 
-                logging.info(
-                    f"Finished preparing {disturbance.name or disturbance.pattern}"
-                )
+                    logging.info(
+                        f"Finished preparing {disturbance.name or disturbance.pattern}"
+                    )
 
-            tiler.tile(layers, str(output_path))
-            rule_manager.write_rules(str(output_path.joinpath("transition_rules.csv")))
+                tiler.tile(layers, str(output_path))
+                rule_manager.write_rules(str(output_path.joinpath("transition_rules.csv")))
 
-        logging.info("Finished tiling")
+            logging.info("Finished tiling")
 
         return rule_based_disturbance_paths
 
@@ -312,7 +401,6 @@ class DisturbanceExtender:
         self,
         study_area_path: str | Path,
         output_path: str | Path,
-        rule_based_disturbance_paths: list[str | Path] | None = None,
         creation_options: dict[str, Any] | None = None,
     ) -> FlattenedCoordinateDataset:
         study_area_dir = Path(study_area_path).parent
@@ -362,7 +450,6 @@ class DisturbanceExtender:
 
             dataset.meta.write_attribute_table(layer_name, attribute_table)
 
-        max_transition_id = transition_offset
         for transition_table, transition_fn in (
             ("transitions_disturbed", "transition_rules.csv"),
             ("transitions_undisturbed", "undisturbed_transition_rules.csv"),
@@ -371,7 +458,6 @@ class DisturbanceExtender:
             if transitions_path.exists():
                 transitions = pd.read_csv(transitions_path)
                 transitions["id"] += transition_offset
-                max_transition_id = max(transition_offset, transitions["id"].max())
                 col_renames = {
                     "regen_delay": "state.regeneration_delay",
                     "age_after": "state.age",
@@ -383,24 +469,6 @@ class DisturbanceExtender:
 
                 transitions.rename(columns=col_renames, inplace=True)
                 dataset.write_table(transition_table, transitions)
-
-        if rule_based_disturbance_paths:
-            rule_based_event_converter = RuleBasedEventConverter(max_transition_id + 1)
-            rule_based_events, rule_based_event_transitions = rule_based_event_converter.convert(
-                *rule_based_disturbance_paths
-            )
-
-            dataset.write_table("events", rule_based_events)
-            if rule_based_event_transitions is not None:
-                transition_table = "transitions_disturbed"
-                existing_transitions = (
-                    dataset.read_table_pandas(transition_table)
-                    if dataset.table_exists(transition_table)
-                    else None
-                )
-
-                all_transitions = pd.concat((existing_transitions, rule_based_event_transitions))
-                dataset.write_table(transition_table, all_transitions)
 
         return dataset
 

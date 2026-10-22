@@ -40,6 +40,10 @@ class RuleBasedEventConverter:
                 ].iterrows()
             )
 
+            transitions = transitions.astype(
+                {c: "str" for c in transitions.columns if c.startswith("classifiers.")}
+            )
+
             required_cols = {
                 ("id", "int"): -1,
                 ("state.regeneration_delay", "int"): 0,

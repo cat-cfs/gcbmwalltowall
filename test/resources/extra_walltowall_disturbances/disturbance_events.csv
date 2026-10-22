@@ -1,0 +1,2 @@
+event_id,disturbance_type,target_type,target,selector_type,selector,filter_type,filter,year,transition
+1,Wildfire,area,100,random,,dnf,,2025,"{""classifiers.Classifier1"": ""TA"", ""classifiers.Classifier2"": ""7""}"

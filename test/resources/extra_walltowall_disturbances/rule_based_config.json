@@ -1,0 +1,5 @@
+{
+    "disturbances": {
+        "rule-based disturbances": "disturbance_events.csv"
+    }
+}

@@ -1,4 +1,5 @@
 import gcbmwalltowall
+import json
 import polars as pl
 from pytest import fixture
 from pathlib import Path
@@ -60,3 +61,21 @@ def test_add_from_walltowall_config(
     )
 
     assert extended_disturbance_count > original_disturbance_count
+
+
+def test_add_from_walltowall_config_only_rule_based(
+    cbm4_project_copy, extra_walltowall_disturbance_path
+):
+    cbm4_project = CBM4Project(cbm4_project_copy.joinpath("cbm4_config.json"))
+    extender = DisturbanceExtender(cbm4_project)
+    walltowall_config_path = extra_walltowall_disturbance_path.joinpath(
+        "rule_based_config.json"
+    )
+
+    extender.add_from_walltowall_config(walltowall_config_path)
+    cbm4_config = json.load(open(cbm4_project.config_path))
+    assert cbm4_config["start_year"] == 2010
+    assert cbm4_config["end_year"] == 2025
+
+    assert cbm4_project.disturbance_dataset.table_exists("events")
+    assert len(cbm4_project.disturbance_dataset.read_table_pandas("events")) == 1
