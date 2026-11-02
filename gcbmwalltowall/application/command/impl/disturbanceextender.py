@@ -94,7 +94,7 @@ class DisturbanceExtender:
                 # simulation period, use the parent project as the cache, otherwise use
                 # the parent project's cache if available.
                 cache_end_year = min(
-                    cache_config["end_year"], min_new_dist_year - 1
+                    cache_config["end_year"], int(min_new_dist_year - 1)
                 )
 
                 parent_cache_config = (
@@ -304,6 +304,9 @@ class DisturbanceExtender:
             lambda year: timestep_interpreter.get_timestep({"year": year})
         )
 
+        min_addon_year = disturbances["year"].min()
+        max_addon_year = disturbances["year"].max()
+
         disturbance_dataset = self._cbm4_project.disturbance_dataset
         if disturbance_dataset.table_exists("events"):
             disturbances = pd.concat((
@@ -317,6 +320,8 @@ class DisturbanceExtender:
                     "Duplicate event_ids found when merging rule-based events:"
                     f" {duplicate_event_ids}"
                 )
+
+        disturbances = self._ensure_data_types(disturbances)
 
         disturbance_dataset.write_table("events", disturbances)
         if transitions is not None:
@@ -335,7 +340,7 @@ class DisturbanceExtender:
 
             disturbance_dataset.write_table(transition_table, all_transitions)
 
-        return disturbances["year"].min(), disturbances["year"].max()
+        return min_addon_year, max_addon_year
         
 
     def _preprocess_disturbance_partition(
@@ -556,3 +561,23 @@ class DisturbanceExtender:
         )
 
         return max_workers
+
+    def _ensure_data_types(self, disturbances: pd.DataFrame) -> pd.DataFrame:
+        type_map = {
+            "event_id": "str",
+            "disturbance_type": "str",
+            "target_type": "str",
+            "target": "str",
+            "selector_type": "str",
+            "selector": "str",
+            "filter_type": "str",
+            "filter": "str",
+            "year": "int",
+            "disturbed_transition_id": "int",
+            "default_disturbance_type_id": "int",
+            "timestep": "int",
+        }
+
+        return disturbances.astype(
+            {c: type_map[c] for c in disturbances.columns if c in type_map}
+        )
