@@ -136,3 +136,9 @@ dmypy.json
 /.vs/gcbmwalltowall/project-colors.json
 /.vs/gcbmwalltowall/FileContentIndex
 /.vs/gcbmwalltowall/v17/TestStore/0
+/test/resources/cbmspec_spatial_parameters/**/*.parquet
+/test/resources/cbmspec_spatial_parameters/layers/tiled
+/test/resources/cbmspec_spatial_parameters/input_database/gcbm_input.db
+/test/resources/cbmspec_spatial_parameters/input_database/gcbm_input.json
+/test/resources/cbmspec_spatial_parameters/gcbm_project
+/test/resources/cbmspec_spatial_parameters/cbm4
