@@ -44,6 +44,7 @@ class Project:
         disturbance_rules=None,
         cohort_sorts=None,
         cohort_filters=None,
+        timeseries=None,
     ):
         self.name = require_not_null(name)
         self.bounding_box = require_instance_of(bounding_box, BoundingBox)
@@ -72,6 +73,7 @@ class Project:
         self.disturbance_rules = disturbance_rules
         self.cohort_sorts = cohort_sorts
         self.cohort_filters = cohort_filters
+        self.timeseries = timeseries
 
     @property
     def tiler_output_path(self):
@@ -104,6 +106,13 @@ class Project:
                 self._make_tiler_layer(rule_manager, layer)
                 for layer in chain(self.layers, self.classifiers)
             ]
+
+            for timeseries in self.timeseries or []:
+                layer = timeseries.to_tiler_layer(rule_manager)
+                if isinstance(layer, list):
+                    tiler_layers.extend(layer)
+                else:
+                    tiler_layers.append(layer)
 
             logging.info(f"Finished preparing non-disturbance layers")
             if self.disturbances:

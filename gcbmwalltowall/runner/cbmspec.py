@@ -144,16 +144,24 @@ def run(
             step_times.append(["pre-spinup callback", (time.time() - start)])
 
         start = time.time()
-        step_spatial_parameter_ds = (
-            cbm4_parameter_dataset_factory.step_parameter_dataset_create(
-                inventory_ds,
-                disturbance_ds,
-                "step_parameters",
-                "local_storage",
-                str(out_path.joinpath("step_parameters")),
-                enable_cbm_cfs3_smoother=json_config.get("use_smoother", True),
+        step_parameter_config = json_config["cbm4_spatial_dataset"].get("step_parameters")
+        if step_parameter_config:
+            step_spatial_parameter_ds = RasterIndexedDataset(
+                step_parameter_config["dataset_name"],
+                step_parameter_config["storage_type"],
+                step_parameter_config["path_or_uri"],
             )
-        )
+        else:
+            step_spatial_parameter_ds = (
+                cbm4_parameter_dataset_factory.step_parameter_dataset_create(
+                    inventory_ds,
+                    disturbance_ds,
+                    "step_parameters",
+                    "local_storage",
+                    str(out_path.joinpath("step_parameters")),
+                    enable_cbm_cfs3_smoother=json_config.get("use_smoother", True),
+                )
+            )
 
         if "increment_table" in step_model_config:
             shutil.rmtree(out_path.joinpath(

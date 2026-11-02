@@ -4,6 +4,7 @@ from gcbmwalltowall.component.cohort import Cohort
 from gcbmwalltowall.component.disturbance import Disturbance
 from gcbmwalltowall.component.inputdatabase import InputDatabase
 from gcbmwalltowall.component.layer import DefaultLayer, Layer
+from gcbmwalltowall.component.timeseries import Timeseries
 from gcbmwalltowall.component.project import Project
 from gcbmwalltowall.component.rollback import Rollback
 from gcbmwalltowall.component.transition import Transition
@@ -21,6 +22,15 @@ class ProjectFactory:
         "values_col",
         "yield_col",
         "extended_attribute_table",
+    }
+
+    _timeseries_reserved_keywords = {
+        "name",
+        "pattern",
+        "year",
+        "value",
+        "lookup_table",
+        "layers",
     }
 
     _disturbance_reserved_keywords = {
@@ -53,6 +63,7 @@ class ProjectFactory:
         input_db = self._create_input_database(config)
         classifiers = self._create_classifiers(config)
         layers = self._create_general_layers(config)
+        timeseries = self._create_timeseries_layers(config)
         disturbances, rule_based_disturbances = self._create_disturbances(config, classifiers, input_db)
         rollback = self._create_rollback(config, layers)
 
@@ -99,6 +110,7 @@ class ProjectFactory:
             dist_rules_path,
             cohort_sorts_path,
             cohort_filters_path,
+            timeseries,
         )
 
     def _extract_attribute(self, config):
@@ -187,6 +199,14 @@ class ProjectFactory:
         layers = [
             self._create_layer(config, layer_name, layer_details)
             for layer_name, layer_details in config.get("layers", {}).items()
+        ]
+
+        return layers
+
+    def _create_timeseries_layers(self, config):
+        layers = [
+            self._create_timeseries_layer(config, layer_name, layer_details)
+            for layer_name, layer_details in config.get("parameters", {}).items()
         ]
 
         return layers
@@ -408,3 +428,26 @@ class ProjectFactory:
             cohorts.append(Cohort(cohort_layers, cohort_classifiers))
 
         return cohorts
+
+    def _create_timeseries_layer(self, config, layer_name, layer_details):
+        if isinstance(layer_details, str):
+            return Timeseries(layer_name, config.resolve(layer_details))
+
+        layer_path = config.resolve(require_not_null(layer_details.get("pattern")))
+        layer_lookup_table = layer_details.get(
+            "lookup_table"
+        ) or config.find_lookup_table(layer_path)
+
+        return Timeseries(
+            layer_name,
+            layer_path,
+            layer_details.get("year"),
+            layer_details.get("value"),
+            config.resolve(layer_lookup_table) if layer_lookup_table else None,
+            config.get("layers"),
+            **{
+                k: v
+                for k, v in layer_details.items()
+                if k not in self._timeseries_reserved_keywords
+            },
+        )
