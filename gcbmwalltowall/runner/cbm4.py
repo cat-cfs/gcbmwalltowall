@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 import os
 import shutil
@@ -81,6 +82,67 @@ def load_config(
     return simulation_config, spinup_config, step_configs
 
 
+def _make_temp_t0_input(
+    config: dict[str, Any], temp_dir: str
+) -> tuple[RasterIndexedDataset, dict[str, Any]]:
+    # Make a temp copy of the simulation dataset, including the parent simulation's
+    # final timestep, to deliver to on_pre_simulation hook; ensures that modifications
+    # to the simulation input dataset work in timestep 0.
+    temp_simulation_ds_config = {
+        "dataset_name": config["simulation_output_dataset"]["dataset_name"],
+        "storage_type": config["simulation_output_dataset"]["storage_type"],
+        "path_or_uri": f"{temp_dir}/simulation"
+    }
+
+    cached_simulation_ds = RasterIndexedDataset(
+        config["simulation_dataset"]["dataset_name"],
+        config["simulation_dataset"]["storage_type"],
+        config["simulation_dataset"]["path_or_uri"]
+    )
+
+    working_simulation_ds = RasterIndexedDataset(
+        config["simulation_output_dataset"]["dataset_name"],
+        config["simulation_output_dataset"]["storage_type"],
+        config["simulation_output_dataset"]["path_or_uri"]
+    )
+
+    working_simulation_ds.copy(
+        temp_simulation_ds_config["dataset_name"],
+        temp_simulation_ds_config["storage_type"],
+        temp_simulation_ds_config["path_or_uri"]
+    )
+
+    temp_simulation_ds = RasterIndexedDataset(
+        temp_simulation_ds_config["dataset_name"],
+        temp_simulation_ds_config["storage_type"],
+        temp_simulation_ds_config["path_or_uri"]
+    )
+
+    final_cached_timestep = config["timestep"] - 1
+    final_cached_timestep_partitions = [
+        p for p in cached_simulation_ds.get_partition_values()
+        if p["timestep"] == final_cached_timestep
+    ]
+
+    for chunk in final_cached_timestep_partitions:
+        temp_simulation_ds.write(
+            cached_simulation_ds.read_pandas(
+                filters=[[k, "=", v] for k, v in chunk.items()]
+            )
+        )
+
+        temp_simulation_ds.write_raster_index(
+            cached_simulation_ds.read_pandas(
+                cached_simulation_ds.raster_index_table_name,
+                filters=[[k, "=", v] for k, v in chunk.items()]
+            )
+        )
+
+    updated_config = deepcopy(config)
+    updated_config["simulation_dataset"] = temp_simulation_ds_config
+
+    return cached_simulation_ds, updated_config
+
 def run(
     cbm4_config_path: str | Path,
     on_pre_spinup: Callable[[str]] | None = None,
@@ -110,8 +172,21 @@ def run(
         step_times.append(["pre-spinup callback", (time.time() - start)])
 
     spinup_cached = json.load(open(cbm4_config_path)).get("cache") is not None
-    with tqdm(desc="Simulation", total=len(step_configs) + (0 if spinup_cached else 1)) as pbar:
-        if not spinup_cached:
+    with (
+        tqdm(desc="Simulation", total=len(step_configs) + (0 if spinup_cached else 1)) as pbar,
+        TemporaryDirectory() as tmp
+    ):
+        t0_simulation_ds = None
+        simulation_ds = RasterIndexedDataset(
+            simulation_config["out_simulation_dataset"]["dataset_name"],
+            simulation_config["out_simulation_dataset"]["storage_type"],
+            simulation_config["out_simulation_dataset"]["path_or_uri"]
+        )
+
+        if spinup_cached:
+            t0_simulation_ds, t0_step_config = _make_temp_t0_input(step_configs[0], tmp)
+            step_configs[0] = t0_step_config
+        else:
             start = time.time()
             spinup_all(spinup_config)
             pbar.update()
@@ -119,54 +194,44 @@ def run(
 
         if on_pre_simulation is not None:
             start = time.time()
+            if t0_simulation_ds is not None:
+                on_pre_simulation(step_configs[0]["simulation_dataset"]["path_or_uri"])
+            
             on_pre_simulation(simulation_config["out_simulation_dataset"]["path_or_uri"])
             step_times.append(["pre-simulation callback", (time.time() - start)])
 
-        with TemporaryDirectory() as tmp:
-            # Create a temporary working copy of the disturbance dataset to be used
-            # by rule-based EventProcessor.
-            working_disturbance_ds_path = Path(tmp).joinpath("disturbance")
-            RasterIndexedDataset(
-                simulation_config["disturbance_dataset"]["dataset_name"],
-                simulation_config["disturbance_dataset"]["storage_type"],
-                simulation_config["disturbance_dataset"]["path_or_uri"]
-            ).copy("disturbance", "local_storage", str(working_disturbance_ds_path))
-            
-            working_disturbance_ds = RasterIndexedDataset(
-                "disturbance", "local_storage", str(working_disturbance_ds_path)
-            )
+        # Create a temporary working copy of the disturbance dataset to be used
+        # by rule-based EventProcessor.
+        working_disturbance_ds_path = Path(tmp).joinpath("disturbance")
+        RasterIndexedDataset(
+            simulation_config["disturbance_dataset"]["dataset_name"],
+            simulation_config["disturbance_dataset"]["storage_type"],
+            simulation_config["disturbance_dataset"]["path_or_uri"]
+        ).copy("disturbance", "local_storage", str(working_disturbance_ds_path))
+        
+        working_disturbance_ds = RasterIndexedDataset(
+            "disturbance", "local_storage", str(working_disturbance_ds_path)
+        )
 
-            simulation_ds = RasterIndexedDataset(
-                simulation_config["out_simulation_dataset"]["dataset_name"],
-                simulation_config["out_simulation_dataset"]["storage_type"],
-                simulation_config["out_simulation_dataset"]["path_or_uri"]
-            )
-
-            t0_event_processor = None
-            event_processor = EventProcessor.for_datasets(simulation_ds, working_disturbance_ds)
-            for i, step_config in enumerate(step_configs):
-                start = time.time()
-                if i == 0 and spinup_cached:
-                    t0_simulation_ds = RasterIndexedDataset(
-                        step_config["simulation_dataset"]["dataset_name"],
-                        step_config["simulation_dataset"]["storage_type"],
-                        step_config["simulation_dataset"]["path_or_uri"],
-                    )
-
-                    t0_event_processor = EventProcessor.for_datasets(
-                        t0_simulation_ds, working_disturbance_ds
-                    )
-                    
-                    t0_event_processor.process_events_for_timestep(step_config["timestep"])
-                else:
-                    event_processor.process_events_for_timestep(step_config["timestep"])
-                
-                step_config["disturbance_dataset"]["path_or_uri"] = str(working_disturbance_ds_path)
-                step_all(step_config)
-                pbar.update()
-                step_times.append(
-                    [f"timestep_{step_config['timestep']}", (time.time() - start)]
+        t0_event_processor = None
+        event_processor = EventProcessor.for_datasets(simulation_ds, working_disturbance_ds)
+        for i, step_config in enumerate(step_configs):
+            start = time.time()
+            if i == 0 and spinup_cached:
+                t0_event_processor = EventProcessor.for_datasets(
+                    t0_simulation_ds, working_disturbance_ds
                 )
+                
+                t0_event_processor.process_events_for_timestep(step_config["timestep"])
+            else:
+                event_processor.process_events_for_timestep(step_config["timestep"])
+            
+            step_config["disturbance_dataset"]["path_or_uri"] = str(working_disturbance_ds_path)
+            step_all(step_config)
+            pbar.update()
+            step_times.append(
+                [f"timestep_{step_config['timestep']}", (time.time() - start)]
+            )
 
         if t0_event_processor is not None:
             t0_event_processor.summarize(os.path.join(cbm4_root, "event_processor_summary_t0.csv"))
