@@ -150,7 +150,7 @@ def build_run(
                     cbm4_parameter_dataset_factory.spinup_parameter_dataset_create(
                         inventory_ds.dataset,
                         disturbance_ds.dataset,
-                        **{f"out_{k}": v for k, v in spinup_parameter_ds.constructor_args.items()},
+                        **spinup_parameter_ds.to_constructor_args("out"),
                         enable_cbm_cfs3_smoother=config.get("use_smoother", True),
                     )
                 )
@@ -190,7 +190,7 @@ def build_run(
                 cbm4_parameter_dataset_factory.step_parameter_dataset_create(
                     inventory_ds.dataset,
                     disturbance_ds.dataset,
-                    **{f"out_{k}": v for k, v in step_parameter_ds.constructor_args.items()},
+                    **step_parameter_ds.to_constructor_args("out"),
                     enable_cbm_cfs3_smoother=config.get("use_smoother", True),
                 )
             )

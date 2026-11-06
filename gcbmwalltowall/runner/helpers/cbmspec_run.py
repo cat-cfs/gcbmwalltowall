@@ -71,7 +71,7 @@ class CBMSpecSpinup:
             simulation = cbm4_spatial_runner.create_simulation_dataset(
                 model,
                 inventory,
-                **{f"out_{k}": v for k, v in self.simulation_ds.constructor_args.items()},
+                **self.simulation_ds.to_constructor_args("out"),
             )
 
         if callbacks.legacy_on_pre_spinup is not None:
@@ -152,7 +152,7 @@ class CBMSpecStepping:
                 cbm4_spatial_runner.create_simulation_dataset(
                     model,
                     self.inventory_ds.dataset,
-                    **self.simulation_ds.constructor_args,
+                    **self.simulation_ds.to_constructor_args("out"),
                 )
 
         # Create working copies of the disturbance and parameter datasets to

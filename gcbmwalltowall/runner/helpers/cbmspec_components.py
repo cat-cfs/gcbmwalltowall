@@ -18,19 +18,21 @@ class DatasetConfig:
 
     @property
     def dataset(self) -> RasterIndexedDataset:
-        return RasterIndexedDataset(**self.constructor_args)
-
-    @cached_property
-    def constructor_args(self) -> dict[str, Any]:
-        return {
-            "dataset_name": self.dataset_name,
-            "storage_type": self.storage_type,
-            "storage_path_or_uri": str(self.path_or_uri),
-        }
+        return RasterIndexedDataset(**self.to_constructor_args())
 
     @property
     def exists(self) -> bool:
         return Path(self.path_or_uri).exists()
+
+    def to_constructor_args(self, prefix: str = "") -> dict[str, Any]:
+        if prefix:
+            prefix += "_"
+        
+        return {
+            f"{prefix}dataset_name": self.dataset_name,
+            f"{prefix}storage_type": self.storage_type,
+            f"{prefix}storage_path_or_uri": str(self.path_or_uri),
+        }
 
     def copy(self, dest_dir: str | pathlib.Path) -> DatasetConfig:
         out_path = Path(dest_dir).joinpath(self.dataset_name)
