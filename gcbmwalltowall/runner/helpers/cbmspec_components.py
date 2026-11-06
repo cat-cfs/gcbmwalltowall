@@ -59,16 +59,24 @@ class CBMSpecModelConfig:
     config: dict
 
     @property
+    def constructor_args(self):
+        return {
+            k: v for k, v in self.config.items()
+            if k in (
+                "cbm_defaults_path",
+                "locale",
+                "increment_table",
+                "historic_increment_table"
+            )
+        }
+
+    @property
     def model(self) -> Any:
         cbmspec_model = (
             self.config.get("cbmspec_model")
-            or cbmspec_cbm3_single_matrix.model_create(
-                self.config.get("cbm_defaults_path"),
-                self.config.get("locale", "en-CA"),
-                self.config.get("increment_table"),
-            )
+            or cbmspec_cbm3_single_matrix.model_create(**self.constructor_args)
         )
-
+        
         return cbmspec_model
 
 

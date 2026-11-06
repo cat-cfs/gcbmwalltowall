@@ -199,7 +199,7 @@ class CBMSpecStepping:
             cbmspec_model_config={
                 "package_name": "cbmspec",
                 "factory_function": "cbmspec_cbm3.models.cbmspec_cbm3_single_matrix.model_create",
-                "factory_parameters": self.cbmspec_model.config,
+                "factory_parameters": self.cbmspec_model.constructor_args,
             }
         )
 
@@ -216,7 +216,7 @@ class CBMSpecStepping:
                     cbmspec_model_config={
                         "package_name": "cbmspec",
                         "factory_function": "cbmspec_cbm3.models.cbmspec_cbm3_single_matrix.model_create",
-                        "factory_parameters": self.cbmspec_model.config,
+                        "factory_parameters": self.cbmspec_model.constructor_args,
                     }
                 )
                 
