@@ -26,19 +26,25 @@ def run(
         legacy_on_pre_simulation=on_pre_simulation
     )
 
-    progress_bar = tqdm(desc="Run simulation", total=0)
-    cbmspec_run, times = build_run(json_config, callbacks)
-    times.extend(
-        cbmspec_run.run(
-            progress_bar,
-            max_workers=max_workers,
-            write_parameters=write_parameters,
-            allow_multiple_transitions=json_config.get("allow_multiple_transitions", False),
+    with tqdm(
+        desc="initializing",
+        total=0,
+        bar_format=r"[Running simulation] {l_bar}{bar}{r_bar}"
+    ) as progress_bar:
+        cbmspec_run, times = build_run(json_config, callbacks)
+        times.extend(
+            cbmspec_run.run(
+                progress_bar,
+                max_workers=max_workers,
+                write_parameters=write_parameters,
+                allow_multiple_transitions=json_config.get(
+                    "allow_multiple_transitions", False
+                ),
+            )
         )
-    )
 
-    time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=times)
-    time_profiling.to_csv(
-        Path(cbm4_config_path).parent.joinpath("profiling.csv"),
-        index=False
-    )
+        time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=times)
+        time_profiling.to_csv(
+            Path(cbm4_config_path).parent.joinpath("profiling.csv"),
+            index=False
+        )

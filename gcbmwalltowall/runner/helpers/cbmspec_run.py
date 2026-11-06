@@ -53,6 +53,7 @@ class CBMSpecSpinup:
         model = self.cbmspec_model.model
 
         if progress_bar:
+            progress_bar.desc = "spinup"
             progress_bar.total += sum((
                 2,
                 (
@@ -126,6 +127,7 @@ class CBMSpecStepping:
         timesteps = list(range(start_timestep, end_timestep + 1))
 
         if progress_bar:
+            progress_bar.desc = "stepping"
             progress_bar.total += sum((
                 1,
                 len(timesteps),
@@ -264,12 +266,12 @@ class CBMSpecRun:
 
             progress_bar.refresh()
 
-        if self.spinup:
+        if self.spinup is not None:
             step_times.extend(self.spinup.run(progress_bar, **run_kwargs))
             if progress_bar is not None:
                 progress_bar.update()
         
-        if self.step:
+        if self.step is not None:
             step_times.extend(self.step.run(progress_bar, **run_kwargs))
             if progress_bar is not None:
                 progress_bar.update()

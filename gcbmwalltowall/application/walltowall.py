@@ -255,14 +255,17 @@ def cli():
     ).joinpath("walltowall.log")
 
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_handlers = [
+        FileHandler(log_path, mode=("a" if args.func == _run else "w")),
+    ]
+
+    if args.func != _run:
+        log_handlers.append(StreamHandler())
 
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(message)s",
-        handlers=[
-            FileHandler(log_path, mode=("a" if args.func == run else "w")),
-            StreamHandler(),
-        ],
+        handlers=log_handlers,
     )
 
     args.func(args)

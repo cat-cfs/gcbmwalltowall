@@ -82,8 +82,8 @@ def create_cache(cache_config):
         cache_end_year = cache_config["end_year"]
         cache_sim_ds = DatasetConfig(
             cache_config["dataset_name"],
-            cache_config["storage_type"],
             cache_config["path_or_uri"],
+            cache_config["storage_type"],
         )
 
         cache_param_ds = DatasetConfig(
@@ -143,6 +143,7 @@ def build_run(
         if not spinup_parameter_ds.exists:
             if progress_bar is not None:
                 progress_bar.total += 1
+                progress_bar.desc = "create spinup parameters"
                 progress_bar.refresh()
 
             with timed("create spinup parameter dataset", times, progress_bar):
@@ -185,6 +186,12 @@ def build_run(
     )
 
     if not step_parameter_ds.exists:
+        if not step_parameter_ds.exists:
+            if progress_bar is not None:
+                progress_bar.total += 1
+                progress_bar.desc = "create step parameters"
+                progress_bar.refresh()
+
         with timed("create step parameter datasets", times, progress_bar):
             step_spatial_parameter_ds = (
                 cbm4_parameter_dataset_factory.step_parameter_dataset_create(
