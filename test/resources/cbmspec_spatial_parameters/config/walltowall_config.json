@@ -1,7 +1,7 @@
 {
     "project_name": "intro_simulation",
-    "start_year": 2010,
-    "end_year": 2012,
+    "start_year": 2000,
+    "end_year": 2020,
     "epsg": 3978,
     "resolution": 100,
     "aidb": "../input_database/cbm_defaults_v1.2.8340.362.db",

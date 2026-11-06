@@ -193,6 +193,12 @@ class ProjectConverter:
                     out_parameter_ds_config,
                 )
 
+                parameter_preprocessor.ensure_timeseries_coverage(
+                    RasterIndexedDataset(**out_parameter_ds_config),
+                    cbm4_config["start_year"],
+                    cbm4_config["end_year"],
+                )
+
                 cbm4_parameter_dataset_factory.step_parameter_dataset_append(
                     RasterIndexedDataset(
                         preprocess_config["inventory_dataset"]["dataset_name"],

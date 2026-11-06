@@ -87,6 +87,51 @@ class ParameterDatasetPreprocessor:
                 output_ds.write(out_data)
                 output_ds.write_raster_index(out_data_raster_index)
 
+    def ensure_timeseries_coverage(
+        self, parameter_ds: RasterIndexedDataset, start_year: int, end_year: int
+    ):
+        '''Ensure contiguous timeseries by extending the first timestep's data
+        backward to `start_year`, and all other timesteps forward to fill any
+        gaps up to `end_year`.
+        '''
+        start_timestep = self._timestep_interpreter.get_timestep({"year": start_year})
+        end_timestep = self._timestep_interpreter.get_timestep({"year": end_year})
+
+        parameter_timesteps = sorted(
+            list({int(p["timestep"]) for p in parameter_ds.get_partition_values()})
+            + [end_timestep + 1]
+        )
+
+        fill_timesteps = [
+            (parameter_timesteps[0], list(range(start_timestep, parameter_timesteps[0]))),
+            *zip(
+                parameter_timesteps,
+                [
+                    list(range(parameter_timesteps[i] + 1, parameter_timesteps[i + 1]))
+                    for i in range(len(parameter_timesteps) - 1)
+                ]
+            ),
+        ]
+
+        chunk_indices = {p["chunk_index"] for p in parameter_ds.get_partition_values()}
+        for template_timestep, missing_timesteps in fill_timesteps:
+            for chunk_index in chunk_indices:
+                read_filters = [
+                    ["chunk_index", "=", chunk_index],
+                    ["timestep", "=", template_timestep]
+                ]
+
+                fill_data = parameter_ds.read_pandas(filters=read_filters)
+                fill_data_raster_index = parameter_ds.read_pandas(
+                    parameter_ds.raster_index_table_name, filters=read_filters
+                )
+
+                for missing_timestep in missing_timesteps:
+                    fill_data["timestep"] = missing_timestep
+                    fill_data_raster_index["timestep"] = missing_timestep
+                    parameter_ds.write(fill_data)
+                    parameter_ds.write_raster_index(fill_data_raster_index)
+
     def _get_attribute_tables(self, ds: FlattenedCoordinateDataset):
         attribute_tables = {
             layer_name: ds.get_attributes(layer_name)
