@@ -66,9 +66,6 @@ class CBMSpecSpinup:
 
         simulation = None
         with timed("create_simulation_dataset", times, progress_bar):
-            if self.simulation_ds.exists:
-                self.simulation_ds.dataset.delete()
-
             simulation = cbm4_spatial_runner.create_simulation_dataset(
                 model,
                 inventory,
@@ -148,9 +145,6 @@ class CBMSpecStepping:
 
         if self.cache is not None:
             with timed("create simulation dataset", times, progress_bar):
-                if self.simulation_ds.exists:
-                    self.simulation_ds.dataset.delete()
-
                 cbm4_spatial_runner.create_simulation_dataset(
                     model,
                     self.inventory_ds.dataset,

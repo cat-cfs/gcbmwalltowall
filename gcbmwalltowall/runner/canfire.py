@@ -48,7 +48,9 @@ def load_config(
     )
 
     json_config = cbmspec.load_config(cbm4_config_path, **kwargs)  # type: ignore
-    json_config.update({"cbmspec_model": model})
+    json_config["model_parameters"] = json_config.get("model_parameters", {})
+    json_config["model_parameters"]["step"] = json_config["model_parameters"].get("step", {})
+    json_config["model_parameters"]["step"]["cbmspec_model"] = model
 
     return json_config
 
