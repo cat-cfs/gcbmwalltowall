@@ -26,7 +26,7 @@ def get_single_matrix_cbmspec(cbm4_config_path: str, **config: Any):
 
 def load_config(
     cbm4_config_path: str,
-    wrapped_cbmspec_model: CBMSpecModel,
+    wrapped_cbmspec_model: CBMSpecModel | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     canfire_config_source: dict[str, Any] | str = (
@@ -42,6 +42,11 @@ def load_config(
     else:
         canfire_config = CanfireConfig.model_validate(canfire_config_source)
 
+    wrapped_cbmspec_model = (
+        wrapped_cbmspec_model
+        or get_single_matrix_cbmspec(cbm4_config_path, **kwargs)
+    )
+    
     model = CanfireCbmSpecModel(
         wrapped_cbmspec_model,
         canfire_config,
@@ -55,7 +60,11 @@ def load_config(
     return json_config
 
 
-def run(cbm4_config_path: str, wrapped_cbmspec_model: CBMSpecModel, **kwargs: Any):
+def run(
+    cbm4_config_path: str,
+    wrapped_cbmspec_model: CBMSpecModel | None = None,
+    **kwargs: Any
+):
     kwargs["json_config"] = load_config(
         cbm4_config_path, wrapped_cbmspec_model, **kwargs
     )

@@ -40,26 +40,42 @@ class ParameterDatasetPreprocessor:
         output_ds = RasterIndexedDataset(**output_dataset_config)
 
         attribute_tables = self._get_attribute_tables(input_ds)
-        timesteps = pd.concat(attribute_tables.values())["timestep"].unique()
+        timesteps = (
+            set(pd.concat(attribute_tables.values())["timestep"].unique().tolist())
+            if attribute_tables
+            else set()
+        )
+
         for partition in input_ds.get_partition_values():
             partition_filter = [(k, "=", v) for k, v in partition.items()]
             partition_data = defaultdict(list)
             for layer in input_ds.get_layer_names():
-                timeseries_tag = next(t for t in input_ds.get_tags(layer) if "timeseries" in t)
-                timeseries_name = timeseries_tag.split(":")[1]
-                partition_data[timeseries_name].append(
-                    pd.merge(
-                        input_ds.read_pandas(
-                            filters=partition_filter,
-                            read_cols=["chunk_index", "raster_index", layer],
-                        ),
-                        attribute_tables[layer],
-                        left_on=layer,
-                        right_on="id",
-                    )[["chunk_index", "raster_index", "timestep", "value"]].rename(
-                        columns={"value": timeseries_name}
-                    )
+                layer_data = input_ds.read_pandas(
+                    filters=partition_filter,
+                    read_cols=["chunk_index", "raster_index", layer],
                 )
+
+                timeseries_tag = next(t for t in input_ds.get_tags(layer) if "timeseries" in t)
+                if timeseries_tag.count(":") == 2:
+                    _, timeseries_name, year = timeseries_tag.split(":")
+                    timestep = self._timestep_interpreter.get_timestep({"year": year})
+                    timesteps.add(timestep)
+                    layer_data["timestep"] = timestep
+                    partition_data[timeseries_name].append(
+                        layer_data.rename(columns={layer: timeseries_name})
+                    )
+                else:
+                    _, timeseries_name = timeseries_tag.split(":")
+                    partition_data[timeseries_name].append(
+                        pd.merge(
+                            layer_data,
+                            attribute_tables[layer],
+                            left_on=layer,
+                            right_on="id",
+                        )[["chunk_index", "raster_index", "timestep", "value"]].rename(
+                            columns={"value": timeseries_name}
+                        )
+                    )
 
             joined_data = None
             for timeseries_data in partition_data.values():
@@ -134,8 +150,10 @@ class ParameterDatasetPreprocessor:
 
     def _get_attribute_tables(self, ds: FlattenedCoordinateDataset):
         attribute_tables = {
-            layer_name: ds.get_attributes(layer_name)
-            for layer_name in ds.get_layer_names()
+            k: v for k, v in {
+                layer_name: ds.get_attributes(layer_name)
+                for layer_name in ds.get_layer_names()
+            }.items() if v is not None
         }
 
         for attribute_table in attribute_tables.values():

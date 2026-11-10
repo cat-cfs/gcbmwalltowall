@@ -105,27 +105,21 @@ class Timeseries(Tileable):
                 else None
             )
 
-            # timeseries values come directly from pixel values if not in attribute table
             if not value_attr:
-                lookup_table = Path(self._temp_dir.name).joinpath("attrs.csv")
-                value_attr = "value"
-                with gdal.Open(layer_path) as ds:
-                    px_values = np.unique(ds.GetRasterBand(1).ReadAsArray().flatten())
-                    px_values = px_values[px_values != ds.GetRasterBand(1).GetNoDataValue()]
-                    lookup_data = pd.DataFrame({"px": px_values, "value": px_values})
+                # timeseries values come directly from pixel values if not in attribute table
+                layer.tiler_kwargs["tags"] = [f"timeseries:{self.name}:{year}"]
+                timeseries_layers.append(layer.to_tiler_layer(rule_manager, **kwargs))
+            else:
+                if year not in attribute_table:
+                    lookup_table = Path(self._temp_dir.name).joinpath("attrs.csv")
+                    lookup_data = pd.read_csv(layer.lookup_table)
+                    lookup_data["year"] = int(float(year))
                     lookup_data.to_csv(lookup_table, index=False)
                     layer.lookup_table = lookup_table
-    
-            if year not in attribute_table:
-                lookup_table = Path(self._temp_dir.name).joinpath("attrs.csv")
-                lookup_data = pd.read_csv(layer.lookup_table)
-                lookup_data["year"] = int(float(year))
-                lookup_data.to_csv(lookup_table, index=False)
-                layer.lookup_table = lookup_table
-                year = "year"
+                    year = "year"
 
-            layer.attributes = [year, value_attr]
-            timeseries_layers.append(layer.to_tiler_layer(rule_manager, **kwargs))
+                layer.attributes = [year, value_attr]
+                timeseries_layers.append(layer.to_tiler_layer(rule_manager, **kwargs))
         else:
             extended_attribute_table = None
             if year not in attribute_table:
