@@ -1,50 +1,17 @@
 from __future__ import annotations
-import json
-import os
-import shutil
-import time
-from tempfile import TemporaryDirectory
-from typing import Any, Callable
 import pandas as pd
-from arrow_space.raster_indexed_dataset import RasterIndexedDataset
-from cbm4.app.spatial.spatial_cbm4 import cbm4_spatial_runner
-from cbm4.app.spatial.event_handler.event_processor import EventProcessor
-from cbmspec_cbm3.models import cbmspec_cbm3_single_matrix
-from cbmspec_cbm3.parameters.cbm_defaults import cbm4_parameter_dataset_factory
+import pathlib
 from tqdm import tqdm
+from typing import Callable
+from tqdm import tqdm
+from gcbmwalltowall.runner.helpers.cbmspec_components import CBMSpecCallbacks
+from gcbmwalltowall.runner.helpers.cbmspec_config import build_run
+from gcbmwalltowall.runner.helpers.cbmspec_config import load_config
 from gcbmwalltowall.util.path import Path
 
 
-class CBMDefaultsRef:
-
-    def __init__(self, inventory_ds: RasterIndexedDataset):
-        if inventory_ds.file_or_dir_exists("cbm_defaults"):
-            self._tmp = TemporaryDirectory()
-            self.path = Path(self._tmp.name).joinpath("cbm_defaults.db")
-            inventory_ds.extract_file_or_dir("cbm_defaults", str(self.path))
-        else:
-            self.path = None
-
-
-def load_config(cbm4_config_path: str | Path, **kwargs) -> dict[str, Any]:
-    output_path = str(Path(cbm4_config_path).absolute().parent)
-    json_config = json.load(open(cbm4_config_path))
-    for _, dataset_config in json_config["cbm4_spatial_dataset"].items():
-        relative_path = dataset_config["path_or_uri"]
-        absolute_path = os.path.join(output_path, relative_path)
-        dataset_config["path_or_uri"] = absolute_path
-
-    cache_config = json_config.get("cache")
-    if cache_config is not None:
-        relative_path = cache_config["path_or_uri"]
-        absolute_path = os.path.join(output_path, relative_path)
-        cache_config["path_or_uri"] = absolute_path
-
-    return json_config
-
-
 def run(
-    cbm4_config_path: str | Path,
+    cbm4_config_path: str | pathlib.Path,
     max_workers: int | None = None,
     write_parameters: bool = False,
     on_pre_spinup: Callable[[str]] | None = None,
@@ -53,222 +20,31 @@ def run(
     **kwargs,
 ):
     json_config = kwargs.get("json_config") or load_config(cbm4_config_path, **kwargs)
-    json_cache_config = json_config.get("cache")
-
-    shutil.rmtree(
-        json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"], True
+    json_config["end_year"] = end_year or json_config["end_year"]
+    callbacks = CBMSpecCallbacks(
+        legacy_on_pre_spinup=on_pre_spinup,
+        legacy_on_pre_simulation=on_pre_simulation
     )
 
-    inventory_ds = RasterIndexedDataset(
-        json_config["cbm4_spatial_dataset"]["inventory"]["dataset_name"],
-        json_config["cbm4_spatial_dataset"]["inventory"]["storage_type"],
-        json_config["cbm4_spatial_dataset"]["inventory"]["path_or_uri"],
-    )
-
-    disturbance_ds = RasterIndexedDataset(
-        json_config["cbm4_spatial_dataset"]["disturbance"]["dataset_name"],
-        json_config["cbm4_spatial_dataset"]["disturbance"]["storage_type"],
-        json_config["cbm4_spatial_dataset"]["disturbance"]["path_or_uri"]
-    )
-
-    cbm_defaults = CBMDefaultsRef(inventory_ds)
-    spinup_model_config = json_config.get("model_parameters", {}).get("spinup", {})
-    step_model_config = json_config.get("model_parameters", {}).get("step", {})
-    for model_config in (spinup_model_config, step_model_config):
-        model_config["cbm_defaults_path"] = str(cbm_defaults.path)
-        model_config["locale"] = json_config.get("cbm_defaults_locale", "en-CA")
-        increment_table_rel_path = model_config.get("increment_table")
-        if increment_table_rel_path:
-            increment_table_abs_path = os.path.join(
-                os.path.dirname(cbm4_config_path),
-                increment_table_rel_path
-            )
-
-            model_config["increment_table"] = increment_table_abs_path
-
-
-    spinup_model = cbmspec_cbm3_single_matrix.model_create(
-        **spinup_model_config
-    )
-
-    step_model = json_config.get("cbmspec_model") or cbmspec_cbm3_single_matrix.model_create(
-        **step_model_config
-    )
-
-    step_times = []
-    start = time.time()
-    simulation_ds = cbm4_spatial_runner.create_simulation_dataset(
-        spinup_model,
-        inventory_ds,
-        json_config["cbm4_spatial_dataset"]["simulation"]["dataset_name"],
-        json_config["cbm4_spatial_dataset"]["simulation"]["storage_type"],
-        json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"],
-    )
-    step_times.append(["create simulation dataset", (time.time() - start)])
-
-    out_path = Path(
-        json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"]
-    ).parent
-
-    if json_cache_config is None:
-        start = time.time()
-        spinup_spatial_parameter_ds = (
-            cbm4_parameter_dataset_factory.spinup_parameter_dataset_create(
-                inventory_ds,
-                disturbance_ds,
-                "spinup_parameters",
-                "local_storage",
-                str(out_path.joinpath("spinup_parameters")),
-                enable_cbm_cfs3_smoother=json_config.get("use_smoother", True),
-            )
-        )
-
-        if "increment_table" in spinup_model_config:
-            shutil.rmtree(out_path.joinpath(
-                "spinup_parameters", "spinup_parameters-table-increments"
-            ))
-            
-            spinup_spatial_parameter_ds.write_table(
-                "parameter_table_metadata",
-                spinup_spatial_parameter_ds.read_table_pandas(
-                    "parameter_table_metadata",
-                    filters=[("table_name", "!=", "increments")]
-                )
-            )
-
-        step_times.append(["create spinup parameter datasets", (time.time() - start)])
-
-        if on_pre_spinup is not None:
-            start = time.time()
-            on_pre_spinup(json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"])
-            step_times.append(["pre-spinup callback", (time.time() - start)])
-
-        start = time.time()
-        step_spatial_parameter_ds = (
-            cbm4_parameter_dataset_factory.step_parameter_dataset_create(
-                inventory_ds,
-                disturbance_ds,
-                "step_parameters",
-                "local_storage",
-                str(out_path.joinpath("step_parameters")),
-                enable_cbm_cfs3_smoother=json_config.get("use_smoother", True),
-            )
-        )
-
-        if "increment_table" in step_model_config:
-            shutil.rmtree(out_path.joinpath(
-                "step_parameters", "step_parameters-table-increments"
-            ))
-            
-            step_spatial_parameter_ds.write_table(
-                "parameter_table_metadata",
-                step_spatial_parameter_ds.read_table_pandas(
-                    "parameter_table_metadata",
-                    filters=[("table_name", "!=", "increments")]
-                )
-            )
-        
-        step_times.append(["create step parameter datasets", (time.time() - start)])
-    else:
-        step_spatial_parameter_ds = RasterIndexedDataset(
-            "step_parameters",
-            json_cache_config["storage_type"],
-            str(Path(json_cache_config["path_or_uri"]).joinpath("..", "step_parameters")),
-        )
-
-    start_year = json_config["start_year"]
-    end_year = end_year or json_config["end_year"]
-    final_timestep = end_year - start_year + 1
-    timesteps = list(range(1, final_timestep + 1))
-    with tqdm(desc="Simulation", total=len(timesteps) + 1) as pbar:
-        if json_cache_config is None:
-            start = time.time()
-            cbm4_spatial_runner.spinup_all(
-                model=spinup_model,
-                inventory_dataset=inventory_ds,
-                simulation_dataset=simulation_ds,
-                parameter_dataset=spinup_spatial_parameter_ds,
+    with tqdm(
+        desc="initializing",
+        total=0,
+        bar_format=r"[Running simulation] {l_bar}{bar}{r_bar}"
+    ) as progress_bar:
+        cbmspec_run, times = build_run(json_config, callbacks)
+        times.extend(
+            cbmspec_run.run(
+                progress_bar,
                 max_workers=max_workers,
                 write_parameters=write_parameters,
+                allow_multiple_transitions=json_config.get(
+                    "allow_multiple_transitions", False
+                ),
             )
-            step_times.append(["spinup", (time.time() - start)])
+        )
 
-        pbar.update()
-        if on_pre_simulation is not None:
-            start = time.time()
-            on_pre_simulation(json_config["cbm4_spatial_dataset"]["simulation"]["path_or_uri"])
-            step_times.append(["pre-simulation callback", (time.time() - start)])
-
-        cache_end_timestep = -1
-        if json_cache_config is not None:
-            simulation_cache_ds = RasterIndexedDataset(
-                json_cache_config["dataset_name"],
-                json_cache_config["storage_type"],
-                json_cache_config["path_or_uri"],
-            )
-            cache_end_timestep = json_cache_config["end_year"] - start_year + 1
-
-        with TemporaryDirectory() as tmp:
-            # Create a temporary working copy of the disturbance dataset to be used
-            # by rule-based EventProcessor.
-            working_disturbance_ds_path = Path(tmp).joinpath("disturbance")
-            disturbance_ds.copy("disturbance", "local_storage", str(working_disturbance_ds_path))
-            working_disturbance_ds = RasterIndexedDataset(
-                "disturbance", "local_storage", str(working_disturbance_ds_path)
-            )
-
-            t0_event_processor = None
-            event_processor = EventProcessor.for_datasets(
-                simulation_ds,
-                working_disturbance_ds,
-                cbmspec_model_config={
-                    "package_name": "cbmspec",
-                    "factory_function": "cbmspec_cbm3.models.cbmspec_cbm3_single_matrix.model_create",
-                    "factory_parameters": step_model_config
-                }
-            )
-            
-            for timestep in timesteps:
-                if timestep <= cache_end_timestep:
-                    pbar.update()
-                    continue
-
-                start = time.time()
-                if timestep - 1 == cache_end_timestep:
-                    t0_event_processor = EventProcessor.for_datasets(
-                        simulation_cache_ds,
-                        working_disturbance_ds,
-                        cbmspec_model_config={
-                            "package_name": "cbmspec",
-                            "factory_function": "cbmspec_cbm3.models.cbmspec_cbm3_single_matrix.model_create",
-                            "factory_parameters": step_model_config
-                        }
-                    )
-                    
-                    t0_event_processor.process_events_for_timestep(timestep)
-                else:
-                    event_processor.process_events_for_timestep(timestep)
-                
-                cbm4_spatial_runner.step_all(
-                    model=step_model,
-                    timestep=timestep,
-                    simulation_input_dataset=(
-                        simulation_cache_ds if timestep - 1 == cache_end_timestep
-                        else simulation_ds
-                    ),
-                    disturbance_event_dataset=working_disturbance_ds,
-                    simulation_output_dataset=simulation_ds,
-                    parameter_dataset=step_spatial_parameter_ds,
-                    max_workers=max_workers,
-                    write_parameters=write_parameters,
-                    allow_multiple_transitions=json_config.get("allow_multiple_transitions", False),
-                )
-                step_times.append([f"timestep_{timestep}", (time.time() - start)])
-                pbar.update()
-
-            if t0_event_processor is not None:
-                t0_event_processor.summarize(out_path.joinpath("event_processor_summary_t0.csv"))
-
-            event_processor.summarize(out_path.joinpath("event_processor_summary.csv"))
-            time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=step_times)
-            time_profiling.to_csv(out_path.joinpath("profiling.csv"), index=False)
+        time_profiling = pd.DataFrame(columns=["task", "time_elapsed"], data=times)
+        time_profiling.to_csv(
+            Path(cbm4_config_path).parent.joinpath("profiling.csv"),
+            index=False
+        )

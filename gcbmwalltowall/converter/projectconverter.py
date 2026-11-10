@@ -27,6 +27,10 @@ from gcbmwalltowall.converter.layerconverter import (
 )
 from gcbmwalltowall.util.path import Path
 from gcbmwalltowall.util.encoding import load_csv
+from gcbmwalltowall.converter.parameterdatasetpreprocessor import ParameterDatasetPreprocessor
+from cbm4.app.spatial.gcbm_input.timestep_interpreter import build_interpreter_from_config
+from cbm4.app.spatial.gcbm_input.timestep_interpreter import YearOffsetTimestepInterpreterConfig
+from cbmspec_cbm3.parameters.cbm_defaults import cbm4_parameter_dataset_factory
 
 
 class ProjectConverter:
@@ -162,6 +166,64 @@ class ProjectConverter:
                     )
 
             preprocess(preprocess_config)
+
+            parameter_ds_path = temp_dir.joinpath("parameters.arrowspace")
+            if parameter_ds_path.exists():
+                parameter_preprocessor = ParameterDatasetPreprocessor(
+                    build_interpreter_from_config(
+                        YearOffsetTimestepInterpreterConfig.model_validate(
+                            preprocess_config["timestep_interpreter"]
+                        )
+                    ),
+                    cbm_defaults_path,
+                )
+
+                out_parameter_ds_config = {
+                    "dataset_name": "step_parameters",
+                    "storage_type": "local_storage",
+                    "storage_path_or_uri": str(output_path.joinpath("step_parameters"))
+                }
+
+                parameter_preprocessor.preprocess(
+                    {
+                        "dataset_name": "parameters",
+                        "storage_type": "local_storage",
+                        "storage_path_or_uri": str(parameter_ds_path)
+                    },
+                    out_parameter_ds_config,
+                )
+
+                parameter_preprocessor.ensure_timeseries_coverage(
+                    RasterIndexedDataset(**out_parameter_ds_config),
+                    cbm4_config["start_year"],
+                    cbm4_config["end_year"],
+                )
+
+                cbm4_parameter_dataset_factory.step_parameter_dataset_append(
+                    RasterIndexedDataset(
+                        preprocess_config["inventory_dataset"]["dataset_name"],
+                        preprocess_config["inventory_dataset"]["storage_type"],
+                        preprocess_config["inventory_dataset"]["path_or_uri"],
+                    ),
+                    RasterIndexedDataset(
+                        preprocess_config["disturbance_dataset"]["dataset_name"],
+                        preprocess_config["disturbance_dataset"]["storage_type"],
+                        preprocess_config["disturbance_dataset"]["path_or_uri"],
+                    ),
+                    RasterIndexedDataset(**out_parameter_ds_config),
+                    str(cbm_defaults_path),
+                    locale,
+                    cbm4_config["use_smoother"],
+                )
+
+                cbm4_config["cbm4_spatial_dataset"]["step_parameters"] = {
+                    "dataset_name": out_parameter_ds_config["dataset_name"],
+                    "storage_type": out_parameter_ds_config["storage_type"],
+                    "path_or_uri": out_parameter_ds_config["dataset_name"],
+                }
+
+                json.dump(cbm4_config, open(output_path.joinpath("cbm4_config.json"), "w"), indent=4)
+
             if optimize_spinup:
                 self._optimize_spinup(preprocess_config, cbm_defaults_path, output_path)
 
@@ -310,7 +372,12 @@ class ProjectConverter:
 
     def _convert_spatial_data(self, layer_converter, project, output_path):
         output_path = Path(output_path)
-        base_arrowspace_layers = layer_converter.convert(project.layers)
+        all_converted_layers = layer_converter.convert(project.layers)
+        base_arrowspace_layers = [
+            layer for layer in all_converted_layers
+            if not any(("timeseries" in tag for tag in layer.tags))
+        ]
+
         base_arrowspace_collection = InputLayerCollection(base_arrowspace_layers)
 
         creation_options = self._creation_options.copy()
@@ -356,12 +423,27 @@ class ProjectConverter:
             cohort_arrowspace_collection = InputLayerCollection(
                 cohort_arrowspace_layers
             )
+
             create_arrowspace_dataset(
                 cohort_arrowspace_collection,
                 "inventory",
                 "local_storage",
                 str(output_path.joinpath(dataset_name)),
                 creation_options,
+            )
+
+        timeseries_layers = [
+            layer for layer in all_converted_layers
+            if any(("timeseries" in tag for tag in layer.tags))
+        ]
+
+        if timeseries_layers:
+            create_arrowspace_dataset(
+                InputLayerCollection(timeseries_layers),
+                "parameters",
+                "local_storage",
+                str(output_path.joinpath("parameters.arrowspace")),
+                self._creation_options,
             )
 
     def _flatten_pivot_columns(self, pivot_data):
