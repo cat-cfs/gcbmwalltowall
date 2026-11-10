@@ -57,7 +57,10 @@ def canfire_config(cbm4_project_copy):
 def test_load_config(cbm4_config_path):
     model = cbmspec_cbm3_single_matrix.model_create()
     json_config = load_config(str(cbm4_config_path), model)
-    assert isinstance(json_config.get("cbmspec_model"), CanfireCbmSpecModel)
+    assert isinstance(
+        json_config["model_parameters"]["step"]["cbmspec_model"],
+        CanfireCbmSpecModel
+    )
 
 
 def test_run_canfire(cbm4_project_copy, canfire_config):
