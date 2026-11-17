@@ -227,12 +227,14 @@ class DisturbanceExtender:
 
         # Overwrite the original disturbance dataset with the newly merged data,
         # ensuring a consistent schema between the two.
-        processed_cols = list(processed_disturbances.get_data_types().keys())
+        processed_cols = list(
+            processed_disturbances.get_schema().column_names()
+        )
         t0_year = self._cbm4_project.t0_year
         for partition in original_disturbances.get_partition_values():
             if t0_year + partition["timestep"] in addon_years:
                 continue
-            
+
             original_dist_year_data = original_disturbances.read_pandas(
                 filters=[[k, "=", v] for k, v in partition.items()],
             )
@@ -288,7 +290,7 @@ class DisturbanceExtender:
         unmapped_dist_loc = disturbances[
             "default_disturbance_type_id"
         ].isnull()
-        
+
         if unmapped_dist_loc.any():
             unmapped = (
                 disturbances["disturbance_type"]
@@ -341,7 +343,7 @@ class DisturbanceExtender:
             disturbance_dataset.write_table(transition_table, all_transitions)
 
         return min_addon_year, max_addon_year
-        
+
 
     def _preprocess_disturbance_partition(
         self,
@@ -430,14 +432,20 @@ class DisturbanceExtender:
         x_chunk_size = creation_options.get("x_chunk_size", 2500)
         y_chunk_size = creation_options.get("y_chunk_size", 2500)
         est_mem_per_worker = len(layers) * (x_chunk_size * y_chunk_size) * 8
-        creation_options["max_workers"] = self._get_max_workers(est_mem_per_worker)
         dataset_input = InputLayerCollection(converter.convert(layers))
         dataset = flattened_coordinate_dataset.create(
             dataset_input,
             "disturbance",
             "local_storage",
             str(output_path),
-            creation_options or {},
+            creation_options={
+                "chunk_options": {
+                    "chunk_x_size_max": x_chunk_size,
+                    "chunk_y_size_max": y_chunk_size,
+                },
+                "max_workers": self._get_max_workers(est_mem_per_worker),
+                "delete_existing": True
+            }
         )
 
         # Clean up the attribute table for compatibility with existing CBM4
@@ -504,6 +512,7 @@ class DisturbanceExtender:
                     "chunk_y_size_max": datasets[0].chunks[0].y_size,
                 },
                 "max_workers": max_workers,
+                "delete_existing": True
             }
         )
 
