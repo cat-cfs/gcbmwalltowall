@@ -1,6 +1,12 @@
 import duckdb
+import logging
+import itertools
+import multiprocessing
 import pandas as pd
-from functools import cache
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import as_completed
+from typing import Any
+from functools import cached_property
 from pathlib import Path
 from collections import defaultdict
 from arrow_space import dataset_common
@@ -15,15 +21,18 @@ class ParameterDatasetPreprocessor:
         self,
         timestep_interpreter: TimestepInterpreter,
         cbm_defaults_path: str | Path,
+        max_workers: int | None = None,
     ):
         self._timestep_interpreter = timestep_interpreter
         self._cbm_defaults_path = str(cbm_defaults_path)
+        self._max_workers = max_workers
 
     def preprocess(
         self,
         input_dataset_config: dict[str, str],
         output_dataset_config: dict[str, str]
     ):
+        logging.info("Preprocessing spatial timeseries parameters")
         input_ds = FlattenedCoordinateDataset(**input_dataset_config)
         dataset_common.create_empty(
             output_dataset_config["dataset_name"],
@@ -38,70 +47,86 @@ class ParameterDatasetPreprocessor:
         )
 
         output_ds = RasterIndexedDataset(**output_dataset_config)
-
         attribute_tables = self._get_attribute_tables(input_ds)
-        timesteps = (
-            set(pd.concat(attribute_tables.values())["timestep"].unique().tolist())
-            if attribute_tables
-            else set()
-        )
-
-        for partition in input_ds.get_partition_values():
-            partition_filter = [(k, "=", v) for k, v in partition.items()]
-            partition_data = defaultdict(list)
-            for layer in input_ds.get_layer_names():
-                layer_data = input_ds.read_pandas(
-                    filters=partition_filter,
-                    read_cols=["chunk_index", "raster_index", layer],
+        layers_by_timestep = self._get_layers_by_timestep(input_ds, attribute_tables)
+        partitions = input_ds.get_partition_values()
+        jobs = itertools.product(layers_by_timestep.items(), partitions)
+        futures = []
+        with ProcessPoolExecutor(
+            self._max_workers, mp_context=multiprocessing.get_context("spawn")
+        ) as pool:
+            for (timestep, layers), partition in jobs:
+                futures.append(
+                    pool.submit(
+                        self._preprocess_chunk, input_dataset_config, output_dataset_config, layers, attribute_tables, timestep, partition
+                    )
                 )
 
-                timeseries_tag = next(t for t in input_ds.get_tags(layer) if "timeseries" in t)
-                if timeseries_tag.count(":") == 2:
-                    _, timeseries_name, year = timeseries_tag.split(":")
-                    timestep = self._timestep_interpreter.get_timestep({"year": year})
-                    timesteps.add(timestep)
-                    layer_data["timestep"] = timestep
-                    partition_data[timeseries_name].append(
-                        layer_data.rename(columns={layer: timeseries_name})
-                    )
-                else:
-                    _, timeseries_name = timeseries_tag.split(":")
-                    partition_data[timeseries_name].append(
-                        pd.merge(
-                            layer_data,
-                            attribute_tables[layer],
-                            left_on=layer,
-                            right_on="id",
-                        )[["chunk_index", "raster_index", "timestep", "value"]].rename(
-                            columns={"value": timeseries_name}
-                        )
-                    )
+        n_futures = len(futures)
+        for i, result in enumerate(as_completed(futures), 1):
+            logging.info(f"  chunk {i} / {n_futures}")
 
-            joined_data = None
-            for timeseries_data in partition_data.values():
-                timeseries_data = pd.concat(timeseries_data).drop_duplicates(
-                    subset=["timestep", "chunk_index", "raster_index"]
+    def _preprocess_chunk(
+        self,
+        input_dataset_config: dict[str, str],
+        output_dataset_config: dict[str, str],
+        layers: list[str],
+        attribute_tables: dict[str, pd.DataFrame],
+        timestep: int,
+        partition: dict[str, Any]
+    ):
+        input_ds = FlattenedCoordinateDataset(**input_dataset_config)
+        output_ds = RasterIndexedDataset(**output_dataset_config)
+        partition_filter = [(k, "=", v) for k, v in partition.items()]
+        partition_data = defaultdict(list)
+        for layer in layers:
+            layer_data = input_ds.read_pandas(
+                filters=partition_filter,
+                read_cols=["chunk_index", "raster_index", layer],
+            )
+
+            timeseries_tag = next(t for t in input_ds.get_tags(layer) if "timeseries" in t)
+            if timeseries_tag.count(":") == 2:
+                _, timeseries_name, year = timeseries_tag.split(":")
+                timestep = self._timestep_interpreter.get_timestep({"year": year})
+                layer_data["timestep"] = timestep
+                partition_data[timeseries_name].append(
+                    layer_data.rename(columns={layer: timeseries_name})
+                )
+            else:
+                _, timeseries_name = timeseries_tag.split(":")
+                partition_data[timeseries_name].append(
+                    pd.merge(
+                        layer_data,
+                        attribute_tables[layer],
+                        left_on=layer,
+                        right_on="id",
+                    )[["chunk_index", "raster_index", "timestep", "value"]].rename(
+                        columns={"value": timeseries_name}
+                    ).query(f"timestep == {timestep}")
                 )
 
-                if joined_data is None:
-                    joined_data = timeseries_data
-                else:
-                    joined_data = pd.merge(
-                        joined_data,
-                        timeseries_data,
-                        how="outer",
-                        on=["timestep", "chunk_index", "raster_index"]
-                    )
+        joined_data = None
+        for timeseries_data in partition_data.values():
+            timeseries_data = pd.concat(timeseries_data).drop_duplicates(
+                subset=["timestep", "chunk_index", "raster_index"]
+            )
 
-            for timestep in timesteps:
-                out_data, out_data_raster_index = output_ds.as_raster_indexed(
-                    joined_data[joined_data["timestep"] == timestep]
+            if joined_data is None:
+                joined_data = timeseries_data
+            else:
+                joined_data = pd.merge(
+                    joined_data,
+                    timeseries_data,
+                    how="outer",
+                    on=["timestep", "chunk_index", "raster_index"]
                 )
 
-                out_data = self._ensure_correct_data_types(out_data)
-                out_data_raster_index["timestep"] = timestep
-                output_ds.write(out_data)
-                output_ds.write_raster_index(out_data_raster_index)
+        out_data, out_data_raster_index = output_ds.as_raster_indexed(joined_data)
+        out_data = self._ensure_correct_data_types(out_data)
+        out_data_raster_index["timestep"] = timestep
+        output_ds.write(out_data)
+        output_ds.write_raster_index(out_data_raster_index)
 
     def ensure_timeseries_coverage(
         self, parameter_ds: RasterIndexedDataset, start_year: int, end_year: int
@@ -110,6 +135,7 @@ class ParameterDatasetPreprocessor:
         backward to `start_year`, and all other timesteps forward to fill any
         gaps up to `end_year`.
         '''
+        logging.info(f"Ensuring timeseries parameter coverage from {start_year} to {end_year}")
         start_timestep = self._timestep_interpreter.get_timestep({"year": start_year})
         end_timestep = self._timestep_interpreter.get_timestep({"year": end_year})
 
@@ -148,7 +174,7 @@ class ParameterDatasetPreprocessor:
                     parameter_ds.write(fill_data)
                     parameter_ds.write_raster_index(fill_data_raster_index)
 
-    def _get_attribute_tables(self, ds: FlattenedCoordinateDataset):
+    def _get_attribute_tables(self, ds: FlattenedCoordinateDataset) -> dict[str, pd.DataFrame]:
         attribute_tables = {
             k: v for k, v in {
                 layer_name: ds.get_attributes(layer_name)
@@ -164,14 +190,14 @@ class ParameterDatasetPreprocessor:
         return attribute_tables
 
     def _ensure_correct_data_types(self, parameter_data: pd.DataFrame):
-        data_types = self._get_parameter_data_types()
+        data_types = self._parameter_data_types
         
         return parameter_data.astype({
             c: data_types.get(c, "str") for c in parameter_data.columns
         })
 
-    @cache
-    def _get_parameter_data_types(self):
+    @cached_property
+    def _parameter_data_types(self):
         cbm_defaults = duckdb.connect(self._cbm_defaults_path)
         dtypes = cbm_defaults.query(
             """
@@ -200,3 +226,23 @@ class ParameterDatasetPreprocessor:
         type_map["index"] = "int64"
 
         return type_map
+
+    def _get_layers_by_timestep(
+        self, input_ds: FlattenedCoordinateDataset, attribute_tables: dict[str, pd.DataFrame]
+    ) -> dict[int, list[str]]:
+        layers_by_timestep = defaultdict(list)
+        for layer in input_ds.get_layer_names():
+            layer_timesteps = []
+            layer_attributes = attribute_tables.get(layer)
+            if layer_attributes is not None:
+                layer_timesteps = layer_attributes["timestep"].unique().tolist()
+            else:
+                timeseries_tag = next(t for t in input_ds.get_tags(layer) if "timeseries" in t)
+                if timeseries_tag.count(":") == 2:
+                    _, _, year = timeseries_tag.split(":")
+                    layer_timesteps = [self._timestep_interpreter.get_timestep({"year": year})]
+
+            for timestep in layer_timesteps:
+                layers_by_timestep[timestep].append(layer)
+
+        return layers_by_timestep
