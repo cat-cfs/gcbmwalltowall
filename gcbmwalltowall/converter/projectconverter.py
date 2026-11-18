@@ -41,7 +41,8 @@ class ProjectConverter:
             "chunk_options": {
                 "chunk_x_size_max": 2500,
                 "chunk_y_size_max": 2500,
-            }
+            },
+            "delete_existing": True,
         }
 
         self._creation_options.update(creation_options or {})
@@ -391,7 +392,7 @@ class ProjectConverter:
             if optional_mask_layer in base_arrowspace_collection.layer_names:
                 mask_layers.append(optional_mask_layer)
 
-        creation_options.update({"mask_layers": mask_layers})
+        creation_options["mask_layers"] = mask_layers
 
         base_dataset_name = "inventory.arrowspace"
         create_arrowspace_dataset(

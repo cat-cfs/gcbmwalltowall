@@ -242,6 +242,7 @@ class CBM4Project:
                     "chunk_y_size_max": self._disturbance_dataset.chunks[0].y_size,
                 },
                 "max_workers": max_workers,
+                "delete_existing": True,
             }
         )
 

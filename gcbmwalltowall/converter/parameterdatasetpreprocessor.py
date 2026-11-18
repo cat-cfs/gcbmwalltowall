@@ -46,14 +46,14 @@ class ParameterDatasetPreprocessor:
             input_ds.get_geo_metadata(),
         )
 
-        output_ds = RasterIndexedDataset(**output_dataset_config)
         attribute_tables = self._get_attribute_tables(input_ds)
         layers_by_timestep = self._get_layers_by_timestep(input_ds, attribute_tables)
         partitions = input_ds.get_partition_values()
-        jobs = itertools.product(layers_by_timestep.items(), partitions)
+        jobs = list(itertools.product(layers_by_timestep.items(), partitions))
+        max_workers = min(self._max_workers or multiprocessing.cpu_count(), len(jobs))
         futures = []
         with ProcessPoolExecutor(
-            self._max_workers, mp_context=multiprocessing.get_context("spawn")
+            max_workers, mp_context=multiprocessing.get_context("spawn")
         ) as pool:
             for (timestep, layers), partition in jobs:
                 futures.append(
@@ -63,7 +63,9 @@ class ParameterDatasetPreprocessor:
                 )
 
         n_futures = len(futures)
-        for i, result in enumerate(as_completed(futures), 1):
+        i = 0
+        for _ in as_completed(futures):
+            i += 1
             logging.info(f"  chunk {i} / {n_futures}")
 
     def _preprocess_chunk(

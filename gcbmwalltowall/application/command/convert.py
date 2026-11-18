@@ -72,14 +72,10 @@ def convert(args: ConvertArgs | dict):
     creation_options["max_workers"] = args.max_workers
     chunk_size = args.chunk_size
     if chunk_size:
-        creation_options.update(
-            {
-                "chunk_options": {
-                    "chunk_x_size_max": chunk_size,
-                    "chunk_y_size_max": chunk_size,
-                }
-            }
-        )
+        creation_options["chunk_options"] = {
+            "chunk_x_size_max": chunk_size,
+            "chunk_y_size_max": chunk_size,
+        }
 
     project = PreparedProject(args.project_path, args.include_rollback_info)
     logging.info(f"Converting {project.path} to CBM4")
