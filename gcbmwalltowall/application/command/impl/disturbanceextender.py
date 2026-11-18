@@ -263,6 +263,7 @@ class DisturbanceExtender:
             out_ds_config["dataset_name"],
             out_ds_config["storage_type"],
             out_ds_config["path_or_uri"],
+            delete_existing=True
         )
 
         return min(addon_years), max_disturbance_year
