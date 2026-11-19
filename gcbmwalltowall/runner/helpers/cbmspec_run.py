@@ -160,7 +160,9 @@ class CBMSpecStepping:
                 YearOffsetTimestepInterpreter(self.start_year - 1),
                 str(self.cbm_defaults.path),
             ).ensure_timeseries_coverage(
-                working_parameter_ds.dataset, self.start_year, self.end_year
+                working_parameter_ds.to_constructor_args(),
+                self.start_year,
+                self.end_year
             )
 
         callback_datasets = CBMSpecStepping(

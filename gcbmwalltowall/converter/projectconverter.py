@@ -195,7 +195,7 @@ class ProjectConverter:
                 )
 
                 parameter_preprocessor.ensure_timeseries_coverage(
-                    RasterIndexedDataset(**out_parameter_ds_config),
+                    out_parameter_ds_config,
                     cbm4_config["start_year"],
                     cbm4_config["end_year"],
                 )
