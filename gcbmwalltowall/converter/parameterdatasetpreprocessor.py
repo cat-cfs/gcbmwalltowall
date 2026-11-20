@@ -50,7 +50,7 @@ class ParameterDatasetPreprocessor:
         layers_by_timestep = self._get_layers_by_timestep(input_ds, attribute_tables)
         partitions = input_ds.get_partition_values()
         jobs = list(itertools.product(layers_by_timestep.items(), partitions))
-        max_workers = min(self._max_workers or multiprocessing.cpu_count(), len(jobs))
+        max_workers = min(self._max_workers or multiprocessing.cpu_count(), len(jobs) or 1)
         futures = []
         with ProcessPoolExecutor(
             max_workers, mp_context=multiprocessing.get_context("spawn")
@@ -62,11 +62,11 @@ class ParameterDatasetPreprocessor:
                     )
                 )
 
-        n_futures = len(futures)
-        i = 0
-        for _ in as_completed(futures):
-            i += 1
-            logging.info(f"  chunk {i} / {n_futures}")
+            n_futures = len(futures)
+            i = 0
+            for _ in as_completed(futures):
+                i += 1
+                logging.info(f"  chunk {i} / {n_futures}")
 
     def _preprocess_chunk(
         self,
@@ -160,7 +160,7 @@ class ParameterDatasetPreprocessor:
 
         chunk_indices = {p["chunk_index"] for p in parameter_ds.get_partition_values()}
         jobs = list(itertools.product(chunk_indices, fill_timesteps))
-        max_workers = min(self._max_workers or multiprocessing.cpu_count(), len(jobs))
+        max_workers = min(self._max_workers or multiprocessing.cpu_count(), len(jobs) or 1)
         futures = []
         with ProcessPoolExecutor(
             max_workers, mp_context=multiprocessing.get_context("spawn")
@@ -179,11 +179,11 @@ class ParameterDatasetPreprocessor:
                     )
                 )
 
-        n_futures = len(futures)
-        i = 0
-        for _ in as_completed(futures):
-            i += 1
-            logging.info(f"  chunk {i} / {n_futures}")
+            n_futures = len(futures)
+            i = 0
+            for _ in as_completed(futures):
+                i += 1
+                logging.info(f"  chunk {i} / {n_futures}")
 
     def _ensure_chunk_timeseries_coverage(
         self,

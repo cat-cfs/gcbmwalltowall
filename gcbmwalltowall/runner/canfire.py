@@ -35,12 +35,21 @@ def load_config(
         .get("canfire", dict())
     )
 
+    canfire_config_dir = Path(cbm4_config_path).parent
     if isinstance(canfire_config_source, str):
+        canfire_config_dir = Path(canfire_config_source).parent
         canfire_config = CanfireConfig.model_validate_json(
             Path(canfire_config_source).open("r").read()
         )
     else:
         canfire_config = CanfireConfig.model_validate(canfire_config_source)
+
+    if canfire_config.fuel_bed_rules:
+        fuel_bed_rules = str(
+            canfire_config_dir.joinpath(canfire_config.fuel_bed_rules).absolute()
+        )
+
+        canfire_config.fuel_bed_rules = fuel_bed_rules
 
     wrapped_cbmspec_model = (
         wrapped_cbmspec_model
