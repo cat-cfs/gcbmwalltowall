@@ -64,7 +64,11 @@ class RasterAttributeTable(AttributeTable):
     @property
     def _data(self) -> pd.DataFrame:
         if self._cached_data is None:
-            self._cached_data = load_csv(str(self.path)).replace(np.nan, None)
+            self._cached_data = load_csv(
+                str(self.path),
+                keep_default_na=False,
+                na_values=[""],
+            ).replace(np.nan, None)
 
         return self._cached_data.copy()
 
