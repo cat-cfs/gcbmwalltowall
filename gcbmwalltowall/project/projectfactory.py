@@ -21,6 +21,9 @@ class ProjectFactory:
         "values_path",
         "values_col",
         "yield_col",
+        "historic_values_path",
+        "historic_values_col",
+        "historic_yield_col",
         "extended_attribute_table",
     }
 
@@ -147,6 +150,7 @@ class ProjectFactory:
             config.resolve(require_not_null(config.get("yield_table"))),
             require_instance_of(config.get("yield_interval"), int),
             config.get("locale", "en-CA"),
+            config.resolve(config["historic_yield_table"]) if "historic_yield_table" in config else None,
         )
 
         return input_db
@@ -193,6 +197,11 @@ class ProjectFactory:
             ),
             classifier_details.get("values_col"),
             classifier_details.get("yield_col"),
+            config.resolve(
+                classifier_details.get("historic_values_path", config["historic_yield_table"])
+            ) if "historic_yield_table" in config else None,
+            classifier_details.get("historic_values_col"),
+            classifier_details.get("historic_yield_col"),
         )
 
     def _create_general_layers(self, config):

@@ -11,11 +11,14 @@ from gcbmwalltowall.util.encoding import load_csv
 
 class InputDatabase:
 
-    def __init__(self, aidb_path, yield_path, yield_interval, locale="en-CA"):
+    def __init__(
+        self, aidb_path, yield_path, yield_interval, locale="en-CA", historic_yield_path=None
+    ):
         self.aidb_path = Path(aidb_path).absolute()
         self.yield_path = Path(yield_path).absolute()
         self.yield_interval = yield_interval
         self.locale = locale
+        self.historic_yield_path = historic_yield_path
 
     def create(self, classifiers, output_path, transition_rules_path=None):
         output_path = Path(output_path).absolute()
@@ -58,6 +61,20 @@ class InputDatabase:
             },
             output_dir,
         )
+
+        if self.historic_yield_path:
+            increment_start_col, increment_end_col = self._find_increment_cols(historic=True)
+            input_db_config["features"]["historic_growth_curves"] = {
+                "path": self.historic_yield_path,
+                "interval": self.yield_interval,
+                "aidb_species_col": self._find_species_col(historic=True),
+                "increment_start_col": increment_start_col,
+                "increment_end_col": increment_end_col,
+                "classifier_cols": {
+                    c.name: self._find_classifier_col(c, historic=True)
+                    for c in classifiers
+                },
+            }
 
         if transition_rules_path and Path(transition_rules_path).exists():
             # gcbmwalltowall expects a specific naming convention for transition rules:
@@ -134,11 +151,11 @@ class InputDatabase:
 
             return dist_types
 
-    def _find_increment_cols(self):
+    def _find_increment_cols(self, historic=False):
         # Look for a run of at least 5 columns where the values are all numeric,
         # the first column's values are all zero, and the values in the final
         # column decline by no more than 50%.
-        yield_table = load_csv(self.yield_path)
+        yield_table = load_csv(self.historic_yield_path if historic else self.yield_path)
         yield_columns = yield_table.columns
         numeric_col_run = 0
         increment_start_col = -1
@@ -172,7 +189,7 @@ class InputDatabase:
 
         raise RuntimeError(f"Unable to find increment columns in {self.yield_path}")
 
-    def _find_species_col(self):
+    def _find_species_col(self, historic=False):
         with get_connection(self.aidb_path) as conn:
             if self.aidb_path.suffix == ".mdb":
                 species_types = {
@@ -202,7 +219,7 @@ class InputDatabase:
                     )
                 }
 
-        yield_table = load_csv(self.yield_path)
+        yield_table = load_csv(self.historic_yield_path if historic else self.yield_path)
         for col in yield_table.columns:
             yield_col_values = {str(v).lower() for v in yield_table[col].unique()}
             if yield_col_values.issubset(species_types):
@@ -213,18 +230,19 @@ class InputDatabase:
             f"matching AIDB: {self.aidb_path}"
         )
 
-    def _find_classifier_col(self, classifier):
+    def _find_classifier_col(self, classifier, historic=False):
         # Configured yield column number.
         if isinstance(classifier.yield_col, Number):
             return classifier.yield_col
 
         # Configured yield column name.
-        yield_table = load_csv(self.yield_path)
+        yield_path = self.historic_yield_path if historic else self.yield_path
+        yield_table = load_csv(yield_path)
         if classifier.yield_col:
             return yield_table.columns.get_loc(classifier.yield_col)
 
         # Classifier values come from yield table, classifier values column configured.
-        if classifier.values_path == self.yield_path:
+        if classifier.values_path == yield_path:
             if isinstance(classifier.values_col, Number):
                 return classifier.values_col
             elif classifier.values_col:
@@ -234,12 +252,19 @@ class InputDatabase:
         if classifier.name in yield_table.columns:
             return yield_table.columns.get_loc(classifier.name)
 
-        # Finally, see if there's a column in the yield table which is a subset
+        # See if there's a column in the yield table which is a subset
         # of all possible values for the classifier, excluding wildcards.
         classifier_values = {str(v) for v in classifier.values} - {"?"}
         for col in yield_table.columns:
             yield_column_values = {str(v) for v in yield_table[col].unique()} - {"?"}
-            if yield_column_values.issubset(classifier_values):
+            if yield_column_values and yield_column_values.issubset(classifier_values):
+                return yield_table.columns.get_loc(col)
+
+        # As a last resort, maybe this classifier is completely wildcarded. See
+        # if there's a column which is all wildcards.
+        for col in yield_table.columns:
+            yield_column_values = {str(v) for v in yield_table[col].unique()}
+            if yield_column_values == {"?"}:
                 return yield_table.columns.get_loc(col)
 
         # Finally, if this is a default (non-spatial/dummy) classifier, allow it to

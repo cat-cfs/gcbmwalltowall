@@ -38,14 +38,15 @@ def load_config(cbm4_config_path: str | pathlib.Path, **kwargs) -> dict[str, Any
             cache_config["cbm4_config_path"] = absolute_path
 
     for cbmspec_model_config in json_config.get("model_parameters", {}).values():
-        increment_table_rel_path = cbmspec_model_config.get("increment_table")
-        if increment_table_rel_path:
-            increment_table_abs_path = os.path.join(
-                os.path.dirname(cbm4_config_path),
-                increment_table_rel_path
-            )
+        for increment_table in ("increment_table", "historic_increment_table"):
+            increment_table_rel_path = cbmspec_model_config.get(increment_table)
+            if increment_table_rel_path:
+                increment_table_abs_path = os.path.join(
+                    os.path.dirname(cbm4_config_path),
+                    increment_table_rel_path
+                )
 
-            cbmspec_model_config["increment_table"] = increment_table_abs_path
+                cbmspec_model_config[increment_table] = increment_table_abs_path
 
     for param_ds_name in ("spinup_parameters", "step_parameters"):
         if param_ds_name not in json_config["cbm4_spatial_dataset"]:
@@ -135,6 +136,15 @@ def build_run(
     cbm_defaults = CBMDefaultsConfig(inventory_ds, locale)
     model_parameters = config.get("model_parameters", {})
     spinup_model, step_model = create_cbmspec_models(model_parameters, cbm_defaults)
+
+    if (
+        inventory_ds.dataset.table_exists("historic_yield")
+        and "historic_increment_table" not in spinup_model.config
+    ):
+        raise NotImplementedError(
+            "Detected a project with historic increments. "
+            "Please convert with --optimize_spinup."
+        )
 
     spinup = None
     cache = create_cache(config["cache"]) if "cache" in config else None

@@ -8,11 +8,18 @@ from gcbmwalltowall.util.encoding import load_csv
 
 class Classifier(Tileable):
 
-    def __init__(self, layer, values_path=None, values_col=None, yield_col=None):
+    def __init__(
+        self, layer,
+        values_path=None, values_col=None, yield_col=None,
+        historic_values_path=None, historic_values_col=None, historic_yield_col=None
+    ):
         self.layer = layer
         self.values_path = Path(values_path) if values_path else None
         self.values_col = values_col
         self.yield_col = yield_col
+        self.historic_values_path = Path(historic_values_path) if historic_values_path else None
+        self.historic_values_col = historic_values_col or values_col
+        self.historic_yield_col = historic_yield_col or yield_col
 
     @property
     def name(self):
@@ -24,6 +31,12 @@ class Classifier(Tileable):
         unique_values = set(
             load_csv(self.values_path).iloc[:, values_col_idx].unique()
         )
+
+        if self.historic_values_path:
+            historic_values_col_idx = self._find_values_col_index(historic=True)
+            unique_values = unique_values.union(
+                set(load_csv(self.historic_values_path).iloc[:, values_col_idx].unique())
+            )
 
         return unique_values
 
@@ -37,11 +50,11 @@ class Classifier(Tileable):
 
         return self.layer.to_tiler_layer(rule_manager, tags=["classifier"], **kwargs)
 
-    def _find_values_col_index(self):
+    def _find_values_col_index(self, historic=False):
         if isinstance(self.values_col, Number):
             return self.values_col
 
-        classifier_data = load_csv(self.values_path)
+        classifier_data = load_csv(self.historic_values_path if historic else self.values_path)
         if self.values_col:
             return classifier_data.columns.get_loc(self.values_col)
 
