@@ -234,16 +234,33 @@ class ProjectConverter:
     def _optimize_spinup(
         self, preprocess_config: dict, cbm_defaults_path: pathlib.Path, output_path: pathlib.Path
     ):
+        inventory_ds = RasterIndexedDataset(
+            preprocess_config["inventory_dataset"]["dataset_name"],
+            preprocess_config["inventory_dataset"]["storage_type"],
+            preprocess_config["inventory_dataset"]["path_or_uri"],
+        )
+
+        self._optimize_spinup_phase(preprocess_config, cbm_defaults_path, output_path)
+        if inventory_ds.table_exists("historic_yield"):
+            self._optimize_spinup_phase(preprocess_config, cbm_defaults_path, output_path, True)
+
+    def _optimize_spinup_phase(
+        self, preprocess_config: dict, cbm_defaults_path: pathlib.Path, output_path: pathlib.Path, historic: bool = False
+    ):
         # Transform the yields from wide to long format.
         inventory_ds = RasterIndexedDataset(
             preprocess_config["inventory_dataset"]["dataset_name"],
             preprocess_config["inventory_dataset"]["storage_type"],
             preprocess_config["inventory_dataset"]["path_or_uri"],
         )
-        yields = inventory_ds.read_table_pandas("yield")
+
+        yield_table = "historic_yield" if historic else "yield"
+        yields = inventory_ds.read_table_pandas(yield_table)
+        
         classifier_names = list(
             yields.columns[: list(yields.columns).index("species")]
         )
+
         inventory = inventory_ds.read_pandas()
 
         with TemporaryDirectory() as tmp:
@@ -260,6 +277,8 @@ class ProjectConverter:
             transformed_yields = transformed_yields[transformed_yields["state.age"] != "?"]
 
         # Generate gcid and assign to unique yields.
+        yield_gcid_col = "gcid"
+        inventory_gcid_col = "historic_gcid" if historic else "gcid"
         gcid_cols = [
             c for c in transformed_yields.columns if c.startswith("classifiers.")
         ]
@@ -267,30 +286,35 @@ class ProjectConverter:
         unique_gcids = (
             transformed_yields[gcid_cols].drop_duplicates().reset_index(drop=True)
         )
-        unique_gcids.insert(0, "gcid", unique_gcids.index + 1)
+        unique_gcids.insert(0, yield_gcid_col, unique_gcids.index + 1)
 
         transformed_yields = pd.merge(
             transformed_yields, unique_gcids, on=gcid_cols
         )
 
         # Write out the yield table for use with spinup only (stepping uses ordinary curves).
+        out_yield_path = output_path.joinpath(
+            f"{'historic_spinup_yields' if historic else 'spinup_yields'}.parquet"
+        )
+
         transformed_yields[
-            ["gcid", "state.age"] + [c for c in transformed_yields.columns if "increment" in c]
+            [yield_gcid_col, "state.age"]
+            + [c for c in transformed_yields.columns if "increment" in c]
         ].rename(
             columns={"state.age": "age"}
-        ).to_parquet(output_path.joinpath("spinup_yields.parquet"), index=False)
+        ).to_parquet(out_yield_path, index=False)
 
         # Match the initial inventory (spinup) state to the spinup gcids using the
         # same classifier set matching as the model.
         c_tree = ClassifierTree(
             unique_gcids.rename({c: c.split(".")[-1] for c in gcid_cols}, axis=1),
-            value_columns=["gcid"],
+            value_columns=[yield_gcid_col],
             classifier_columns=classifier_names,
             wildcards={c: "?" for c in classifier_names},
         )
 
         gcid_df = c_tree.find(inventory[classifier_names])
-        inventory["gcid"] = gcid_df
+        inventory[inventory_gcid_col] = gcid_df
 
         spinup_inventory_path = Path(preprocess_config["data_dir"]).joinpath("gcid_inventory")
         inventory_ds.copy(
@@ -308,7 +332,7 @@ class ProjectConverter:
         gcid_added_tags = pd.concat(
             [
                 spinup_inventory_ds.meta.get_tags(),
-                pd.DataFrame([{"layer_name": "gcid", "tag": "parameter"}]),
+                pd.DataFrame([{"layer_name": inventory_gcid_col, "tag": "parameter"}]),
             ]
         )
 
@@ -318,9 +342,14 @@ class ProjectConverter:
         with GCBMConfigurer.update_json_file(
             str(output_path.joinpath("cbm4_config.json"))
         ) as cbm4_config:
-            cbm4_config["model_parameters"] = {
-                "spinup": {"increment_table": "spinup_yields.parquet"}
-            }
+            increment_table_name = "historic_increment_table" if historic else "increment_table"
+            if "model_parameters" not in cbm4_config:
+                cbm4_config["model_parameters"] = {}
+
+            if "spinup" not in cbm4_config["model_parameters"]:
+                cbm4_config["model_parameters"]["spinup"] = {}
+
+            cbm4_config["model_parameters"]["spinup"][increment_table_name] = out_yield_path.name
 
         shutil.rmtree(preprocess_config["inventory_dataset"]["path_or_uri"])
         shutil.move(spinup_inventory_path, preprocess_config["inventory_dataset"]["path_or_uri"])
@@ -459,56 +488,82 @@ class ProjectConverter:
 
     def _convert_yields(self, project, output_path):
         with self._input_db_connection(project) as conn:
-            components = (
-                pd.read_sql(
-                    """
-                    SELECT
-                        gcc.id AS growth_curve_component_id, c.name AS classifier_name,
-                        cv.value AS classifier_value
-                    FROM growth_curve_component gcc
-                    INNER JOIN growth_curve_classifier_value gccv
-                        ON gcc.growth_curve_id = gccv.growth_curve_id
-                    INNER JOIN classifier_value cv
-                        ON gccv.classifier_value_id = cv.id
-                    INNER JOIN classifier c
-                        ON cv.classifier_id = c.id
-                    """,
-                    conn,
-                )
-                .pivot(index="growth_curve_component_id", columns="classifier_name")
-                .reset_index()
-                .set_index("growth_curve_component_id")
+            supports_historic_yields = (
+                "historic" in pd.read_sql("SELECT * FROM growth_curve LIMIT 1", conn).columns
             )
-            self._flatten_pivot_columns(components)
 
-            component_species = pd.read_sql(
-                """
-                SELECT gcc.id AS growth_curve_component_id, s.name AS species
-                FROM growth_curve_component gcc
-                INNER JOIN species s
-                    ON gcc.species_id = s.id
+            has_historic_yields = supports_historic_yields and (
+                len(pd.read_sql("SELECT DISTINCT historic FROM growth_curve", conn)) == 2
+            )
+
+            if has_historic_yields:
+                self._convert_period_yields(conn, project, output_path, True)
+                self._convert_period_yields(conn, project, output_path, False)
+            else:
+                self._convert_period_yields(conn, project, output_path)
+
+    def _convert_period_yields(self, conn, project, output_path, historic=None):
+        gc_filter = f"WHERE gc.historic IS {historic}" if historic is not None else ""
+        components = (
+            pd.read_sql(
+                f"""
+                SELECT
+                    gcc.id AS growth_curve_component_id, c.name AS classifier_name,
+                    cv.value AS classifier_value
+                FROM growth_curve gc
+                INNER JOIN growth_curve_component gcc
+                    ON gc.id = gcc.growth_curve_id
+                INNER JOIN growth_curve_classifier_value gccv
+                    ON gcc.growth_curve_id = gccv.growth_curve_id
+                INNER JOIN classifier_value cv
+                    ON gccv.classifier_value_id = cv.id
+                INNER JOIN classifier c
+                    ON cv.classifier_id = c.id
+                {gc_filter}
                 """,
                 conn,
-            ).set_index("growth_curve_component_id")
-
-            component_values = pd.read_sql(
-                """
-                SELECT gcc.id AS growth_curve_component_id, gcv.age, gcv.merchantable_volume
-                FROM growth_curve_component gcc
-                INNER JOIN growth_curve_component_value gcv
-                    ON gcc.id = gcv.growth_curve_component_id
-                """,
-                conn,
-            ).pivot(index="growth_curve_component_id", columns="age")
-            self._flatten_pivot_columns(component_values)
-
-            yield_output_path = output_path.joinpath("yield.csv")
-            yield_curves = (
-                components.join(component_species).join(component_values).reset_index()
             )
-            yield_curves.drop("growth_curve_component_id", axis=1).to_csv(
-                yield_output_path, index=False
-            )
+            .pivot(index="growth_curve_component_id", columns="classifier_name")
+            .reset_index()
+            .set_index("growth_curve_component_id")
+        )
+        self._flatten_pivot_columns(components)
+
+        component_species = pd.read_sql(
+            f"""
+            SELECT gcc.id AS growth_curve_component_id, s.name AS species
+            FROM growth_curve gc
+            INNER JOIN growth_curve_component gcc
+                ON gc.id = gcc.growth_curve_id
+            INNER JOIN species s
+                ON gcc.species_id = s.id
+            {gc_filter}
+            """,
+            conn,
+        ).set_index("growth_curve_component_id")
+
+        component_values = pd.read_sql(
+            """
+            SELECT gcc.id AS growth_curve_component_id, gcv.age, gcv.merchantable_volume
+            FROM growth_curve_component gcc
+            INNER JOIN growth_curve_component_value gcv
+                ON gcc.id = gcv.growth_curve_component_id
+            """,
+            conn,
+        ).pivot(index="growth_curve_component_id", columns="age")
+        self._flatten_pivot_columns(component_values)
+
+        yield_output_path = output_path.joinpath(
+            "historic_yield.csv" if historic else "yield.csv"
+        )
+
+        yield_curves = (
+            components.join(component_species).join(component_values).reset_index()
+        )
+        
+        yield_curves.drop("growth_curve_component_id", axis=1).to_csv(
+            yield_output_path, index=False
+        )
 
     def _get_transitions(self, project):
         with self._input_db_connection(project) as conn:
