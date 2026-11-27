@@ -1,4 +1,5 @@
 import duckdb
+import psutil
 import logging
 import itertools
 import multiprocessing
@@ -50,7 +51,11 @@ class ParameterDatasetPreprocessor:
         layers_by_timestep = self._get_layers_by_timestep(input_ds, attribute_tables)
         partitions = input_ds.get_partition_values()
         jobs = list(itertools.product(layers_by_timestep.items(), partitions))
-        max_workers = min(self._max_workers or multiprocessing.cpu_count(), len(jobs) or 1)
+        max_workers = max(
+            min(self._max_workers or int(psutil.virtual_memory().available / 4*1024**3), len(jobs) or 1),
+            1
+        )
+
         futures = []
         with ProcessPoolExecutor(
             max_workers, mp_context=multiprocessing.get_context("spawn")

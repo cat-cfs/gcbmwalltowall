@@ -159,6 +159,7 @@ class CBMSpecStepping:
             ParameterDatasetPreprocessor(
                 YearOffsetTimestepInterpreter(self.start_year - 1),
                 str(self.cbm_defaults.path),
+                max_workers=step_kwargs.get("max_workers"),
             ).ensure_timeseries_coverage(
                 working_parameter_ds.to_constructor_args(),
                 self.start_year,

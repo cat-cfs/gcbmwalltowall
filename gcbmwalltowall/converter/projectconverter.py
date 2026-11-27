@@ -177,6 +177,7 @@ class ProjectConverter:
                         )
                     ),
                     cbm_defaults_path,
+                    max_workers=self._creation_options.get("max_workers"),
                 )
 
                 out_parameter_ds_config = {
